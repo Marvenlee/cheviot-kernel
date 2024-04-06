@@ -1,0 +1,14 @@
+*.o
+*.elf
+*.exe
+*.img
+boot/*
+*.Po
+*.dirstamp
+**/autom4te.cache/
+autom4te.cache/
+build/*
+dump.txt
+log.txt
+minicom.cap
+
