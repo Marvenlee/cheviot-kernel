@@ -52,27 +52,19 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
     pa_bits |= L2_AP_RKU;     // read-only kernel & user
   }
 
-
-// FIXME: Removed setting pmap cache, bufferable PTE bits
-
-#if 0
   if ((flags & PROT_EXEC) != PROT_EXEC) {
-    // FIXME: Support no-execute handling of none PROT_EXEC memory
-    // This is commented out as (current?) build configuration of arm-none-eabi GCC/LD
-    // placed code and data within same page.
-    
-    // pa_bits |= L2_NX;
+    pa_bits |= L2_NX;
   }
 
   if ((flags & MEM_MASK) == MEM_ALLOC) {
     if ((flags & CACHE_MASK) == CACHE_DEFAULT)
-      pa_bits |= L2_B | L2_C;
-    else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
-      pa_bits |= L2_B | L2_C;
-    else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)     // can IO be write-thru?
       pa_bits |= L2_C;
+    else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
+      pa_bits |= 0; // L2_B | L2_C;
+    else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
+      pa_bits |= 0; // L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITECOMBINE)
-      pa_bits |= L2_B;
+      pa_bits |= 0; // L2_B;
     else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
@@ -83,17 +75,16 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
     if ((flags & CACHE_MASK) == CACHE_DEFAULT)
       pa_bits |= 0;
     else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
-      pa_bits |= L2_B | L2_C;
+      pa_bits |= 0; // L2_B | L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
-      pa_bits |= L2_C;
+      pa_bits |= 0; // L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITECOMBINE)
-      pa_bits |= L2_B;
+      pa_bits |= 0; // L2_B;
     else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
       pa_bits |= 0;
   }
-#endif
 
   return pa_bits;
 }
@@ -114,12 +105,6 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
-#if 1
-	if (va >= 0x0001C000 && va <= 0x00028000) {
-		Info ("pmap_enter(va:%08x, pa:%08x, flags:%08x)", va, pa, flags);
-	}
-#endif
-	
   if (va == 0) {
     return -EFAULT;
   }
@@ -159,12 +144,6 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
   
   vpte->flags = flags;
   pt[pte_idx] = pa | pa_bits;
-
-#if 1
-	if (va >= 0x0001C000 && va <= 0x00028000) {
-		Info ("pmap_enter(va:%08x, pte:%08x, vpte->flgs:%08x)", va, pt[pte_idx], vpte->flags);
-	}
-#endif
 		      
 	// TODO: Need IPI once we add or remove pmap entries
 	hal_dsb();
@@ -195,14 +174,8 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
-
-#if 1
-	if (va >= 0x0001C000 && va <= 0x00028000) {
-		Info ("pmap_remove(va:%08x)", va);
-	}
-#endif
-	
   // TODO : Check user base user ceiling
+
   if (va == 0) {
     return -EFAULT;
   }
@@ -269,12 +242,6 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, bits32_t flags)
   uint32_t pa_bits;
   vm_addr pa;
 
-#if 1
-	if (va >= 0x0001C000 && va <= 0x00028000) {
-		Info ("pmap_protect(va:%08x, flags:%08x)", va, flags);
-	}
-#endif
-	
   pmap = &as->pmap;
 
   if (va == 0) {
@@ -343,8 +310,6 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
   vpte = vpte_base + pte_idx;
   current_paddr = pt[pte_idx] & L2_ADDR_MASK;
 
-//  Info("..pt[%d] = %08x", pte_idx, pt[pte_idx]);
-
   if ((pt[pte_idx] & L2_TYPE_MASK) == L2_TYPE_INV) {
     return -1;
   }
@@ -390,7 +355,6 @@ bool pmap_is_page_present(struct AddressSpace *as, vm_addr addr)
 		if (addr >= 0x0001C000 && addr <= 0x00028000) {
 	  	Error("page table not present addr:%08x, pde_idx=%d", addr, pde_idx);
 		}
-
   	
     return false;
   } else {
@@ -400,20 +364,8 @@ bool pmap_is_page_present(struct AddressSpace *as, vm_addr addr)
     pte_idx = (addr & L2_ADDR_BITS) >> L2_IDX_SHIFT;
 
     if ((pt[pte_idx] & L2_TYPE_MASK) != L2_TYPE_INV) {
-
-			if (addr >= 0x0001C000 && addr <= 0x00028000) {
-				Error("pt entry addr:%08x, pte_idx=%d", addr, pte_idx);
-		  	Error("pt=%08x, pte=%08x", (uint32_t)pt, (uint32_t)pt[pte_idx]);
-			}
-
-      return true; 
-
+      return true;
     } else {
-			if (addr >= 0x0001C000 && addr <= 0x00028000) {
-				Error("pt entry not present addr:%08x, pte_idx=%d", addr, pte_idx);
-		  	Error("pt=%08x, pte=%08x", (uint32_t)pt, (uint32_t)pt[pte_idx]);
-			}
-
       return false;
     }
   }
@@ -429,17 +381,23 @@ uint32_t *pmap_alloc_pagetable(void)
   int t;
   uint32_t *pt;
   struct Pageframe *pf;
+  struct PmapVPTE *vpte;
+  struct PmapVPTE *vpte_base;
 
   if ((pf = alloc_pageframe(VPAGETABLE_SZ)) == NULL) {
     return NULL;
   }
   
   pt = (uint32_t *)pmap_pf_to_va(pf);
+  vpte_base = (struct PmapVPTE *)((uint8_t *)pt + VPTE_TABLE_OFFS);
 
-	memset(pt, 0, VPAGETABLE_SZ);
-	
   for (t = 0; t < 256; t++) {
     *(pt + t) = L2_TYPE_INV;
+
+    vpte = vpte_base + t;
+    vpte->link.next = NULL;
+    vpte->link.prev = NULL;
+    vpte->flags = 0;
   }
 
   return pt;
@@ -485,8 +443,6 @@ int pmap_create(struct AddressSpace *as)
 
   pd = (uint32_t *)pmap_pf_to_va(pf);
 
-  Info ("pmap_create(as:%08x, pd:%08x", (uint32_t)as,(uint32_t)pd);
-
   for (t = 0; t < 2048; t++) {
     *(pd + t) = L1_TYPE_INV;
   }
@@ -496,6 +452,7 @@ int pmap_create(struct AddressSpace *as)
   }
 
   as->pmap.l1_table = pd;
+
   return 0;
 }
 
@@ -597,25 +554,21 @@ void pmap_flush_tlbs(void)
  */
 void pmap_switch(struct Process *next, struct Process *current)
 {
-	/* Assign new user's page dir to TTBR0 register */
+  /* Assign new user's page dir to TTBR0 register */
+  uint32_t va, pa, flags;
 
-	hal_dsb();
-	hal_isb();
+  hal_dsb();
+  hal_isb();
 
-#if 0
-// Why does this work but below doesn't ?
-  hal_set_ttbr0((void *)(pmap_va_to_pa(root_pagedir) /* | TTBR_CACHE_CONF */));
-#else
   hal_set_ttbr0((pmap_va_to_pa((vm_addr)next->as.pmap.l1_table)));
-#endif
-	
-	hal_isb();
-	hal_invalidate_tlb();
+
+  hal_isb();
+  hal_invalidate_tlb();
   hal_invalidate_branch();
   hal_invalidate_icache();  
 
-	hal_dsb();
-	hal_isb();
+  hal_dsb();
+  hal_isb();
 }
 
 
@@ -637,12 +590,10 @@ int pmap_cache_enter(vm_addr addr, vm_addr paddr)
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
-	Info("pmap_cache_enter(addr:%08x, paddr:%08x", addr, paddr);
-
   pa_bits = L2_TYPE_S;
   pa_bits |= L2_AP_RWK;   // read/write kernel-only
-//  pa_bits |= L2_NX;
-//  pa_bits |= L2_B | L2_C;
+  // pa_bits |= L2_NX;
+  pa_bits |= L2_C;  // FIXME: Add  L2_B to pa_bits
 
   pde_idx = (addr & L1_ADDR_BITS) >> L1_IDX_SHIFT;
 
@@ -752,8 +703,5 @@ int pmap_interprocess_copy(struct AddressSpace *dst_as, void *dst,
   // TODO: Copy between processes, handle unmapped pages.
   return -ENOTSUP;
 }
-
-
-
 
 

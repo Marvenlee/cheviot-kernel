@@ -419,6 +419,8 @@ StrLenUserCatch:
  * the next task's register state it resumes at the point of where it would be returning
  * from it's call to SetContext. To avoid an infinite loop, we make SetContext return 1 to
  * indicate we now have the new task's context and avoid calling GetContext.
+ *
+ * TODO: Save FPU Floating Point register state
  */
 SetContext:
 	str	r1, [r0,#4]
@@ -454,6 +456,8 @@ SetContext:
  *
  * This is different from the MSWIPopRegs and MSWIExceptionPopRegs in macros.i
  * that pop registers on exit from a sytem call, exception or interrupt.
+ *
+ * TODO: Restore FPU Floating Point register state
  */
 GetContext:
 	ldr	r1, [r0,#4]
