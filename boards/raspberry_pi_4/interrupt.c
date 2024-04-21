@@ -65,43 +65,51 @@ void init_gicv2_distributor(void)
   uint32_t type;
   uint32_t cpumask;
   uint32_t gic_cpus;
-  unsigned int nr_lines;
+  uint32_t nr_lines;
 
-  cpumask = hal_mmio_read(&gic_dist_regs->targets[0]) & 0xff;
+  cpumask = hal_mmio_read(&gic_dist_regs->targets[0]) & 0xFF;
   cpumask |= cpumask << 8;
   cpumask |= cpumask << 16;
 
   type = hal_mmio_read(&gic_dist_regs->ic_type);
-  nr_lines = 32 * ((type & GICD_TYPE_LINES) + 1);
+  nr_lines = 32 * ((type & GICD_TYPE_LINES) + 1);  
   gic_cpus = 1 + ((type & GICD_TYPE_CPUS) >> 5);
 
   Info("GIC cpumask = %08x", cpumask);
   Info("GIC type = 0x%08x, %d dec", type, type);   
   Info("GIC cpu_if_ident = %08x", hal_mmio_read(&gic_cpu_iface_regs->cpu_if_ident));
-  Info("GIC nr_lines: %d", nr_lines);
-  Info("GIC cpus = %d", gic_cpus);
+  Info("GIC nr_lines: %d, NIRQ: %d", nr_lines, NIRQ);
+  Info("GIC cpus = %d", gic_cpus);  
+
+  KASSERT(nr_lines >= NIRQ);
+
+  /* Disable global interrupts */
+  for (int i = 32; i < nr_lines; i += 32 ) {
+    hal_mmio_write(&gic_dist_regs->enable_clr[i / 32], 0xFFFFFFFF);
+    hal_mmio_write(&gic_dist_regs->pending_clr[i / 32], 0xFFFFFFFF);
+  }
+
+  /* Set interrupts to group 0 */
+  for (int i = 32; i < NIRQ; i += 32 ) {
+    hal_mmio_write(&gic_dist_regs->group[i / 32], 0x00000000);
+  }
 
   /* Default all global IRQs to level, active low */
-  for (int i = 32; i < nr_lines; i += 16 ) {
-    hal_mmio_write(&gic_dist_regs->config[i / 16], 0x0);
+  for (int i = 32; i < NIRQ; i += 16 ) {
+    hal_mmio_write(&gic_dist_regs->config[i / 16], 0x00000000);
   }
 
   /* Route all global IRQs to this CPU */
-  for (int i = 32; i < nr_lines; i += 4 ) {
+  for (int i = 32; i < NIRQ; i += 4 ) {
     hal_mmio_write(&gic_dist_regs->targets[i / 4], 0x01010101); // FIXME: use cpumask
   }
   
   /* Default priority for global interrupts */
-  for (int i = 32; i < nr_lines; i += 4 ) {
+  for (int i = 32; i < NIRQ; i += 4 ) {
     hal_mmio_write(&gic_dist_regs->priority[i / 4],
                    GIC_PRI_IRQ << 24 | GIC_PRI_IRQ << 16 | GIC_PRI_IRQ << 8 | GIC_PRI_IRQ);
   }
   
-  /* Disable global interrupts */
-  for (int i = 32; i < nr_lines; i += 32 ) {
-    hal_mmio_write(&gic_dist_regs->enable_clr[i / 32], ~0x0);
-  }
-
   /* Turn on the distributor */
   hal_mmio_write(&gic_dist_regs->enable, GICD_CTL_ENABLE);
 }
@@ -111,11 +119,10 @@ void init_gicv2_distributor(void)
  */
 void init_gicv2_cpu_iface(void)
 {
-  /* GIC Distributor per CPU */
-    
-  hal_mmio_write(&gic_dist_regs->active[0], 0xffffffffU);
-  hal_mmio_write(&gic_dist_regs->enable_set[0], 0x0000ffffU);
-  hal_mmio_write(&gic_dist_regs->enable_clr[0], 0xffff0000U);
+  /* GIC Distributor per CPU */    
+  hal_mmio_write(&gic_dist_regs->active[0], 0xFFFFFFFF);
+  hal_mmio_write(&gic_dist_regs->enable_set[0], 0x0000FFFF);
+  hal_mmio_write(&gic_dist_regs->enable_clr[0], 0xFFFF0000);
   
   /* Set SGI priorities */
   for (int i = 0; i < 16; i += 4 ) {
@@ -132,7 +139,7 @@ void init_gicv2_cpu_iface(void)
   /* GIC CPU interface controller */
   
   /* Do not mask based on interrupt priority */  
-  hal_mmio_write(&gic_cpu_iface_regs->pri_msk_c, 0xff);
+  hal_mmio_write(&gic_cpu_iface_regs->pri_msk_c, 0xFF);
 
   /* Finest granularity of priority */
   hal_mmio_write(&gic_cpu_iface_regs->pb_c, 0x0);
@@ -146,14 +153,13 @@ void init_gicv2_cpu_iface(void)
  *
  * Called from irq_vector in vectors.S.
  *
- * FIXME: We shouldn't need to lock the BKL lock in an interrupt.
- * We do however need to know if we're returning to kernel space
- * or user space in order to decide if we call CheckSignals(). 
+ * TODO: Move calls to KernelLock into assembler language wrappers.
+ * TODO: Make KernelLock a recursive, counting lock for cleaner handling 
  */
 void interrupt_handler(struct UserContext *context)
 {
   bool unlock = false;
-  
+
   if (bkl_locked == false) {
     KernelLock();
     unlock = true;
@@ -163,8 +169,7 @@ void interrupt_handler(struct UserContext *context)
 
   if (unlock == true) {
     KernelUnlock();
-    // FIXME: Check for pending signals before returning.
-    // CheckSignals(context);
+    CheckSignals(context);
   }
 }
 
@@ -174,7 +179,6 @@ void interrupt_handler(struct UserContext *context)
  */
 void interrupt_top_half(void)
 {
-  struct ISRHandler *isr_handler;
   struct Process *current;
   
   current = get_current_process();
@@ -183,36 +187,19 @@ void interrupt_top_half(void)
   uint32_t irq = irq_ack_reg & 0x3FF;
 
   if (irq == IRQ_SPURIOUS) {
+    clear_pending_interrupt(irq_ack_reg);
     return;
   }
   
   if (irq == IRQ_TIMER3) {
     clear_pending_interrupt(irq_ack_reg);
-
     interrupt_top_half_timer();
-
   } else {
+    irq_mask_cnt[irq]++;
+    disable_irq(irq);
+
     clear_pending_interrupt(irq_ack_reg);
-
-    Info ("\n*** INTERRUPT :%d ***\n", irq);
-
-    isr_handler = LIST_HEAD(&isr_handler_list[irq]);
-
-    while (isr_handler != NULL) {        
-      if (isr_handler->isr_callback != NULL) {            
-        if (isr_handler->isr_callback == NULL) {
-          interruptapi_mask_interrupt(irq);
-          interruptapi_knotei(&interrupt_api, NOTE_INT);
-        } else {
-          pmap_switch(isr_handler->isr_process, current);                
-          interrupt_api.context = isr_handler;
-          isr_handler->isr_callback(irq, &interrupt_api);
-          pmap_switch(current, isr_handler->isr_process);
-        }
-      }
-
-      isr_handler = LIST_NEXT(isr_handler, isr_handler_entry);
-    }
+    interrupt_server_broadcast_event(irq);
   }
 }
 
@@ -244,6 +231,7 @@ void disable_irq(int irq)
 {
   uint32_t n = irq / 32;
   uint32_t offset = irq % 32;
+
   hal_mmio_write(&gic_dist_regs->enable_clr[n], (1 << offset));
 }
 

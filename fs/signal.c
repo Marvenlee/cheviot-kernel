@@ -29,7 +29,7 @@
 
 /* @brief   Send a signal to processes with a particular open file
  *
- * @param   fd, file handle of the mount point created by sys_mount()
+ * @param   portid, file descriptor of the mount point created by sys_mount()
  * @param   ino, inode number of file whose processes with it open shall receive signal
  * @param   signal, signal to raise
  *
@@ -42,7 +42,7 @@
  * This may change to only support character devices, the "ino" parameter will
  * then be deprecated.
  */
-int sys_signalnotify(int fd, int ino, int signal)
+int sys_signalnotify(int portid, int ino, int signal)
 {
   return -ENOSYS;
 }

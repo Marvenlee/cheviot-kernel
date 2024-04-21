@@ -41,9 +41,9 @@
  */
 void init_io_addresses(void)
 {
-  timer_regs = bootinfo->timer_base;
-  gpio_regs  = bootinfo->gpio_base;
-  aux_regs   = bootinfo->aux_base;  
+  timer_regs = (struct bcm2711_timer_registers *)bootinfo->timer_base;
+  gpio_regs  = (struct bcm2711_gpio_registers *)bootinfo->gpio_base;
+  aux_regs   = (struct bcm2711_aux_registers *)bootinfo->aux_base;  
 
 	hal_set_mbox_base(bootinfo->mailbox_base);  
 	

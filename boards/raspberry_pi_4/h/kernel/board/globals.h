@@ -60,8 +60,6 @@ extern bits32_t mask_interrupts[3];
 extern bits32_t pending_interrupts[3];
 extern uint32_t *vector_table;
 
-extern struct InterruptAPI interrupt_api;
-
 extern struct bcm2711_timer_registers *timer_regs;
 extern struct bcm2711_gpio_registers *gpio_regs;
 extern struct bcm2711_aux_registers *aux_regs;

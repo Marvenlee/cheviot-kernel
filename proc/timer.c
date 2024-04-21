@@ -218,13 +218,13 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   }
   
   // TODO:  spin_nanosleep() for IO processes that need to sleep for less than 10ms
-//  if ((current->flags & PROCF_ALLOW_IO)) {
+  if (io_allowed(current)) {
     if (req.tv_sec == 0 && req.tv_nsec < 10000000) {
       if (arch_spin_nanosleep(&req) == 0) {
 	      return 0;
 	    }
     }
-//  }
+  }
       
   timer = &current->sleep_timer;  
   timer->process = current;
@@ -322,6 +322,8 @@ uint64_t get_hardclock(void)
 void TimerTopHalf(void)
 {
   int_state_t int_state;
+  
+  KASSERT(max_cpu == 1);
   
   for (int t = 0; t < max_cpu; t++) {
     if (cpu_table[t].current_process != NULL) {

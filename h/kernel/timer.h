@@ -14,10 +14,15 @@ struct Timer;
 LIST_TYPE(Timer, timer_list_t, timer_list_link_t);
 
 // Timer configuration
+#if 1
 #define JIFFIES_PER_SECOND      100ll
 #define MICROSECONDS_PER_JIFFY  10000ll
 #define NANOSECONDS_PER_JIFFY   10000000ll
-
+#else
+#define JIFFIES_PER_SECOND      10ll
+#define MICROSECONDS_PER_JIFFY  100000ll
+#define NANOSECONDS_PER_JIFFY   100000000ll
+#endif
 
 /*
  * Timer

@@ -344,13 +344,17 @@ struct Process *AllocProcess(void) {
   proc->pid = pid;
   proc->parent = current;
   proc->state = PROC_STATE_INIT;
+  proc->blocking_rendez = NULL;
   proc->exit_status = 0;
+  
   proc->flags = 0;
+  
   proc->log_level = current->log_level;
   proc->quanta_used = 0;
   proc->sched_policy = current->sched_policy;
   proc->priority = current->priority;
   proc->desired_priority = current->desired_priority;
+  proc->pending_events = 0;
   
   // FIXME: SigInit(proc);
   init_msgport(&proc->reply_port);
@@ -362,6 +366,18 @@ struct Process *AllocProcess(void) {
   return proc;
 }
 
+
+/*
+ *
+ */
+bool io_allowed(struct Process *proc)
+{
+  if (proc->uid == 0 || proc->uid == 1 || proc->gid == 0 | proc->gid == 1) {
+    return true;
+  } else {
+    return false;
+  }
+}
  
 /* @brief   Free a process structure
  *

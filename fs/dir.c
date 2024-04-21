@@ -38,6 +38,8 @@ int sys_chdir(char *_path)
   struct Process *current;
   struct lookupdata ld;
   int err;
+  
+  Info("sys_chdir()");
 
   current = get_current_process();
 

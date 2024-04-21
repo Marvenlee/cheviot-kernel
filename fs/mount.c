@@ -26,7 +26,7 @@
 #include <string.h>
 #include <sys/mount.h>
 
-/* @brief   Create a node on a filesystem
+/* @brief   Create a node on a file system that can be mounted onto
  */ 
 int sys_mknod(char *_path, uint32_t flags, struct stat *_stat)
 {
@@ -87,11 +87,13 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   current = get_current_process();
 
   if (CopyIn(&stat, _stat, sizeof stat) != 0) {
+    Error("createmsgport copyin failed _stat :%08x", (uint32_t)_stat);
     return -EFAULT;
   }
 
   if (root_vnode != NULL) {
     if ((error = lookup(_path, 0, &ld)) != 0) {
+      Error("createmsgport lookup failed");
       return error;
     }
 
@@ -99,6 +101,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
 
     if (vnode_covered == NULL) {
       error = -ENOENT;
+      Error("createmsgport vnode_covered == NULL");
       goto exit;
     }
 
@@ -106,6 +109,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
         || (S_ISCHR(stat.st_mode) && S_ISCHR(vnode_covered->mode))
         || (S_ISBLK(stat.st_mode) && S_ISBLK(vnode_covered->mode)))) {
       errno = -EINVAL;
+      Error("createmsgport invalid mount mode");
+
       goto exit;
     }
     
@@ -115,6 +120,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
 
     if (vnode_covered->vnode_covered != NULL) {
       error = -EEXIST;
+      Error("createmsgport already mount point");
+
       goto exit;
     }
 
@@ -126,6 +133,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   fd = alloc_fd_superblock(current);
   
   if (fd < 0) {
+    Error("createmsgport failed to alloc file descriptor");
+
     error = -ENOMEM;
     goto exit;
   }
@@ -135,6 +144,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   mount_root_vnode = vnode_new(sb, stat.st_ino);
 
   if (mount_root_vnode == NULL) {
+    Error("createmsgport failed to alloc vnode");
+
     error = -ENOMEM;
     goto exit;    
   }
@@ -181,7 +192,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
 
   if (root_vnode == NULL) {
     root_vnode = mount_root_vnode;
-    Info ("set root_vnode to: %08x", (uint32_t)root_vnode);
+    Info("set root_vnode to: %08x", (uint32_t)root_vnode);
   }    
   
   if (vnode_covered != NULL) {
@@ -226,8 +237,6 @@ int sys_renamemsgport(char *_new_path, char *_old_path)
   struct VNode *covered_vnode;
   int error;
   
-  Info("sys_renamemsgport");
-  
   if ((error = lookup(_new_path, 0, &ld)) != 0) {
     Error("Failed to find new path");
     goto exit;
@@ -258,8 +267,6 @@ int sys_renamemsgport(char *_new_path, char *_old_path)
 	  vnode_inc_ref(covered_vnode);
 	  vnode_put(old_vnode);
 	  old_vnode = covered_vnode;
-	  
-
   }
   
   // Only support directories?
@@ -274,17 +281,20 @@ int sys_renamemsgport(char *_new_path, char *_old_path)
 
   vnode_put (old_vnode);   // release 
   vnode_put (new_vnode);   // release
-
-  Info("sys_movemount DONE");
   return 0;
   
 exit:
+  Error("renamemsgport failed: %d", error);
   return error;
 }
 
 
 /* @brief   Pivot the root directory
  *
+ * TODO: Check these are directories (ROOT ones)
+ * TODO: Acquire old_root first, as this may be subdir of new root
+ * and would cause deadlock due to new_root's busy flag being set.
+ * Unless we unlock it (but it remains in memory due to ref cnt
  */
 int sys_pivotroot(char *_new_root, char *_old_root)
 {
@@ -294,11 +304,6 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   struct VNode *current_root_vnode;
   int sc;
 
-  Info("sys_pivotroot");
-  // TODO: Check these are directories (ROOT ones)
-	// TODO: Acquire old_root first, as this may be subdir of new root
-	// and would cause deadlock due to new_root's busy flag being set.
-	// Unless we unlock it (but it remains in memory due to ref cnt
 	
   if ((sc = lookup(_old_root, 0, &ld)) != 0) {
     Error("PivotRoot lookup _old_root failed");
@@ -339,9 +344,6 @@ int sys_pivotroot(char *_new_root, char *_old_root)
 //  dname_purge_all();     FIXME:
   vnode_put (old_root_vnode);
   vnode_put (new_root_vnode);
-
-  Info("sys_pivotroot DONE");
-  
   return 0;
 }
 

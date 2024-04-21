@@ -67,7 +67,7 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   struct timespec timeout;
   bool timeout_valid = false;
   bool timedout = false;
-  int sc;
+  int sc = 0;
   
   Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
   
@@ -150,16 +150,17 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   if (nevents > 0 && eventlist != NULL) {
     while (LIST_HEAD(&kqueue->pending_list) == NULL) {
       if (timeout_valid == true) {
-        if (TaskTimedSleep(&kqueue->event_rendez, &timeout) != 0) {
-          timedout = true;
-          break;         
+        if ((sc = TaskTimedSleep(&kqueue->event_rendez, &timeout)) != 0) {
+          break;
         }        
       } else {
-        TaskSleep(&kqueue->event_rendez);
+        if ((sc = TaskSleepInterruptible(&kqueue->event_rendez)) != 0) {
+          break;
+        }
       }      
     }
     
-    if (timedout == false) {
+    if (sc == 0) {
       while (nevents_returned < nevents) {
         knote = LIST_HEAD(&kqueue->pending_list);
               
@@ -192,9 +193,10 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
 
   kqueue->busy = false;
   TaskWakeup(&kqueue->busy_rendez);  
-  
-  if (timedout) {
-    return -ETIMEDOUT;
+
+  if (sc != 0) {
+    Info("..sys_event error:%d", sc);
+    return sc;
   }
   
   Info("..sys_event ret:%d", nevents_returned);

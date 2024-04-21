@@ -354,6 +354,32 @@ int sys_sendrec(int fd, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV
   return -ENOSYS;
 }
 
+
+/*
+ *
+ */
+/*
+int sys_getmsgportinfo(int fd, struct msgportinfo *_mpinfo)
+{
+  struct msgportinfo mpinfo;
+
+  current = get_current_process();  
+  sb = get_superblock(current, fd);
+  
+  if (sb == NULL) {
+    return -EINVAL;
+  }
+  
+  msgport = &sb->msgport;
+  
+  mpinfo->aborted_msgid_set = msgport->aborted_msgid_set;
+
+  msgport->aborted_msgid_set = 0;
+
+  CopyOut(_mpinfo, &mpinfo, sizeof mpinfo);
+  return 0;
+}
+*/
  
 /* @brief   Send a message to a message port and wait for a reply.
  *
@@ -364,6 +390,7 @@ int ksendmsg(struct MsgPort *msgport, int siov_cnt, struct IOV *siov, int riov_c
 {
   struct Process *current;
   struct Msg msg;
+	int sc;
 	
   current = get_current_process();
       
@@ -375,7 +402,23 @@ int ksendmsg(struct MsgPort *msgport, int siov_cnt, struct IOV *siov, int riov_c
   msg.reply_status = 0;
      
   kputmsg(msgport, &msg);   
-  kwaitport(&current->reply_port, NULL);  
+  sc = kwaitport(&current->reply_port, NULL);
+
+  if (sc != 0) {
+    // FIXME: Do something with sc
+    // msg->abort = true
+    // Remove message and msgid, mark bit in msginfo->aborted_msgid_set (saved in msgport)  
+    // Find server process or thread in it
+    // send SIGABRT
+    // 
+    // sys_getmsg returns -EABORT if there are aborted messages left.  Cannot assign message to msgid
+    // while there are aborted messages?  Needs sys_getmsgportinfo(portid, &info) to clear aborted message bits.
+    // 
+    // 
+  
+    return sc;
+  }
+  
   kgetmsg(&current->reply_port);
 	
   return msg.reply_status;
@@ -452,12 +495,20 @@ struct Msg *kpeekmsg(struct MsgPort *msgport)
  */
 int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
 {
-  while (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+  int sc;
+  
+  if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
     if (timeout == NULL) {
-      TaskSleep(&msgport->rendez);
+      if (( sc = TaskSleepInterruptible(&msgport->rendez)) != 0) {
+        if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+          return sc;
+        }
+      }
     } else {    
-      if (TaskTimedSleep(&msgport->rendez, timeout) == -ETIMEDOUT) {
-        return -ETIMEDOUT;  
+      if ((sc = TaskTimedSleep(&msgport->rendez, timeout)) != 0) {
+        if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+          return sc;
+        }
       }
     }
   }
@@ -596,7 +647,6 @@ int seekiov(int iov_cnt, struct IOV *iov, off_t offset, int *i, size_t *iov_rema
   
   // FIXME: We may not have an riov (riov) can be null
 
-  
   for (*i = 0; *i < iov_cnt; (*i)++) {
     if (offset >= base_offset && offset < base_offset + iov[*i].size) {
       *iov_remaining = base_offset + iov[*i].size - offset;

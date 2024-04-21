@@ -27,23 +27,20 @@ struct ISRHandler
   int flags;
   int reference_cnt;
   struct Process *isr_process;
-  void (*isr_callback)(int irq, struct InterruptAPI *api);
-
-  bool pending_dpc;             // Offloaded onto DPC task and currently on its pending list
-  isr_handler_link_t pending_isr_dpc_link;
+  int thread_id;
+  int event;
   
   knote_list_t knote_list;      // List of knotes waiting on this ISR.
 };
 
 
-
 // Prototypes
-int sys_createinterrupt(int irq, void (*callback)(int irq, struct InterruptAPI *api));
+int sys_knoteinterruptserver(int fd);
+int sys_addinterruptserver(int irq, int thread_id, int event);
 int sys_maskinterrupt(int irq);
 int sys_unmaskinterrupt(int irq);
-int interruptapi_mask_interrupt(int irq);
-int interruptapi_unmask_interrupt(int irq);
-int interruptapi_knotei(struct InterruptAPI *api, int hint);
+
+int interrupt_server_broadcast_event(int irq);
 
 int close_isrhandler(struct Process *proc, int fd);
 struct ISRHandler *get_isrhandler(struct Process *proc, int fd);
@@ -51,7 +48,7 @@ int alloc_fd_isrhandler(struct Process *proc);
 int free_fd_isrhandler(struct Process *proc, int fd);
 struct ISRHandler *alloc_isrhandler(void);
 void free_isrhandler(struct ISRHandler *isrhandler);
-void interrupt_dpc(void);
+
 
 // HAL Board Specific Functions
 void enable_irq(int irq);

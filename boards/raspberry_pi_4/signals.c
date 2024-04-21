@@ -35,7 +35,7 @@
 /*
  * SigReturn();
  */
-void SigReturn (struct sigframe *u_sigframe)
+void sys_sigreturn(struct sigframe *u_sigframe)
 {
 	struct sigframe sigframe;
 	struct Process *current;
@@ -107,11 +107,13 @@ void CheckSignals(struct UserContext *uc)
 	int sig;
 	struct Process *current;
 
-  // FIXME: We ignore signals for now.
-  return;
-	
-	
 	current = get_current_process();
+
+#if 1
+  // FIXME: We ignore signals for now.
+  current->signal.sig_pending = 0;
+  return;
+#endif	
 	
 	sync_signals = current->signal.sig_pending & SYNCSIGMASK;
 

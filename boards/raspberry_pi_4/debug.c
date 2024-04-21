@@ -113,18 +113,14 @@ void DoLog(const char *format, ...)
   	current = get_current_process();
     Snprintf(&klog_entry[0], KLOG_WIDTH, "%4d: %s:", GetPid(), current->basename);
 	  KPrintString(&klog_entry[0]);
-        
-    Vsnprintf(&klog_entry[0], KLOG_WIDTH, format, ap);
-	  KPrintString(&klog_entry[0]);
-    
-    KPrintString("\n");
-    
-    
   } else {
-    Vsnprintf(&klog_entry[0], KLOG_WIDTH, format, ap);
+	  KPrintString("----:");  
   }
-
-
+          
+  Vsnprintf(&klog_entry[0], KLOG_WIDTH, format, ap);
+  KPrintString(&klog_entry[0]);    
+  KPrintString("\n");
+  
   va_end(ap);
 }
 

@@ -60,12 +60,9 @@ int irq_mask_cnt[NIRQ];
 int irq_handler_cnt[NIRQ];
 isr_handler_list_t isr_handler_list[NIRQ];
 
-struct Process *interrupt_dpc_process;
 int max_isr_handler;
 struct ISRHandler *isr_handler_table;
 isr_handler_list_t isr_handler_free_list;
-struct Rendez interrupt_dpc_rendez;
-isr_handler_list_t pending_isr_dpc_list;
 
 
 /*

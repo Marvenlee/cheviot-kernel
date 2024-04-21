@@ -41,7 +41,7 @@ struct bcm2711_gic_dist_registers
     uint32_t priority[255];         /* [0x400, 0x7FC) */
     uint32_t res3;                  /* 0x7FC */
 
-    uint32_t targets[255];            /* [0x800, 0xBFC) */
+    uint32_t targets[255];          /* [0x800, 0xBFC) */
     uint32_t res4;                  /* 0xBFC */
 
     uint32_t config[64];             /* [0xC00, 0xD00) */

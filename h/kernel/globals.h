@@ -15,7 +15,6 @@
 
 extern struct Process *root_process;
 extern struct Process *timer_process;
-extern struct Process *interrupt_dpc_process;
 
 /*
  * Memory
@@ -48,9 +47,6 @@ extern superblock_list_t free_superblock_list;
  * Interrupt
  */
 extern int nirq;
-extern struct Rendez interrupt_dpc_rendez;
-extern isr_handler_list_t pending_isr_dpc_list;
-
 extern int irq_mask_cnt[NIRQ];
 extern int irq_handler_cnt[NIRQ];
 extern isr_handler_list_t isr_handler_list[NIRQ];

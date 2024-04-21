@@ -80,6 +80,7 @@ init_stack_top:
 
 .section .text
 
+
 /* @brief   Entry point into the kernel
  *
  * A pointer to a bootinfo structure is passed in r0 by the bootloader.
@@ -217,13 +218,13 @@ SpinUnlockIRQRestore:
 
 
 
-// @brief   Copy data from a user-space buffer into a kernel buffer
-//
-// @param   dst, destination pointer in kernel space
-// @param   src, source pointer in user space
-// @param   sz, size of buffer to copy
-// @return  0 on success, -1 on error
-// 
+/* @brief   Copy data from a user-space buffer into a kernel buffer
+ *
+ * @param   dst, destination pointer in kernel space
+ * @param   src, source pointer in user space
+ * @param   sz, size of buffer to copy
+ * @return  0 on success, -1 on error
+ */ 
 CopyIn:
     push {r0-r1}
     MGetCurrentProcess r0
@@ -248,13 +249,13 @@ CopyInCatch:
     bx lr
 
 
-// @brief   Copy a string from user-space into a kernel buffer
-//
-// @param   dst, address of buffer in kernel space to copy string to 
-// @param   src, address of string in user space to copy from
-// @param   sz, size of destination buffer
-// @return  0 on success, -1 on error
-//
+/* @brief   Copy a string from user-space into a kernel buffer
+ *
+ * @param   dst, address of buffer in kernel space to copy string to 
+ * @param   src, address of string in user space to copy from
+ * @param   sz, size of destination buffer
+ * @return  0 on success, -1 on error
+ */
 CopyInString:
     push {r0-r1}
     MGetCurrentProcess r0
@@ -287,13 +288,13 @@ CopyInStringCatch:
     bx lr
 
 
-// @brief   Copy data from a kernel buffer into a user-space buffer
-//
-// @param   dst, destination pointer in user space
-// @param   src, source pointer in kernel space
-// @param   sz, size of buffer to copy
-// @return  0 on success, -1 on error
-// 
+/* @brief   Copy data from a kernel buffer into a user-space buffer
+ *
+ * @param   dst, destination pointer in user space
+ * @param   src, source pointer in kernel space
+ * @param   sz, size of buffer to copy
+ * @return  0 on success, -1 on error
+ */ 
 CopyOut:
     push {r0-r1}
     MGetCurrentProcess r0
@@ -318,9 +319,9 @@ CopyOutCatch:
     bx lr
 
 
-# ****************************************************************************
-# CopyUserString
-
+/* @brief   Copy a string from kernel to user-space
+ *
+ */
 CopyUserString:
     push {r0-r1}
     MGetCurrentProcess r0
@@ -353,10 +354,16 @@ CopyUserStringCatch:
     bx lr
 
 
-# ****************************************************************************
-# len = StrLenUser (str, MAX_LEN);
-# r0 = str, r1 = MAX_LEN;
-
+/* @brief   Measure the length of a string in user-space
+ *
+ * FIXME: Not returning length of string.
+ * 
+ * @param   str, string to measure in user-space
+ * @param   max_len,  maximum length of string to determine length of
+ * @return  length of string or negative errno on error or page fault.
+ *
+ * Note: The string can be modified or corrupted by other threads in user-space.
+ */
 StrLenUser:
     push {r0-r1}
     MGetCurrentProcess r0
@@ -390,13 +397,29 @@ StrLenUserCatch:
     bx lr
 
 
-// @brief   Save register context to memory
-//
-// @param   context, pointer to 60 byte buffer containing the register context
-//
-// Saves the current register context to a buffer. This is used by the Reschedule() 
-// function in proc/sched.c to switch tasks.
-//
+/* @brief   Save register context to memory
+ *
+ * @param   context, pointer to 60 byte buffer containing the register context
+ * @return  0 on calling GetContext, 1 when GetContext is called and returns from this.
+ *
+ * Saves the current register context to a buffer. This is used by the Reschedule() 
+ * function in proc/sched.c to switch tasks.
+ *
+ * This is different from the MSWIPushRegs and MSWIExceptionPushRegs in macros.i
+ * that push registers on entry to a sytem call, exception or interrupt.
+ *
+ * SetContext and GetContext is called in the following way:
+ *
+ * if (SetContext(&context[0]) == 0) {
+ *   GetContext(next->context);
+ * }
+ *
+ * The current thread calls SetContext to save the register state. It returns 0 to indicate
+ * it should call GetContext to get the next task's register state. When GetContext reloads
+ * the next task's register state it resumes at the point of where it would be returning
+ * from it's call to SetContext. To avoid an infinite loop, we make SetContext return 1 to
+ * indicate we now have the new task's context and avoid calling GetContext.
+ */
 SetContext:
 	str	r1, [r0,#4]
 	str	r2, [r0,#8]
@@ -420,13 +443,18 @@ SetContext:
 	mov	pc, lr
 
 
-// @brief   Load register context from memory
-//
-// @param   context, pointer to 60 byte buffer containing the register context
-//
-// Switches to a previously stored context. This is used by the Reschedule() 
-// function in proc/sched.c to switch tasks.
-//
+/* @brief   Load register context from memory
+ *
+ * @param   context, pointer to 60 byte buffer containing the register context
+ *
+ * Switches to a previously stored context stored by SetContext. This is used by
+ * the Reschedule() function in proc/sched.c to switch tasks.  The code resumes
+ * with the new task's register context at the point it returns from SetContext,
+ * except SetContext will this time return 1.
+ *
+ * This is different from the MSWIPopRegs and MSWIExceptionPopRegs in macros.i
+ * that pop registers on exit from a sytem call, exception or interrupt.
+ */
 GetContext:
 	ldr	r1, [r0,#4]
 	ldr	r2, [r0,#8]

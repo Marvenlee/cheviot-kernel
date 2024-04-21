@@ -67,6 +67,7 @@ void init_processes(void)
 
   for (int t = 0; t < NIRQ; t++) {
     LIST_INIT(&isr_handler_list[t]);
+    irq_handler_cnt[t]=0;
   }
 
   for (int t = 0; t < 32; t++) {
@@ -110,13 +111,6 @@ void init_processes(void)
       create_process(TimerBottomHalf, SCHED_RR, 31, PROCF_KERNEL, "timer", &cpu_table[0]);
 
   Info("timer process created, pid:%d", GetProcessPid(timer_process));
-
-#if 0 
-  interrupt_dpc_process =
-      create_process(interrupt_dpc, SCHED_RR, 30, PROCF_KERNEL, &cpu_table[0]);
-
-  Info("interrupt dpc process created");
-#endif
 
   // Can we not schedule a no-op bit of code if no processes running?
   // Do we really need an idle task in separate address-space ? 
@@ -189,8 +183,10 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   proc->parent = NULL;
   proc->in_use = true;  
   proc->state = PROC_STATE_INIT;
+  proc->blocking_rendez = NULL;
   proc->exit_status = 0;
   proc->log_level = 5;
+  proc->pending_events = 0;
 
   Info ("init_msgport(proc->reply_port)");
   

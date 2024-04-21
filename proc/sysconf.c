@@ -27,13 +27,13 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/arch.h>
-#include <kernel/fs.h>
 #include <unistd.h>
 
 /*
  *
  */
-int sys_sysconf(int name)
+int sys_sysconf(void)
 {
+	return -ENOSYS;
 }
 

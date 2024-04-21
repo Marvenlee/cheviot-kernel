@@ -151,14 +151,10 @@ void *sys_virtualallocphys(void *_addr, size_t len, bits32_t flags,
   len = ALIGN_UP(len, PAGE_SIZE);
   flags = (flags & ~VM_SYSTEM_MASK) | MEM_PHYS;
   
-  /* Replace with superuser uid 0 and gid 0 and gid 1.
-    if (IsIOAllowed())
-
-        if (!(current->flags & PROCF_ALLOW_IO))
-    {
-        return 0;
-    }
-*/
+  if (!io_allowed(current)) {
+    return 0;
+  }
+  
   addr = segment_create(as, addr, len, SEG_TYPE_PHYS, flags);
 
   if (addr == (vm_addr)NULL) {

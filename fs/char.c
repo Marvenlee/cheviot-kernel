@@ -43,6 +43,22 @@
  * This code limits the sending of 1 write, 1 read and 1 command at a time.
  *
  * TODO: Need to handle non-blocking reads and writes
+ *
+ * TODO: Needs to be signal/event interruptible for character device reads, writes and ioctls
+ *
+ * How ?
+ *
+ * Send an ioctl-like third-man message to abort any reads or writes.  There should
+ * only be a single reader and/or single writer blocked in char device. The rest
+ * are blocked in here and can be aborted.
+ *
+ * OR
+ *
+ * Send a signal to the server SIGIOABORT ? to abort ALL current IO operations.
+ * or split intio SIGIOABORT_READ, SIGIOABORT_WRITE and SIGIOABORT_IOCTL ?
+ *
+ * or send SIGIOABORT and have a getmsgportqueueinfo() to return which msgids to abort? 
+ *
  */
 ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 {
@@ -56,7 +72,9 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   current = get_current_process();
   
   while (vnode->reader_cnt != 0) {
-    TaskSleep(&vnode->rendez);
+    if (TaskSleepInterruptible(&vnode->rendez) != 0) {
+      return -EINTR;
+    }    
   }
 
   vnode->reader_cnt = 1;
@@ -95,7 +113,9 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   current = get_current_process();
 
   while (vnode->writer_cnt != 0) {
-    TaskSleep(&vnode->rendez);
+    if (TaskSleepInterruptible(&vnode->rendez) != 0) {
+      return -EINTR;
+    }    
   }
 
   vnode->writer_cnt = 1;

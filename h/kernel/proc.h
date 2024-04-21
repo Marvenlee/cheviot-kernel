@@ -91,6 +91,8 @@ struct Process {
   void *context;
 
   int state;              // Process state
+  bool in_use;            // Process slot is in use, remove when dynamically allocating process
+  bits32_t flags;         // Permissions and features of a process
 
   process_cqlink_t sched_entry; // real-time run-queue
   int sched_policy;
@@ -100,26 +102,27 @@ struct Process {
     
   struct Process *parent;
 
-  struct Rendez *sleeping_on;
+  struct Rendez *blocking_rendez;
+
+//  struct Rendez *sleeping_on;
   process_link_t blocked_link;
 
   struct AddressSpace as;
   
   struct Rendez rendez;
+    
   struct Timer sleep_timer;
   struct Timer timeout_timer;
   bool timeout_expired;
   struct Timer alarm;
   struct MsgPort reply_port;
 
-  bits32_t flags;
-  bool in_use;            // Process slot is in use, remove when dynamically allocating process
-  bool eintr;
-  
   int log_level;
-	char basename[PROC_BASENAME_SZ];
-  
-  struct Signal signal;
+	char basename[PROC_BASENAME_SZ];   // FIXME: Update code to use basename instead of full path
+
+  bool eintr;             // Indicate a process was awakened by a signal or event
+  struct Signal signal;   // FIXME: Require array of signals
+  uint32_t pending_events;
 
   int exit_status;        // Exit() error code
   process_list_t child_list;
@@ -134,7 +137,7 @@ struct Process {
   int pgrp;
   int sid;
   
-  struct FProcess *fproc;  
+  struct FProcess *fproc;     // Process's file descriptor table
 };
 
 
@@ -152,6 +155,7 @@ void FreeProcess(struct Process *proc);
 struct Process *GetProcess(int pid);
 int GetProcessPid(struct Process *proc);
 int GetPid(void);
+bool io_allowed(struct Process *proc);
 
 // proc/sched.c
 void SchedLock(void);
@@ -163,14 +167,23 @@ void SchedUnready(struct Process *proc);
 
 void InitRendez(struct Rendez *rendez);
 void TaskSleep(struct Rendez *rendez);
+int TaskSleepInterruptible(struct Rendez *rendez);
 int TaskTimedSleep(struct Rendez *rendez, struct timespec *ts);
 void TaskWakeup(struct Rendez *rendez);
 void TaskWakeupAll(struct Rendez *rendez);
 void TaskWakeupFromISR(struct Rendez *rendez);
+void TaskWakeupSpecific(struct Process *proc);
+int TaskCheckPendingEventsAndSignals(struct Process *proc);
 
 void KernelLock(void);
 void KernelUnlock(void);
 bool IsKernelLocked(void);
+
+
+// proc/thread_events.c
+uint32_t sys_thread_wait_events(uint32_t event_mask);
+int sys_thread_signal_event(int thread_id, int event);
+int isr_thread_signal_event(int thread_id, int event);
 
 
 // Architecture-specific

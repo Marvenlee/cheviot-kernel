@@ -17,7 +17,6 @@ kernel_SOURCES += \
   boards/raspberry_pi_4/pmap.c          \
   boards/raspberry_pi_4/proc.c          \
   boards/raspberry_pi_4/signals.c       \
-  boards/raspberry_pi_4/syscall_trace.c \
   boards/raspberry_pi_4/timer.c         \
   boards/raspberry_pi_4/vectors.S
   

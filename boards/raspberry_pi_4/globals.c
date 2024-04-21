@@ -52,14 +52,6 @@ bits32_t mask_interrupts[3];
 bits32_t pending_interrupts[3];
 uint32_t *vector_table;
 
-struct InterruptAPI interrupt_api = 
-{
-  .EventNotifyFromISR = interruptapi_knotei,
-  .MaskInterrupt = interruptapi_mask_interrupt,
-  .UnmaskInterrupt = interruptapi_unmask_interrupt,
-  .context = NULL
-};
-
 
 /*
  * Peripheral addresses

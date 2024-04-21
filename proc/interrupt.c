@@ -1,4 +1,3 @@
-#define KDEBUG
 /*
  * Copyright 2014  Marven Gilhespie
  *
@@ -20,7 +19,8 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-//#include <kernel/board/globals.h>
+#define KDEBUG 1
+
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -29,53 +29,93 @@
 #include <kernel/types.h>
 
 
-/*
- * Creates and adds an interrupt handler notification object for the
- * specified IRQ. Interrupt handler returns the event handle that will
- * be raised when an interrupt occurs.
+/* @brief   Raise an kevent on an interrupt's file descriptor
  *
- * Need to check if process is part of device_driver group
+ * @param   fd, file descriptor to raise a kevent for
+ * @return  0 on success, negative errno on failure
+ *
+ * The purpose of this system call is to be able to wake up a
+ * main thread waiting on an interrupt file descriptor using kqueue.
+ * A separate "bottom-half" thread dedicated to handling interrupts
+ * waits on events sent from the interrupt handler. If an interrupt
+ * thread needs to wake up the main thread, for example, to notify
+ * that an operation has completed, it can call knotei() to do so.
+ *
+ * TODO: Can we make this more generic for other objects?
+ * Or can we replace with events interrupting kevent() ?
+ *
  */
-int sys_createinterrupt(int irq, void (*callback)(int irq, struct InterruptAPI *api))
+int sys_knoteinterruptserver(int fd)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Registers an interrupt notification server
+ *
+ * @param   irq, interrupt number
+ * @param   thread_id, thread to send an event to on interrupt occuring
+ * @param   event, event bit to send to thread
+ * @return  file descriptor or negative errno on error
+ *
+ * Upon the interrupt occuring the thread with the specified thread_id
+ * is notified of the event. If the target thread is calling kqueue, then
+ * -EINTR is returned.  If the target thread is waiting on this event
+ * with thread_event_wait() then the target thread is awakened.
+ *
+ * On creation of an interrupt server, the interrupt is placed in a masked
+ * state. If this is a shared interrupt and is currently unmasked then
+ * it will become masked.  For shared interrupts the caller of should 
+ * unmask interrupts quickly to avoid starving the other users of the
+ * interrupt.
+ */
+int sys_addinterruptserver(int irq, int thread_id, int event)
 {
   struct Process *current;
   struct ISRHandler *isrhandler;
   int fd;
-  
+  int_state_t int_state;
+    
   current = get_current_process();
 
+  if (!io_allowed(current)) {
+    return -EPERM;
+  }
+
   if (irq < 0 || irq > NIRQ) {
+    Error("irq out of range");
     return -EINVAL;
   }
   
   fd = alloc_fd_isrhandler(current);
   
   if (fd < 0) {
+    Error("failed to alloc fd_isrhandler");  
     return -ENOMEM;
   }
   
   isrhandler = get_isrhandler(current, fd);
 
   isrhandler->isr_irq = irq;
-  isrhandler->isr_callback = callback;
+  isrhandler->thread_id = thread_id;
+  isrhandler->event = event;
   isrhandler->isr_process = current;
-  isrhandler->pending_dpc = false;
   
-  DisableInterrupts();
+  int_state = DisableInterrupts();
   
   LIST_ADD_TAIL(&isr_handler_list[irq], isrhandler,
                 isr_handler_entry);
 
-  // Convert to list empty test
-//  if (irq_handler_cnt[irq] == 0) {
-    sys_unmaskinterrupt(irq);
-//  }
-
-  irq_handler_cnt[irq]++;
-  EnableInterrupts();  
+  irq_handler_cnt[irq]++;    
+  irq_mask_cnt[irq]++;
+  
+  if (irq_mask_cnt > 0) {
+    disable_irq(irq);
+  }
+  
+  RestoreInterrupts(int_state);
   return fd;
 }
-
 
 
 /* @brief   Mask an IRQ.
@@ -83,32 +123,27 @@ int sys_createinterrupt(int irq, void (*callback)(int irq, struct InterruptAPI *
  */
 int sys_maskinterrupt(int irq)
 {
-#if 0
+  int_state_t int_state;
   struct Process *current;
 
   current = get_current_process();
-
-  if (!(current->flags & PROCF_ALLOW_IO)) {
+  if (!io_allowed(current)) {
     return -EPERM;
   }
-#endif
 
   if (irq < 0 || irq >= NIRQ) {
     return -EINVAL;
   }
 
-  DisableInterrupts();
+  int_state = DisableInterrupts();
 
-  if (irq_mask_cnt[irq] < 0x80000000) {
-    irq_mask_cnt[irq]++;
-  }
+  irq_mask_cnt[irq]++;
   
   if (irq_mask_cnt[irq] > 0) {
     disable_irq(irq);
   }
 
-  EnableInterrupts();
-
+  RestoreInterrupts(int_state);
   return irq_mask_cnt[irq];
 }
 
@@ -118,21 +153,20 @@ int sys_maskinterrupt(int irq)
  */
 int sys_unmaskinterrupt(int irq)
 {
-#if 0
+  int_state_t int_state;  
   struct Process *current;
 
   current = get_current_process();
 
-  if (!(current->flags & PROCF_ALLOW_IO)) {
+  if (!io_allowed(current)) {
     return -EPERM;
   }
-#endif
 
   if (irq < 0 || irq >= NIRQ) {
     return -EINVAL;
   }
 
-  DisableInterrupts();
+  int_state = DisableInterrupts();
 
   if (irq_mask_cnt[irq] > 0) {
     irq_mask_cnt[irq]--;
@@ -140,63 +174,29 @@ int sys_unmaskinterrupt(int irq)
   
   if (irq_mask_cnt[irq] == 0) {
     enable_irq(irq);
+  } else {
+    disable_irq(irq);  
   }
 
-  EnableInterrupts();
-
+  RestoreInterrupts(int_state);
   return irq_mask_cnt[irq];
 }
 
 
-/* @brief   Masks an IRQ from an ISR.
- *
- * The mask_interrupt function pointer in struct InterruptAPI points to
- * this function.
- *
- * NOTE: This will be replaced by a system call once we have interrupt
- * handlers running in user-mode.
+/* @brief   Send events to "bottom-half" threads in device drivers.
  */
-int interruptapi_mask_interrupt(int irq)
+int interrupt_server_broadcast_event(int irq)
 {
-  if (irq < 0 || irq >= NIRQ) {
-    return -EINVAL;
+  struct ISRHandler *isr_handler;
+
+  isr_handler = LIST_HEAD(&isr_handler_list[irq]);
+
+  while (isr_handler != NULL) {        
+    isr_thread_event_signal(isr_handler->thread_id, isr_handler->event);
+    isr_handler = LIST_NEXT(isr_handler, isr_handler_entry);
   }
 
-  if (irq_mask_cnt[irq] < 0x80000000) {
-    irq_mask_cnt[irq]++;
-  }
-  
-  if (irq_mask_cnt[irq] > 0) {
-    disable_irq(irq);
-  }
-
-  return irq_mask_cnt[irq];
-}
-
-
-/* @brief   Unmasks an IRQ from an ISR
- * 
- * The unmask_interrupt function pointer in struct InterruptAPI points to
- * this function.
- *
- * NOTE: This will be replaced by a system call once we have interrupt
- * handlers running in user-mode.
- */
-int interruptapi_unmask_interrupt(int irq)
-{
-  if (irq < 0 || irq >= NIRQ) {
-    return -EINVAL;
-  }
-
-  if (irq_mask_cnt[irq] > 0) {
-    irq_mask_cnt[irq]--;
-  }
-  
-  if (irq_mask_cnt[irq] == 0) {
-    enable_irq(irq);
-  }
-  
-  return irq_mask_cnt[irq];
+  return 0;
 }
 
 
@@ -210,6 +210,7 @@ int close_isrhandler(struct Process *proc, int fd)
 {
   struct ISRHandler *isrhandler;
   int irq;
+  int_state_t int_state;
   
   isrhandler = get_isrhandler(proc, fd);
   
@@ -219,17 +220,17 @@ int close_isrhandler(struct Process *proc, int fd)
 
   irq = isrhandler->isr_irq;
 
-  DisableInterrupts();
+  int_state = DisableInterrupts();
 
   LIST_REM_ENTRY(&isr_handler_list[irq], isrhandler, isr_handler_entry);
   irq_handler_cnt[irq]--;
 
-  if (irq_handler_cnt[irq] == 0)
-  {
-    sys_maskinterrupt(irq);
+  if (irq_handler_cnt[irq] == 0) {
+    irq_mask_cnt[irq] = 0;
+    disable_irq(irq);
   }
 
-  EnableInterrupts();
+  RestoreInterrupts(int_state);
 
   free_fd_isrhandler(proc, fd);
   return 0;
@@ -337,56 +338,4 @@ void free_isrhandler(struct ISRHandler *isrhandler)
   }
 }
 
-/* @brief   Put a knote on a kqueue's pending list from an interrupt handler
- *
- * struct InterruptAPI should have a context pointer, to point to allocated interrupt struct
- * This will have the knote list
- *
- * Going to need spinlocks or interrupts disabled around parts of adding entry to pending queue
- * and checking if item already pending 
- *
- * Also removal (and perhaps disable) of knotes (and underlying interrupt_handler) will need
- * to be careful that an interrupt isn't already in-flight.
- *
- * FIXME: Do we defer this onto high-priority DPC task, the same as timers?
- *
- * Move into interrupt.c, rename isr_postprocessing()
- * Add isr_dpc_task in interrupt.c, call knote_isr_dpc()
- */
-int interruptapi_knotei(struct InterruptAPI *api, int hint)
-{
-  struct ISRHandler *isr_handler = api->context;
-  
-  if (isr_handler->pending_dpc == false) {
-    LIST_ADD_TAIL(&pending_isr_dpc_list, isr_handler, pending_isr_dpc_link);
-    isr_handler->pending_dpc = true;
-  }
-  
-  TaskWakeupFromISR(&interrupt_dpc_rendez);
-  return 0;
-}
-
-
-/* @brief  Defer processing of interrupt kqueue events onto high priority task.
- *
- */
-void interrupt_dpc(void)
-{
-  struct ISRHandler *isr_handler;
-  int_state_t int_state;
-
-  while(1) {
-    int_state = DisableInterrupts();
-   
-    while((isr_handler = LIST_HEAD(&pending_isr_dpc_list)) == NULL) {    
-      TaskSleep(&interrupt_dpc_rendez);
-    }
-    
-    LIST_REM_HEAD(&pending_isr_dpc_list, pending_isr_dpc_link);
-    isr_handler->pending_dpc = false;
-    RestoreInterrupts(int_state);
-    
-    knote(&isr_handler->knote_list, NOTE_MSG);
-  }
-}
 

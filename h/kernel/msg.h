@@ -69,6 +69,7 @@ struct MsgPort
 /*
  * Prototypes
  */
+int sys_knotei(int fd, int ino_nr, long hint);
 int sys_sendrec(int fd, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV *riov);
 int sys_getmsg(int server_fd, msgid_t *msgid, void *buf, size_t buf_sz);
 int sys_replymsg(int server_fd, msgid_t msgid, int status, void *buf, size_t buf_sz);
