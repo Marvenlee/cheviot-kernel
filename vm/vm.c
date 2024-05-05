@@ -51,7 +51,9 @@ vm_addr sys_virtualtophysaddr(vm_addr addr)
   as = &current->as;
   va = ALIGN_DOWN(addr, PAGE_SIZE);
  
-  // TODO: Check if current process has I/O privileges 
+  if (!io_allowed(current)) {
+    return NULL;
+  }
  
   if (pmap_is_page_present(as, va) == false) {
     return (vm_addr)NULL;
