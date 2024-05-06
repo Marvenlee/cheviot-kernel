@@ -58,7 +58,7 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
 
   if ((flags & MEM_MASK) == MEM_ALLOC) {
     if ((flags & CACHE_MASK) == CACHE_DEFAULT)
-      pa_bits |= L2_C;
+      pa_bits |= L2_C; // FIXME: | L2_S | L2_B;  
     else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
       pa_bits |= 0; // L2_B | L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
@@ -68,7 +68,7 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
     else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
-      pa_bits |= L2_B | L2_C;
+      pa_bits |= L2_C; // | L2_S;// | L2_B;
   }
 
   if ((flags & MEM_MASK) == MEM_PHYS) {
@@ -87,6 +87,20 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
   }
 
   return pa_bits;
+}
+
+
+void pmap_write(uint32_t *addr, uint32_t data)
+{
+  hal_mmio_write(addr, data);
+  hal_flush_dcache(addr, addr + 1);
+  hal_dsb();
+  hal_invalidate_tlb();
+//  hal_invalidate_tlb_va(data & 0xFFFFF000);  // This should still work for L1
+  hal_invalidate_icache();
+  hal_invalidate_branch();
+  hal_dsb();
+  hal_isb();
 }
 
 
@@ -120,7 +134,9 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
     }
 
     phys_pt = (uint32_t *)pmap_va_to_pa((vm_addr)pt);
-    pmap->l1_table[pde_idx] = (uint32_t)phys_pt | L1_TYPE_C;
+    
+    // pmap->l1_table[pde_idx] = (uint32_t)phys_pt | L1_TYPE_C;    
+    pmap_write(&pmap->l1_table[pde_idx], (uint32_t)phys_pt | L1_TYPE_C);
   } else {
     phys_pt = (uint32_t *)(pmap->l1_table[pde_idx] & L1_C_ADDR_MASK);
     pt = (uint32_t *)pmap_pa_to_va((vm_addr)phys_pt);
@@ -143,15 +159,8 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
   }
   
   vpte->flags = flags;
-  pt[pte_idx] = pa | pa_bits;
-		      
-	// TODO: Need IPI once we add or remove pmap entries
-	hal_dsb();
-	hal_invalidate_tlb_va(va & 0xFFFFF000);
-  hal_invalidate_branch();
-  hal_invalidate_icache();
-  hal_dsb();
-  hal_isb();
+  
+	pmap_write(&pt[pte_idx], pa | pa_bits);
 
   ptpf = pmap_va_to_pf((vm_addr)pt);
   ptpf->reference_cnt++;
@@ -207,23 +216,16 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
   }
 
   vpte->flags = 0;
-  pt[pte_idx] = L2_TYPE_INV;
+  
+  pmap_write(&pt[pte_idx], L2_TYPE_INV);
 
   ptpf = pmap_va_to_pf((vm_addr)pt);
   ptpf->reference_cnt--;
 
   if (ptpf->reference_cnt == 0) {
-    pmap_free_pagetable(pt);
-    pmap->l1_table[pde_idx] = L1_TYPE_INV;
+    pmap_free_pagetable(pt);    
+    pmap_write(&pmap->l1_table[pde_idx], L1_TYPE_INV);
   }
-
-	// TODO: Need IPI once we add or remove pmap entries
-	hal_dsb();
-	hal_invalidate_tlb_va(va & 0xFFFFF000);
-  hal_invalidate_branch();
-  hal_invalidate_icache();
-  hal_dsb();
-  hal_isb();
 
   return 0;
 }
@@ -270,14 +272,8 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, bits32_t flags)
 
   vpte->flags = flags;
   pa_bits = pmap_calc_pa_bits(vpte->flags);
-  pt[pte_idx] = pa | pa_bits;
 
-	hal_dsb();
-	hal_invalidate_tlb_va(va & 0xFFFFF000);
-  hal_invalidate_branch();
-  hal_invalidate_icache();
-  hal_dsb();
-  hal_isb();
+	pmap_write(&pt[pte_idx], pa | pa_bits);
 
   return 0;
 }
