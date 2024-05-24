@@ -48,8 +48,6 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   size_t name_sz;
   int sc;
 
-//  Info("vfs_lookup(dvn:%08x, name: %s)",(uint32_t)dvnode, name);
-
   KASSERT(dvnode != NULL);
   KASSERT(name != NULL);
   KASSERT(result != NULL);  
@@ -77,13 +75,10 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   sc = ksendmsg(&sb->msgport, NELEM(siov), siov, NELEM(riov), riov);
 
   if (sc != 0) {
-    Info("ksendmsg failed, sc:%d", sc);
+    Error("vfs_lookup failed, sc:%d", sc);
     *result = NULL;
     return sc;
   }
-  
-//  Info("vfs_lookup reply, inode_nr=%d", reply.args.lookup.inode_nr);
-//  Info("vfs_lookup reply, size = %d", (uint32_t)reply.args.lookup.size);
   
   if (reply.args.lookup.inode_nr == dvnode->inode_nr) {
     vnode_inc_ref(dvnode);
@@ -109,7 +104,6 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode->flags = V_VALID;
   } 
 
-//  Info("vfs_lookup result: vnode:%08x, ino:%d", (uint32_t)vnode, vnode->inode_nr);
   *result = vnode;
   return 0;
 }
@@ -130,8 +124,6 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   struct IOV riov[1];
   size_t name_sz;
   int sc;
-
-  Info("vfs_create(dvn:%08x, name: %s)",(uint32_t)dvnode, name);
 
   KASSERT(dvnode != NULL);
   KASSERT(name != NULL);
@@ -164,17 +156,15 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   sc = ksendmsg(&sb->msgport, NELEM(siov), siov, NELEM(riov), riov);
 
   if (sc != 0) {
-    Info("vfs_create: ksendmsg failed, sc:%d", sc);
+    Error("vfs_create failed, sc:%d", sc);
     *result = NULL;
     return sc;
   }
   
-  Info("vfs_create reply, inode_nr=%d", reply.args.create.inode_nr);
-
   vnode = vnode_new(sb, reply.args.create.inode_nr);
 
   if (vnode == NULL) {
-    Info("vfs_create, vnode_new -ENOMEM");
+    Error("vfs_create, vnode_new -ENOMEM");
     return -ENOMEM;
   }
 
@@ -186,7 +176,6 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   vnode->mode = reply.args.create.mode;
   vnode->flags = V_VALID;
 
-  Info("vfs_create result: vnode:%08x, ino:%d", (uint32_t)vnode, vnode->inode_nr);
   *result = vnode;
   return 0;
 }
@@ -226,7 +215,7 @@ ssize_t vfs_read(struct VNode *vnode, void *dst, size_t nbytes, off64_t *offset)
   nbytes_read = ksendmsg(&sb->msgport, NELEM(siov), siov, NELEM(riov), riov);
 
   if (nbytes_read < 0) {
-    Info("vfs_read error :%d", nbytes_read);
+    Error("vfs_read failed :%d", nbytes_read);
     return nbytes_read;    
   }
 
@@ -234,7 +223,6 @@ ssize_t vfs_read(struct VNode *vnode, void *dst, size_t nbytes, off64_t *offset)
     *offset += nbytes_read;
   }
 
-//  Info("vfs_read nbytes_read:%d", nbytes_read);
   return nbytes_read;
 }
 
@@ -247,8 +235,6 @@ ssize_t vfs_write(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset
   struct fsreq req = {0};
   struct IOV siov[2];
   int nbytes_written;
-
-  Info("vfs_write nbytes:%d, offset:%08x", nbytes, (uint32_t)offset);
 
   sb = vnode->superblock;
 
@@ -290,8 +276,6 @@ int vfs_write_async(struct SuperBlock *sb, struct Buf *buf)
   size_t nbytes;
   int sc;
 	struct Process *current;
-	
-  Info("vfs_write_async buf:%08x, offset:%08x", (uint32_t)buf, (uint32_t)buf->cluster_offset);
   
   current = get_current_process();
     
@@ -525,6 +509,7 @@ int vfs_truncate(struct VNode *vnode, size_t size)
   int sc;
   int sz;
 
+  Info("vfs_truncate, size:%u", size);
   sb = vnode->superblock;
 
   req.cmd = CMD_TRUNCATE;

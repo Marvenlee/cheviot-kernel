@@ -37,8 +37,6 @@ int sys_open(char *_path, int oflags, mode_t mode)
   struct lookupdata ld;
   int sc;
 
-  Info("sys_open");
-
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     Error("Open - lookup failed, sc = %d", sc);
     return sc;
@@ -53,8 +51,6 @@ int sys_open(char *_path, int oflags, mode_t mode)
 int kopen(char *_path, int oflags, mode_t mode) {
   struct lookupdata ld;
   int sc;
-
-  Info("kopen: %s", _path);
 
   if ((sc = lookup(_path, LOOKUP_PARENT | LOOKUP_KERNEL, &ld)) != 0) {
     Error("Kopen - lookup failed, sc = %d", sc);
@@ -119,10 +115,12 @@ static int do_open(struct lookupdata *ld, int oflags, mode_t mode) {
   vnode_put(dvnode);
 
   if (oflags & O_TRUNC) {
-    if ((err = vfs_truncate(vnode, 0)) != 0) {
-      Error("SysOpen vnode_put vfs_truncate");
-      vnode_put(vnode);
-      return err;
+    if (S_ISREG(vnode->mode)) {
+      if ((err = vfs_truncate(vnode, 0)) != 0) {
+        Error("SysOpen O_TRUNC failed");
+        vnode_put(vnode);
+        return err;
+      }
     }
   }
 
@@ -148,8 +146,6 @@ static int do_open(struct lookupdata *ld, int oflags, mode_t mode) {
 exit:
   Error("DoOpen failed: %d", err);
   free_fd_filp(current, fd);
-
-  Error("SysOpen vnode_put exit:");
   vnode_put(vnode);
   return err;
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -45,6 +45,7 @@ int sys_truncate(int fd, size_t sz) {
   vnode_lock(vnode);
 
   if (!S_ISREG(vnode->mode)) {
+    Error("truncate: vnode is not reg file!");
     err = -EINVAL;
     goto exit;
   }
