@@ -76,7 +76,7 @@ syscall_table:
     .long sys_exec                      // 20   
      
     .long sys_createmsgport             // 21 
-    .long sys_deprecatedsyscall         // 22  TODO: Was sys_unmount(path, bool force);
+    .long sys_deprecatedsyscall         // 22   TODO: Was unmount
 
     // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
     // Need listen(mount_fd) to create new listener handle (multiple for char device server)
@@ -190,6 +190,8 @@ syscall_table:
     .long sys_thread_event_wait         // 102
     .long sys_thread_event_check        // 103
 
+    .long sys_ismount                   // 104
+
     /*  
     .long sys_thread_create
     .long sys_thread_exit
@@ -213,7 +215,7 @@ syscall_table:
     */
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 103
+#define MAX_SYSCALL                 104
 
 
 /* @brief   System call entry point

@@ -421,6 +421,7 @@ int sys_pivotroot(char *_new_root, char *_old_root);
 int sys_movemount(char *_new_mount, char *old_mount);
 int sys_mknod(char *_handlerpath, uint32_t flags, struct stat *stat);
 int sys_mount(char *_handlerpath, uint32_t flags, struct stat *stat);
+int sys_ismount(char *_path);
 
 int close_mount(struct Process *proc, int fd);
 struct SuperBlock *get_superblock(struct Process *proc, int fd);

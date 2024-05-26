@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -55,6 +55,39 @@ int sys_mknod(char *_path, uint32_t flags, struct stat *_stat)
   vnode_put(ld.parent);
 
   return sc;
+}
+
+
+/*
+ *
+ */
+int sys_ismount(char *_path)
+{
+  struct lookupdata ld;
+  int sc;  
+  struct VNode *vnode = NULL;
+
+  if ((sc = lookup(_path, 0, &ld)) != 0) {
+    Error("sys_ismount lookup failed: %d", sc);
+    return sc;
+  }
+
+  if (ld.vnode == NULL) {
+    Error("sys_ismount, inode not found, -ENOENT");
+    return -ENOENT;
+  }
+  
+  vnode = ld.vnode;
+  
+  if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {
+    sc = 1;
+  } else {
+    sc = 0;
+  }
+
+  vnode_put(vnode);
+  
+  return sc;  
 }
 
 

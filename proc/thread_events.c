@@ -19,7 +19,7 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-#define KDEBUG 1
+//#define KDEBUG 1
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
@@ -27,7 +27,6 @@
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
-
 
 
 /*
@@ -39,8 +38,6 @@ uint32_t sys_thread_event_check(uint32_t event_mask)
   int sc = 0;
   int_state_t int_state;
   uint32_t caught_events;
-  
-  Info("sys_thread_event_check");
   
   current = get_current_process();  // FIXME: Replace with threads
 
