@@ -75,15 +75,6 @@ void Main(void)
 
   init_io_addresses();     // Rename to init_early_vm()
 
-  aux_uart_write_byte('H');
-  aux_uart_write_byte('E');
-  aux_uart_write_byte('L');
-  aux_uart_write_byte('L');
-  aux_uart_write_byte('O');
-  aux_uart_write_byte('!');
-  aux_uart_write_byte('\n');
-  aux_uart_write_byte('\n');
-
   max_process = NPROCESS;
   max_pageframe = mem_size / PAGE_SIZE;
   max_buf = 4 * 1024;

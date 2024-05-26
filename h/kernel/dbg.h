@@ -24,7 +24,7 @@
  * Or define DEBUG_LEVEL at top of source file.
  */
 
-//#define NDEBUG
+#define NDEBUG
 
 #ifdef NDEBUG
 #undef KDEBUG
