@@ -269,7 +269,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
 
 // kernel save/restore context
 
-  context = ((uint32_t *)uc) - 15;
+  context = ((uint32_t *)uc) - N_CONTEXT_WORD;
 
   context[0] = (uint32_t)entry;
 
@@ -277,9 +277,19 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
     context[t] = 0;
   }
 
+  Info("Setting FPU state, addr:%08x", (uint32_t)context); 
+
   context[13] = (uint32_t)uc;
   context[14] = (uint32_t)StartKernelProcess;
 
+  context[15] = 0x00000000;  // FPU status register
+  for (int t=0; t<32; t+=2) {
+    context[16 + t ] = 0x00000000;
+    context[16 + t + 1] = 0x7FF00000;  // SNaN
+  }
+  
+  Info("Set FPU state, addr:%08x", (uint32_t)context); 
+  
   proc->context = context;
   proc->catch_state.pc = 0xdeadbeef;
   return proc;

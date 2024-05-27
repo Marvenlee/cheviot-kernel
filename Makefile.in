@@ -482,11 +482,11 @@ kernel_SOURCES = proc/globals.c proc/interrupt.c proc/proc.c \
 	fs/vfs.c fs/vnode.c fs/write.c utility/doprintf.c \
 	utility/string.c vm/as.c vm/globals.c vm/page.c vm/pagefault.c \
 	vm/segment.c vm/vm.c $(am__append_1) $(am__append_2)
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CFLAGS = -O0 -g2 -std=c99 -mcpu=cortex-a72
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CFLAGS = -O0 -g2 -std=c99 -mcpu=cortex-a72 -mfpu=vfpv3-d16
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CFLAGS = -O0 -g2 -std=c99
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CPPFLAGS = -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CPPFLAGS = -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_1/h -DBOARD_RASPBERRY_PI_1
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CCASFLAGS = -mcpu=cortex-a72 -r -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CCASFLAGS = -mcpu=cortex-a72 -mfpu=vfpv3-d16 -r -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CCASFLAGS = -r -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_1/h -DBOARD_RASPBERRY_PI_1
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@kernel_LDADD = -lrpihal
 @BOARD_RASPBERRY_PI_1_TRUE@kernel_LDADD = -lrpihal

@@ -71,7 +71,7 @@ struct ExceptionState
   bits32_t dfsr;
 };
 
-#define N_CONTEXT_WORD    15      /* Array size on stack for saving and restoring a process's
+#define N_CONTEXT_WORD    (15 + 1 + 32)     /* Array size on stack for saving and restoring a process's
                                    * register context when switching tasks with SetContext
                                    * and GetContext */
                                    
@@ -115,5 +115,7 @@ struct CPU *get_cpu();
 struct Process *get_current_process();
 
 void StartProcess(void);
+
+void save_fp_context(uint32_t *context);
 
 #endif

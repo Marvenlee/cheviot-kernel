@@ -79,5 +79,21 @@ void init_arm(void)
   Info("..hal_set_vbar(%08x)", (uint32_t)vector_table);
   
   hal_set_vbar((vm_addr)vector_table);
+
+  uint32_t cpacr;
+  uint32_t fpexc;
+
+  Info("hal_set_cpacr()");  
+//  cpacr = hal_get_cpacr();
+//  cpacr |= (0x03 << 20);
+//  hal_set_cpacr(cpacr);
+
+  Info("hal_set_fpexc()");  
+  fpexc = hal_get_fpexc();
+  fpexc |= (1<<30);
+  hal_set_fpexc(fpexc);
+
+  Info("Init ARM done");  
+
 }
 

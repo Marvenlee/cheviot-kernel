@@ -80,7 +80,7 @@ int arch_fork_process(struct Process *proc, struct Process *current)
   // Simple question, Is uc_current pointing to actual context of root process,
   // or not?
 
-  context = ((uint32_t *)uc_proc) - 15;
+  context = ((uint32_t *)uc_proc) - N_CONTEXT_WORD;
 
   KASSERT(uc_proc->pc != 0);
 
@@ -90,6 +90,8 @@ int arch_fork_process(struct Process *proc, struct Process *current)
 
   context[13] = (uint32_t)uc_proc;
   context[14] = (uint32_t)StartForkProcess;
+
+  save_fp_context(&context[15]);
 
   proc->context = context;
   proc->cpu = current->cpu;
@@ -129,7 +131,7 @@ void arch_init_exec(struct Process *proc, void *entry_point,
   Info ("sp = %08x", uc->sp);
   Info ("pc = %08x", uc->pc);
 
-  context = ((uint32_t *)uc) - 15;
+  context = ((uint32_t *)uc) - N_CONTEXT_WORD;
 
   for (int t = 0; t < 13; t++) {
     context[t] = 0;
@@ -137,10 +139,16 @@ void arch_init_exec(struct Process *proc, void *entry_point,
 
   context[13] = (uint32_t)uc;
   context[14] = (uint32_t)StartExecProcess;
+
+  context[15] = 0x00000000;  // FPU status register
+  for (int t=0; t<32; t+=2) {
+    context[16 + t ] = 0x00000000;
+    context[16 + t + 1] = 0x7FF00000;  // SNaN
+  }
+
   proc->context = context;
-
   proc->catch_state.pc = 0xdeadbeef;
-
+  
   GetContext(proc->context);
 }
 

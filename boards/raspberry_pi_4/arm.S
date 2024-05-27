@@ -50,7 +50,7 @@
 .global StrLenUser
 .global SetContext
 .global GetContext
-
+.global save_fp_context
 
 .section .bss
 
@@ -437,6 +437,18 @@ SetContext:
 	str	r12, [r0,#48]
 	str	r13, [r0,#52]
 	str	r14, [r0,#56]
+
+  /* Save FP status register and FP registers */
+	vmrs r1,fpscr
+	str r1, [r0, #60]
+	
+	mov r1, r0
+	add r1, #64
+	
+	vstm r1, {s0-s15}
+	add r1, #64
+	vstm r1, {s16-s31}	
+	
 	/* store 1 as r0-to-restore */
 	mov	r1, #1
 	str	r1, [r0]
@@ -460,6 +472,18 @@ SetContext:
  * TODO: Restore FPU Floating Point register state
  */
 GetContext:
+  /* Load FP registers and FP status register */
+
+	mov r1, r0
+	add r1, #64
+	
+	vldm r1, {s0-s15}
+	add r1, #64
+	vldm r1, {s16-s31}
+
+	ldr r1, [r0, #60]	
+	vmsr fpscr, r1	
+
 	ldr	r1, [r0,#4]
 	ldr	r2, [r0,#8]
 	ldr	r3, [r0,#12]
@@ -477,5 +501,17 @@ GetContext:
 	ldr	r0, [r0]
 	mov	pc, lr
 
+
+save_fp_context:
+  /* Save FP status register and FP registers */
+	vmrs r1,fpscr
+	str r1, [r0, #0]	
+	add r0, #4
+	
+	vstm r0, {s0-s15}
+	vstm r0, {s16-s31}	
+
+  mov pc, lr    
+  
 .end
 
