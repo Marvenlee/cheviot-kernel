@@ -107,7 +107,7 @@ void fiq_vector(void);
 
 void DeliverException(void);
 
-void CheckSignals(struct UserContext *context);
+void check_signals(struct UserContext *context);
 
 void PrefetchAbortHandler(struct UserContext *context);
 void DataAbortHandler(struct UserContext *context);

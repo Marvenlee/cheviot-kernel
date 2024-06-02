@@ -169,7 +169,7 @@ void interrupt_handler(struct UserContext *context)
 
   if (unlock == true) {
     KernelUnlock();
-    CheckSignals(context);
+    check_signals(context);
   }
 }
 

@@ -131,8 +131,9 @@ int do_exec(int fd, struct execargs *_args)
   
   stack_pointer = stack_base + USER_STACK_SZ - ALIGN_UP(args.total_size, 16) - 16;
 
-  // FIXME: CloseOnExec (current_process);
-  // FIXME: USigExec (current_process);
+  // FIXME: CloseOnExec (current);
+
+  exec_signals(current);
 
   arch_init_exec(current, entry_point, stack_pointer, &args);
   return 0;

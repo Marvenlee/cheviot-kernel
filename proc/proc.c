@@ -51,7 +51,8 @@ int sys_fork(void)
   }
 
   fork_process_fds(proc, current);
-
+  fork_signals(proc, current);
+  
 	memcpy(proc->basename, current->basename, PROC_BASENAME_SZ);
 
 	Info("new proc:%08x, current:%08x", (uint32_t)proc, (uint32_t)current);
@@ -356,7 +357,6 @@ struct Process *AllocProcess(void) {
   proc->desired_priority = current->desired_priority;
   proc->pending_events = 0;
   
-  // FIXME: SigInit(proc);
   init_msgport(&proc->reply_port);
   init_fproc(proc);
   

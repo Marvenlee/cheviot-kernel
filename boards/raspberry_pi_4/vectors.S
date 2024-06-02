@@ -269,7 +269,7 @@ swi_vector:
     add sp, #8                // Remove R4 and R5 5th and 6th arguments from stack
     str r0, [sp, #CONTEXT_R0]    
     mov r0, sp
-    bl CheckSignals
+    bl check_signals
        
     MDisableInterrupts        
     bl KernelUnlock    
@@ -357,7 +357,7 @@ fiq_vector:
 StartForkProcess:
     bl KernelLock    
     mov r0, sp
-    bl CheckSignals
+    bl check_signals
     bl KernelUnlock
      
     MDisableInterrupts
@@ -368,7 +368,7 @@ StartForkProcess:
 .balign 16
 StartExecProcess:
     mov r0, sp    
-    bl CheckSignals
+    bl check_signals
     bl KernelUnlock
      
     MDisableInterrupts

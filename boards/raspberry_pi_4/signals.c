@@ -46,33 +46,27 @@ void sys_sigreturn(struct sigframe *u_sigframe)
 	uc = (struct UserContext *)((vm_addr)current + PROCESS_SZ - sizeof(struct UserContext));
 
 	if (CopyIn (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
-		SigExit (SIGSEGV);
+		sig_exit(SIGSEGV);
 	}
 	
-	/*	
-		state->eax = sigframe.sf_uc.uc_mcontext.eax;
-		state->ebx = sigframe.sf_uc.uc_mcontext.ebx;
-		state->ecx = sigframe.sf_uc.uc_mcontext.ecx;
-		state->edx = sigframe.sf_uc.uc_mcontext.edx;
-		state->esi = sigframe.sf_uc.uc_mcontext.esi;
-		state->edi = sigframe.sf_uc.uc_mcontext.edi;
-		state->ebp = sigframe.sf_uc.uc_mcontext.ebp;
-		
-		state->gs = PL3_DATA_SEGMENT;
-		state->fs = PL3_DATA_SEGMENT;
-		state->es = PL3_DATA_SEGMENT;
-		state->ds = PL3_DATA_SEGMENT;
-		
-		state->return_eip    = sigframe.sf_uc.uc_mcontext.eip;
-		state->return_cs     = PL3_CODE_SEGMENT;
-		
-		state->return_eflags = (sigframe.sf_uc.uc_mcontext.eflags & ~EFLAGS_SYSTEM_MASK)
-								| (state->return_eflags & EFLAGS_SYSTEM_MASK)
-								| EFLG_IF;
-		
-		state->return_esp    = sigframe.sf_uc.uc_mcontext.esp;
-		state->return_ss     = PL3_DATA_SEGMENT;
-	*/	
+  uc->sp = sigframe.sf_uc.uc_mcontext.sp;
+  uc->lr = sigframe.sf_uc.uc_mcontext.lr;
+  uc->cpsr = sigframe.sf_uc.uc_mcontext.cpsr;    // Should be svc_mode spsr  (Mask it?)
+			  
+  uc->r1 = sigframe.sf_uc.uc_mcontext.r1;
+  uc->r2 = sigframe.sf_uc.uc_mcontext.r2;
+  uc->r3 = sigframe.sf_uc.uc_mcontext.r3;
+  uc->r4 = sigframe.sf_uc.uc_mcontext.r4;
+  uc->r5 = sigframe.sf_uc.uc_mcontext.r5;
+  uc->r6 = sigframe.sf_uc.uc_mcontext.r6;
+  uc->r7 = sigframe.sf_uc.uc_mcontext.r7;
+  uc->r8 = sigframe.sf_uc.uc_mcontext.r8;
+  uc->r9 = sigframe.sf_uc.uc_mcontext.r9;
+  uc->r10 = sigframe.sf_uc.uc_mcontext.r10;
+  uc->r11 = sigframe.sf_uc.uc_mcontext.r11;
+  uc->r12 = sigframe.sf_uc.uc_mcontext.r12;
+  uc->r0 = sigframe.sf_uc.uc_mcontext.r0;
+  uc->pc = sigframe.sf_uc.uc_mcontext.pc;        // Should be svc_mode LR register.
 						
 	current->signal.sig_mask = sigframe.sf_uc.uc_sigmask;
 }
@@ -87,7 +81,7 @@ void sys_sigreturn(struct sigframe *u_sigframe)
  * Interrupts are disabled for the duration of this function, though it should
  * only need slight modification to enable interrupts for most of it.
  *
- * SigExit() is responsible for enabling interrupts if a signal cannot be
+ * sig_exit() is responsible for enabling interrupts if a signal cannot be
  * delivered or it's default action is to kill the process.
  *
  * If we are returning from USigSuspend() then the process's current sigmask
@@ -97,7 +91,7 @@ void sys_sigreturn(struct sigframe *u_sigframe)
  *
  * TODO: Copied from Kielder's x86 sources. Implement signal handling on ARM.
  */
-void CheckSignals(struct UserContext *uc)
+void check_signals(struct UserContext *uc)
 {
 	struct sigframe sigframe;
 	struct sigframe *u_sigframe;
@@ -109,17 +103,15 @@ void CheckSignals(struct UserContext *uc)
 
 	current = get_current_process();
 
-#if 1
-  // FIXME: We ignore signals for now.
-  current->signal.sig_pending = 0;
-  return;
-#endif	
-	
+  if (current->signal.sig_pending == 0) {
+    return;
+  }
+  	
 	sync_signals = current->signal.sig_pending & SYNCSIGMASK;
 
 	if (sync_signals != 0 && (sync_signals & current->signal.sig_mask) != 0) {
-		sig = PickSignal (sync_signals & ~current->signal.sig_mask);
-		SigExit (sig);
+		sig = pick_signal(sync_signals & ~current->signal.sig_mask);
+		sig_exit(sig);
 	}
 		
 	safe_signals = current->signal.sig_pending & ~current->signal.sig_mask;
@@ -131,10 +123,10 @@ void CheckSignals(struct UserContext *uc)
 		}
 			
 		if (safe_signals & SIGBIT(SIGKILL)) {
-			SigExit (SIGKILL);	
+			sig_exit(SIGKILL);	
 		
 		}	else if (safe_signals != SIGBIT(SIGCONT)) {
-			sig = PickSignal (safe_signals);
+			sig = pick_signal(safe_signals);
 				
 			current->signal.sig_pending &= ~SIGBIT(sig);
 			
@@ -147,24 +139,39 @@ void CheckSignals(struct UserContext *uc)
 			}
 			
 			if (current->signal.restorer == NULL) {
-				DoSignalDefault (sig);
+				do_signal_default(sig);
+				
 			}	else if (current->signal.handler[sig-1] == SIG_DFL) {			
-				DoSignalDefault (sig);				
+				do_signal_default(sig);				
 				current->signal.sig_mask = old_mask;
+				
 			}	else if (current->signal.handler[sig-1] == SIG_IGN) {
 				current->signal.sig_mask = old_mask;
-
 				if (current->signal.sig_resethand & SIGBIT(sig)) {
 					current->signal.handler[sig-1] = SIG_DFL;
 				}
 				
 			} else {
-
-                // copy context FIXME:
-				
+			  sigframe.sf_uc.uc_mcontext.sp = uc->sp;
+			  sigframe.sf_uc.uc_mcontext.lr = uc->lr;
+			  sigframe.sf_uc.uc_mcontext.cpsr = uc->cpsr;    // Should be svc_mode spsr  (Mask it?)			  
+			  sigframe.sf_uc.uc_mcontext.r1 = uc->r1;
+			  sigframe.sf_uc.uc_mcontext.r2 = uc->r2;
+			  sigframe.sf_uc.uc_mcontext.r3 = uc->r3;
+			  sigframe.sf_uc.uc_mcontext.r4 = uc->r4;
+			  sigframe.sf_uc.uc_mcontext.r5 = uc->r5;
+			  sigframe.sf_uc.uc_mcontext.r6 = uc->r6;
+			  sigframe.sf_uc.uc_mcontext.r7 = uc->r7;
+			  sigframe.sf_uc.uc_mcontext.r8 = uc->r8;
+			  sigframe.sf_uc.uc_mcontext.r9 = uc->r9;
+			  sigframe.sf_uc.uc_mcontext.r10 = uc->r10;
+			  sigframe.sf_uc.uc_mcontext.r11 = uc->r11;
+			  sigframe.sf_uc.uc_mcontext.r12 = uc->r12;
+			  sigframe.sf_uc.uc_mcontext.r0 = uc->r0;
+			  sigframe.sf_uc.uc_mcontext.pc = uc->pc;        // Should be svc_mode LR register.
 				sigframe.sf_uc.uc_sigmask = old_mask;
 				
-//				u_sigframe = (struct sigframe *) ALIGN_DOWN (state->return_esp - sizeof (struct sigframe), 16);
+				u_sigframe = (struct sigframe *) ALIGN_DOWN (uc->sp - sizeof (struct sigframe), 16);
 				sigframe.sf_signum = sig;
 				
 				if (current->signal.sig_info & SIGBIT(sig)) {
@@ -181,10 +188,10 @@ void CheckSignals(struct UserContext *uc)
         }
         
 				if (CopyOut (u_sigframe, &sigframe, sizeof (struct sigframe)) == 0) {		
-//					state->return_esp = (uint32_t) u_sigframe;
-//					state->return_eip = (uint32_t) current->signal.restorer;
+					uc->sp = (uint32_t) u_sigframe;
+					uc->pc = (uint32_t) current->signal.restorer;
 				}	else {
-					SigExit (SIGSEGV);
+					sig_exit(SIGSEGV);
 				}
 			}
 		}
@@ -193,17 +200,41 @@ void CheckSignals(struct UserContext *uc)
 
 
 /*
- * PickSignal();
  */
-int PickSignal (uint32_t sigbits)
+int pick_signal(uint32_t sigbits)
 {
 	int sig;
 
-	for (sig = 0; sig < 32; sig++) {
-		if ((1<<sig) & sigbits) {
-			break;
-    }
+  if (sigbits == 0) {
+    return 0;
   }
-	return sig + 1;
+  
+  sig = 0;
+  
+  if ((sigbits & 0xFFFF0000) == 0) {
+     sig += 16; 
+     sigbits <<= 16;
+  }
+  
+  if ((sigbits & 0xFF000000) == 0) {
+    sig += 8;
+    sigbits <<= 8;
+  }
+  
+  if ((sigbits & 0xF0000000) == 0) {
+    sig += 4; 
+    sigbits <<= 4;
+  }
+  
+  if ((sigbits & 0xC0000000) == 0) { 
+    sig += 2;
+    sigbits <<= 2;
+  }
+  
+  if ((sigbits & 0x80000000) == 0) {
+    sig += 1;
+  }  
+    
+  return sig + 1;
 }
 

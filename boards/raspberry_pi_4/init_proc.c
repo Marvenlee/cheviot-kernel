@@ -187,19 +187,11 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   proc->exit_status = 0;
   proc->log_level = 5;
   proc->pending_events = 0;
-
-  Info ("init_msgport(proc->reply_port)");
   
   init_msgport(&proc->reply_port);
-  
-  Info ("init_fproc(proc)");
  
   init_fproc(proc);
-  
-//  proc->fproc->current_dir = NULL;
-//  proc->fproc->root_dir = NULL;
-
-  Info ("Calling pmap_create()");
+  init_signals(proc);    
 
   // We create new page tables here for new root process.
   if (pmap_create(&proc->as) != 0) {

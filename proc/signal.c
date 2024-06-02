@@ -72,7 +72,7 @@ const uint32_t sigprop[NSIG] = {
 
 /* @brief   Exit a process due to a signal
  */
-void SigExit(int signal)
+void sig_exit(int signal)
 {
   sys_exit(signal<<8);  // TODO: FIXME signal exit
 }
@@ -80,7 +80,7 @@ void SigExit(int signal)
 
 /* @brief   Copy signal handler settings to a new process
  */ 
-void SigFork(struct Process *src, struct Process *dst)
+void fork_signals(struct Process *dst, struct Process *src)
 {
 	for (int t=1; t<NSIG; t++) {
 		dst->signal.handler[t-1] = src->signal.handler[t-1];
@@ -101,7 +101,7 @@ void SigFork(struct Process *src, struct Process *dst)
 
 /* @brief   Initialize the signal handlers of a process
  */
-void SigInit(struct Process *dst)
+void init_signals(struct Process *dst)
 {
 	for (int t=1; t<NSIG; t++) {
 		dst->signal.handler[t-1] = SIG_DFL;
@@ -123,7 +123,7 @@ void SigInit(struct Process *dst)
 /* @brief   Update signal handlers due to a process exec'ing
  *
  */
-void SigExec(struct Process *dst)
+void exec_signals(struct Process *dst)
 {
 	for (int t=1; t<NSIG; t++) {
 		if (dst->signal.handler[t-1] != SIG_IGN) {
@@ -319,7 +319,7 @@ int sys_sigsuspend(const sigset_t *mask_in)
 /*
  *
  */
-int sys_sigprocmask (int how, const sigset_t *set_in, sigset_t *oset_out)
+int sys_sigprocmask(int how, const sigset_t *set_in, sigset_t *oset_out)
 {
 	sigset_t set;
 	struct Process *current;
@@ -378,10 +378,10 @@ int sys_sigpending(sigset_t *set_out)
 
 /* @brief   Perform the default action of a received signal
  */ 
-void DoSignalDefault (int sig)
+void do_signal_default(int sig)
 {
 	if (sigprop[sig] & SP_KILL) {
-		SigExit (sig);
+		sig_exit(sig);
 	}
 }
 

@@ -113,7 +113,7 @@ void undef_instr_handler(struct UserContext *context)
   current->signal.sigill_ptr = context->pc;
   sys_kill(current->pid, SIGILL);
 
-  CheckSignals(context);
+  check_signals(context);
 
   if (bkl_locked == false) {
     DisableInterrupts();
@@ -180,7 +180,7 @@ void prefetch_abort_handler(struct UserContext *context)
   KASSERT(context->pc != 0);
 
   if (mode == USR_MODE || mode == SYS_MODE) {
-    CheckSignals(context);
+    check_signals(context);
 
     if (bkl_locked == false) {
       DisableInterrupts();
@@ -274,7 +274,7 @@ void data_abort_handler(struct UserContext *context)
   KASSERT(context->pc != 0);
 
   if (mode == USR_MODE || mode == SYS_MODE) {
-    CheckSignals(context);
+    check_signals(context);
 
     if (bkl_locked == false) {
       DisableInterrupts();

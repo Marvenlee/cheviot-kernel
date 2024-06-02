@@ -76,16 +76,15 @@ extern const uint32_t sigprop[NSIG];
 
 
 int sys_kill(int pid, int signal);
-int SigAction(int how, const struct sigaction *act, struct sigaction *oact);
-int SigSuspend(const sigset_t *mask);
-int SigProcMask(int how, const sigset_t *set, sigset_t *oset);
-int SigPending(sigset_t *set);
-void SigSetTrampoline(void (*func)(void));
-void SigExit(int signal);
-void SigInit(struct Process *dst);
-void SigFork(struct Process *src, struct Process *dst);
-void SigExec(struct Process *dst);
-void DoSignalDefault(int sig);
+int sys_sigaction(int how, const struct sigaction *act, struct sigaction *oact);
+int sys_sigsuspend(const sigset_t *mask);
+int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oset);
+int sys_sigpending(sigset_t *set);
+void sig_exit(int signal);
+void init_signals(struct Process *dst);
+void fork_signals(struct Process *dst, struct Process *src);
+void exec_signals(struct Process *dst);
+void do_signal_default(int sig);
 
 
 #endif
