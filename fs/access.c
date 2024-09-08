@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -71,7 +71,7 @@ int sys_chmod(char *_path, mode_t mode)
 
   vnode = ld.vnode;
 
-  if (vnode->uid == current->uid) {
+  if (vnode->uid == current->uid || current->uid == SUPERUSER) {
     err = vfs_chmod(vnode, mode);
     
     if (err == 0) {
@@ -90,6 +90,7 @@ int sys_chmod(char *_path, mode_t mode)
 
 /* @brief   chown system call
  *
+ * TODO: Can uid and gid be negative (to ignore?)
  */
 int sys_chown(char *_path, uid_t uid, gid_t gid)
 {
@@ -106,7 +107,7 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
 
   vnode = ld.vnode;
 
-  if (vnode->uid == current->uid) {
+  if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     err = vfs_chown(vnode, uid, gid);
     
     if (err == 0) {
@@ -139,7 +140,7 @@ int sys_fchmod(int fd, mode_t mode)
     return -EINVAL;
   }
 
-  if (vnode->uid == current->uid) {
+  if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     err = vfs_chmod(vnode, mode);
     
     if (err == 0) {
@@ -173,7 +174,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     return -EINVAL;
   }
 
-  if (vnode->uid == current->uid) {
+  if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     err = vfs_chown(vnode, uid, gid);
     
     if (err == 0) {
@@ -208,14 +209,19 @@ int is_allowed(struct VNode *vnode, mode_t desired_access)
 	// FIXME : fix is_allowed
   return 0;
   
+  if (current->euid == SUPERUSER) {
+    return 0;
+  }
   
   desired_access &= (R_OK | W_OK | X_OK);
 
   current = get_current_process();
 
-  if (current->uid == vnode->uid)
+  if (current->euid == vnode->uid)
     shift = 6; /* owner */
-  else if (current->gid == vnode->gid)
+  else if (current->egid == vnode->gid)
+    shift = 3; /* group */
+  else if (match_supplementary_group(current, vnode->gid) == true)
     shift = 3; /* group */
   else
     shift = 0; /* other */
@@ -229,5 +235,22 @@ int is_allowed(struct VNode *vnode, mode_t desired_access)
 
   return 0;
 }
+
+
+/*
+ *
+ */
+bool match_supplementary_group(struct Process *proc, gid_t gid)
+{
+  for (int t=0; t<proc->ngroups; t++) {
+    if (proc->groups[t] == gid) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+
 
 

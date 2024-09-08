@@ -36,12 +36,6 @@
 #include <string.h>
 #include <sys/time.h>
 
-// Variables
-extern int svc_stack_top;
-extern int interrupt_stack_top;
-extern int exception_stack_top;
-
-
 
 /* @brief Initialize process management data structures
  *
@@ -54,44 +48,185 @@ extern int exception_stack_top;
 
 void init_processes(void)
 {
+// FIXME: Do we initialize free timer and isr_handler lists here?
 //  struct Timer *timer;
 //  struct ISRHandler *isr_handler;
-  struct CPU *cpu;
   struct Process *proc;
-
+  struct Thread *thread;
+  struct PidDesc *pd;
+  
   Info("InitProcesses.,");
   
   bkl_locked = false;
   bkl_owner = NULL;
   LIST_INIT(&bkl_blocked_list);
 
+  LIST_INIT(&thread_reaper_detached_thread_list);
+  InitRendez(&thread_reaper_rendez);
+  
   for (int t = 0; t < NIRQ; t++) {
     LIST_INIT(&isr_handler_list[t]);
     irq_handler_cnt[t]=0;
   }
-
+  
   for (int t = 0; t < 32; t++) {
     CIRCLEQ_INIT(&sched_queue[t]);
   }
 
-  free_process_cnt = max_process;
+  Info("isr_handler and sched queue initialized");
 
-  for (int t = 0; t < max_process; t++) {
-    proc = GetProcess(t);
-    proc->in_use = false;
+  LIST_INIT(&free_piddesc_list);  
+  for (int t = 0; t < max_pid; t++) {
+    pd = &pid_table[t];
+    LIST_ADD_TAIL(&free_piddesc_list, pd, free_link);
   }
 
-  Info(".. process table entries inited");
+  Info("free piddesc list initialized");
   
+  free_process_cnt = max_process;
+  LIST_INIT(&free_process_list);  
+  
+  for (int t = 0; t < max_process; t++) {
+    proc = &process_table[t];
+    memset(proc, 0xf001f001, sizeof *proc);
+
+    proc->state = PROC_STATE_FREE;
+    LIST_ADD_TAIL(&free_process_list, proc, free_link);
+  }
+
+  Info("free process list initialized");
+
+  // free_thread_cnt = max_thread;
+  LIST_INIT(&free_thread_list);
+
+  for (int t = 0; t < max_thread; t++) {
+    thread = &thread_table[t];
+    thread->state = THREAD_STATE_FREE;
+    LIST_ADD_TAIL(&free_thread_list, thread, free_link);
+  }
+  
+  Info("free thread list initialized");
+
+    
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
     LIST_INIT(&timing_wheel[t]);
   }
-
+  
   Info(".. timing wheel inited");
-
+  
   InitRendez(&timer_rendez);
   softclock_time = hardclock_time = 0;
+  
+  init_cpu_tables();
+  
+  Info(".. cpu struct inited");
 
+  root_process = do_create_process(bootstrap_root_process, NULL,
+                              SCHED_RR, 16,
+                              PROCF_ALLOW_IO, 
+                              "root",
+                              &cpu_table[0]);
+
+  Info("root process created");
+
+  // Does the timer thread and kernel threads run in the root address space?
+  // May as well, and then use the ASID mechanism to reduce overhead.
+
+  thread_reaper_thread = do_create_thread(root_process, thread_reaper_task, NULL, 
+                               SCHED_RR, 16, 
+                               THREADF_KERNEL,
+                               &cpu_table[0]);
+                               
+  Info("thread reaper thread created, tid:%d", get_thread_tid(thread_reaper_thread));
+
+  thread_start(thread_reaper_thread);
+
+  
+  // Does the timer thread and kernel threads run in the root address space?
+  // May as well, and then use the ASID mechanism to reduce overhead.
+
+  timer_thread = do_create_thread(root_process, timer_bottom_half_task, NULL, 
+                               SCHED_RR, 31, 
+                               THREADF_KERNEL,
+                               &cpu_table[0]);
+                               
+  Info("timer thread created, tid:%d", get_thread_tid(timer_thread));
+
+  thread_start(timer_thread);
+
+  // Can we not schedule a no-op bit of code if no threads running?
+  // Do we really need an idle thread in a separate address-space ? 
+  // Would need to WFI with interrupts enabled in scheduler.
+  // Or do WFI with interrupts disabled, the code then enables
+  // interrupts so that interrupt handler or IPI occurs, returns
+  // back into scheduler code where it disables interrupts and checks
+  // if there is now threads to run.
+
+  cpu_table[0].idle_thread = do_create_thread(root_process, idle_task, NULL, 
+                                   SCHED_IDLE, 0, 
+                                   THREADF_KERNEL,
+                                   &cpu_table[0]);
+
+
+  cpu_table[0].idle_thread->state = THREAD_STATE_READY;
+
+  Info("idle thread created for cpu 0, tid:%d", get_thread_tid(cpu_table[0].idle_thread));
+}
+
+
+/*
+ * FIXME: How do we start scheduler on multiple CPUs?
+ * How to release other CPUs from reset.
+ */
+void start_scheduler(void)
+{
+  struct CPU *cpu = &cpu_table[0];
+  struct Thread *next;
+  struct Process *next_proc;
+  int q;
+  
+  
+  Info("start_scheduler - radio blackout start");
+  
+  for (q = 31; q >= 0; q--) {
+    if ((sched_queue_bitmap & (1 << q)) != 0) {
+      break;
+    }
+  }
+  
+  next = CIRCLEQ_HEAD(&sched_queue[q]);
+
+  if (next == NULL) {
+    next = cpu->idle_thread;
+  }
+
+  KASSERT(next != NULL);
+  
+  next->state = THREAD_STATE_RUNNING;    
+  next_proc = get_thread_process(next);
+  pmap_switch(next_proc, NULL);
+
+  cpu->current_thread = next;
+  cpu->current_process = next->process;
+
+  NotifyLoggerProcessesInitialized();
+
+  Info("start_scheduler - radio blackout over");
+  
+  Info("first scheduled thread:%08x, proc:%08x", (uint32_t)next, next->process);
+  
+  Info("Calling GetContext in start_scheduler");
+  
+  GetContext(next->context);
+}
+
+
+/*
+ *
+ */
+void init_cpu_tables(void)
+{
+  struct CPU *cpu;
   max_cpu = 1;
   cpu_cnt = max_cpu;
   cpu = &cpu_table[0];
@@ -99,190 +234,7 @@ void init_processes(void)
   cpu->svc_stack = (vm_addr)&svc_stack_top;
   cpu->interrupt_stack = (vm_addr)&interrupt_stack_top;
   cpu->exception_stack = (vm_addr)&exception_stack_top;
-
-  Info(".. cpu struct inited");
-
-  root_process =
-      create_process(BootstrapRootProcess, SCHED_RR, 16, PROCF_USER, "root", &cpu_table[0]);
-
-  Info("root process created");
-
-  timer_process =
-      create_process(TimerBottomHalf, SCHED_RR, 31, PROCF_KERNEL, "timer", &cpu_table[0]);
-
-  Info("timer process created, pid:%d", GetProcessPid(timer_process));
-
-  // Can we not schedule a no-op bit of code if no processes running?
-  // Do we really need an idle task in separate address-space ? 
-  cpu->idle_process = create_process(Idle, SCHED_IDLE, 0, PROCF_KERNEL, "idle", &cpu_table[0]);
-
-  Info("idle process created pid:%d", GetProcessPid(cpu->idle_process));
-
-  // Pick root process to run,  Switch To Root here  
-  root_process->state = PROC_STATE_RUNNING;
-  cpu->current_process = root_process;
-
-  Info("marking processes as initialized");
-
-  ProcessesInitialized();
-
-
-  Info("switching to root_process");
-
-  pmap_switch(root_process, NULL);           
-
-  Info("..switched to root_process pmap");
-
-  Info("Calling GetContext(root_process)");
-  
-  // TODO: Can we free any bootsector pages and initial page table?
-
-  GetContext(root_process->context);
+  cpu->current_process = NULL;
+  cpu->current_thread = NULL;
 }
 
-/* @brief Create initial processes, root process and kernel processes for timer and idle tasks
- *
- * The address space created only has the kernel mapped. User-Space is marked as free.
- * The root process page directory is switched to in InitProcesses.
- */
-struct Process *create_process(void (*entry)(void), int policy, int priority,
-                               bits32_t flags, char *basename, struct CPU *cpu)
-{
-  struct Process *proc;
-  int pid;
-  struct UserContext *uc;
-  uint32_t *context;
-  uint32_t cpsr;
-  
-  Info ("create_process..");
-  
-  proc = NULL;
-
-  for (pid=0; pid < max_process; pid++) {
-    proc = GetProcess(pid);
-    
-    if (proc->in_use == false) {
-      break;
-    }
-  }
-
-  if (proc == NULL) {
-      Info ("create_process failed to find slot");
-      return NULL;
-  }
-
-  memset(proc, 0, PROCESS_SZ);
-  free_process_cnt--;
-
-  InitRendez(&proc->rendez);
-  LIST_INIT(&proc->child_list);
-
-
-	strcpy(proc->basename, basename);
-  proc->pid = pid;
-  proc->parent = NULL;
-  proc->in_use = true;  
-  proc->state = PROC_STATE_INIT;
-  proc->blocking_rendez = NULL;
-  proc->exit_status = 0;
-  proc->log_level = 5;
-  proc->pending_events = 0;
-  
-  init_msgport(&proc->reply_port);
- 
-  init_fproc(proc);
-  init_signals(proc);    
-
-  // We create new page tables here for new root process.
-  if (pmap_create(&proc->as) != 0) {
-    return NULL;
-  }
-      
-  proc->as.segment_cnt = 1;
-  proc->as.segment_table[0] = VM_USER_BASE | SEG_TYPE_FREE;
-  proc->as.segment_table[1] = VM_USER_CEILING | SEG_TYPE_CEILING;
-  proc->cpu = cpu;
-
-  proc->flags = flags;
-
-  Info ("SchedReady() process");
-
-  if (policy == SCHED_RR || policy == SCHED_FIFO) {
-    proc->quanta_used = 0;
-    proc->sched_policy = policy;
-    proc->priority = (priority >= 16) ? priority : 16;
-    proc->desired_priority = priority;
-    SchedReady(proc);
-  } else if (policy == SCHED_OTHER) {
-    if (priority > 15) {
-      priority = 15;
-    }
-    
-    proc->quanta_used = 0;
-    proc->sched_policy = policy;
-    proc->priority = (priority <= 15) ? priority : 15;
-    proc->desired_priority = priority;
-    SchedReady(proc);
-  } else if (policy == SCHED_IDLE) {
-    proc->sched_policy = policy;
-    proc->priority = 0;
-    proc->desired_priority = 0;
-  }
-
-/* Move this into ArchInitExecProcess() IF returning to user mode. */
-  Info ("Setting CPSR register user/sys mode");
-
-#if 1
-  if (proc->flags & PROCF_KERNEL) {
-    cpsr = SYS_MODE | CPSR_DEFAULT_BITS;
-  } else {
-    cpsr = USR_MODE | CPSR_DEFAULT_BITS;
-  }
-#else
-  if (proc->flags & PROCF_KERNEL) {
-    cpsr = cpsr_dnm_state | SYS_MODE | CPSR_DEFAULT_BITS;
-  } else {
-    cpsr = cpsr_dnm_state | USR_MODE | CPSR_DEFAULT_BITS;
-  }
-#endif
-
-  Info("create_process(pid:%d cpsr:%08x)", proc->pid, cpsr);
-    
-  Info("Setting up process register state");
-  
-  Info ("Setting createprocess cpsr :%08x", cpsr);
-  
-  uc = (struct UserContext *)((vm_addr)proc + PROCESS_SZ -
-                              sizeof(struct UserContext));
-  memset(uc, 0, sizeof(*uc));
-  uc->pc = (uint32_t)0xdeadbeea;
-  uc->cpsr = cpsr;
-  uc->sp = (uint32_t)0xdeadbeeb;
-
-// kernel save/restore context
-
-  context = ((uint32_t *)uc) - N_CONTEXT_WORD;
-
-  context[0] = (uint32_t)entry;
-
-  for (int t = 1; t <= 12; t++) {
-    context[t] = 0;
-  }
-
-  Info("Setting FPU state, addr:%08x", (uint32_t)context); 
-
-  context[13] = (uint32_t)uc;
-  context[14] = (uint32_t)StartKernelProcess;
-
-  context[15] = 0x00000000;  // FPU status register
-  for (int t=0; t<32; t+=2) {
-    context[16 + t ] = 0x00000000;
-    context[16 + t + 1] = 0x7FF00000;  // SNaN
-  }
-  
-  Info("Set FPU state, addr:%08x", (uint32_t)context); 
-  
-  proc->context = context;
-  proc->catch_state.pc = 0xdeadbeef;
-  return proc;
-}

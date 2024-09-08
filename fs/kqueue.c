@@ -55,6 +55,8 @@ int sys_kqueue(void)
  * @param   nevents, size of eventlist array
  * @param   timeout, maximum time to wait to receive an event
  * @return  number of events copied into eventlist buffer or negative errno on error
+ *
+ * TODO: Need to prevent EVFILT_THREAD_EVENT requests from sys_kevent.
  */
 int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
            struct	kevent *eventlist, int nevents, const struct timespec *_timeout)
@@ -64,19 +66,23 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   struct KQueue *kqueue;
   struct KNote *knote;
   struct Process *current;
+  struct Thread *current_thread;
   struct timespec timeout;
-  bool timeout_valid = false;
+  struct timespec *timeoutp;
+  int_state_t int_state;
   bool timedout = false;
   int sc = 0;
   
   Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
   
   current = get_current_process();
-
+  current_thread = get_current_thread();
+  
   if (_timeout != NULL) {
     CopyIn(&timeout, _timeout, sizeof timeout);
-    timeout_valid = true;
-    _timeout = NULL;
+    timeoutp = &timeout;
+  } else {
+    timeoutp = NULL;
   }
   
   kqueue = get_kqueue(current, fd);
@@ -141,27 +147,29 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
       }
     }
   }
-
-  changelist = NULL;
   
   // Processing of returned events.  
   nevents_returned = 0;
 
   if (nevents > 0 && eventlist != NULL) {
-    while (LIST_HEAD(&kqueue->pending_list) == NULL) {
-      if (timeout_valid == true) {
-        if ((sc = TaskTimedSleep(&kqueue->event_rendez, &timeout)) != 0) {
-          break;
-        }        
-      } else {
-        if ((sc = TaskSleepInterruptible(&kqueue->event_rendez)) != 0) {
-          break;
-        }
-      }      
+
+    current_thread->event_mask = current_thread->kevent_event_mask;
+    sc = 0;
+    
+    // Prioritize events    
+    while (LIST_HEAD(&kqueue->pending_list) == NULL &&
+           (current_thread->pending_events & current_thread->event_mask) == 0) {
+      if ((sc = TaskSleepInterruptible(&kqueue->event_rendez, timeoutp, INTRF_ALL)) != 0) {
+        break;
+      }        
     }
+
+    current_thread->event_mask = 0;
+
+    process_event_knotes(kqueue, current_thread);
     
     if (sc == 0) {
-      while (nevents_returned < nevents) {
+      while (nevents_returned < nevents) {        
         knote = LIST_HEAD(&kqueue->pending_list);
               
         if (knote == NULL) {
@@ -189,26 +197,85 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
     }
   }
 
-  eventlist = NULL;
-
   kqueue->busy = false;
   TaskWakeup(&kqueue->busy_rendez);  
 
   if (sc != 0) {
-    Info("..sys_event error:%d", sc);
     return sc;
   }
-  
-  Info("..sys_event ret:%d", nevents_returned);
   
   return nevents_returned;
 
 exit:
   // TODO: Any kevent cleanup
   
-  Info("..sys_event error:%d", sc);
-
   return sc;
+}
+
+
+/* @brief   Convert a thread's caught events to a pending kevent
+ * 
+ * @param   kqueue, passed by kevent() and must match that set by sys_thread_event_kevent_mask
+ * @param   current_thread, the current thread
+ */
+void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
+{
+  int_state_t int_state;
+  uint32_t caught_events;    
+  
+  if (kqueue != current_thread->event_kqueue) {
+    return;
+  }
+  
+  if (current_thread->kevent_event_mask == 0 || current_thread->event_knote == NULL) {
+    return;
+  }
+  
+  int_state = DisableInterrupts();
+  caught_events = (current_thread->pending_events & current_thread->kevent_event_mask);
+  current_thread->pending_events &= ~caught_events;
+  RestoreInterrupts(int_state);
+
+  if (caught_events == 0) {
+    return;
+  }
+
+  current_thread->event_knote->fflags = caught_events;
+  knote(&current_thread->knote_list, 0);
+}
+
+
+/* @brief   Send a knote event to a vnode in the kernel
+ *
+ * @param   fd, file descriptor of mount on which the file exists
+ * @param   ino_nr, inode number of the file
+ * @param   hint, hint of why this is being notified. *
+ * @return  0 on success, negative errno on error
+ *
+ * Perhaps change it to sys_setvnodeattrs(fd, ino_nr, flags);
+ */
+int sys_knotei(int fd, int ino_nr, long hint)
+{
+  struct SuperBlock *sb;
+  struct VNode *vnode;
+  struct Process *current;
+  
+  current = get_current_process();  
+  sb = get_superblock(current, fd);
+  
+  if (sb == NULL) {
+    return -EINVAL;
+  }
+  
+  vnode = vnode_get(sb, ino_nr);
+  
+  if (vnode == NULL) {
+    return -EINVAL;
+  }
+    
+  knote(&vnode->knote_list, hint);  
+  vnode_put(vnode);
+  return 0;
 }
 
 
@@ -406,8 +473,8 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
   struct KNote *knote;
   struct SuperBlock *sb;
   struct VNode *vnode;
-  struct ISRHandler *isrhandler;
   struct Process *current;
+  struct Thread *thread;
   
   current = get_current_process();
   
@@ -434,10 +501,6 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
   knote->on_pending_list = false;  // FIXME: Can't we get this if pending and enabled is true ?
   
   knote->object = NULL;
-
-  LIST_ADD_TAIL(&kqueue->knote_list, knote, kqueue_link);  
-  hash = knote_calc_hash(kqueue, knote->ident, knote->filter);
-  LIST_ADD_TAIL(&knote_hash[hash], knote, hash_link);
     
   switch (knote->filter) {
     case EVFILT_READ:
@@ -478,16 +541,6 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
       sc = -ENOSYS;
       break;
       
-    case EVFILT_IRQ:
-      isrhandler = get_isrhandler(current, knote->ident);
-      
-      if (isrhandler) {
-        knote->object = isrhandler;
-        LIST_ADD_TAIL(&isrhandler->knote_list, knote, object_link);      
-      } else {
-        sc = -ENOSYS;
-      }      
-      break;
     case EVFILT_MSGPORT:
       sb = get_superblock(current, knote->ident);
     
@@ -498,6 +551,17 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
         sc = -EINVAL;
       }
       
+      break;
+
+    case EVFILT_THREAD_EVENT:
+      thread = get_thread(knote->ident);
+      
+      if (thread) {
+        knote->object = thread;
+        LIST_ADD_TAIL(&thread->knote_list, knote, object_link);
+      } else {
+        sc = -EINVAL;
+      }
       break;
       
     default:
@@ -510,6 +574,10 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
     free_knote(kqueue, knote);
     return NULL;
   }
+
+  LIST_ADD_TAIL(&kqueue->knote_list, knote, kqueue_link);  
+  hash = knote_calc_hash(kqueue, knote->ident, knote->filter);
+  LIST_ADD_TAIL(&knote_hash[hash], knote, hash_link);
 
   return knote;
 }
@@ -527,8 +595,8 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
   int hash;
   struct SuperBlock *sb;
   struct VNode *vnode;
-  struct ISRHandler *isrhandler;
   struct Process *current;
+  struct Thread *thread;
   
   current = get_current_process();
   
@@ -553,7 +621,7 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
       
     case EVFILT_SIGNAL:    
       break;
-      
+                
     case EVFILT_TIMER:
       break;
       
@@ -562,22 +630,22 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
       
     case EVFILT_USER:
       break;
-      
-    case EVFILT_IRQ:
-      isrhandler = get_isrhandler(current, knote->ident);
-      
-      if (isrhandler) {
-        knote->object = NULL;
-        LIST_REM_ENTRY(&isrhandler->knote_list, knote, object_link);      
-      }      
-      break;
-      
+
     case EVFILT_MSGPORT:
       sb = get_superblock(current, knote->ident);
       
       if (sb) {
         knote->object = NULL;
         LIST_REM_ENTRY(&sb->msgport.knote_list, knote, object_link);
+      }
+      break;
+
+    case EVFILT_THREAD_EVENT:
+      thread = get_thread(knote->ident);
+      
+      if (thread != NULL) {
+        knote->object = NULL;
+        LIST_ADD_TAIL(&thread->knote_list, knote, object_link);
       }
       break;
       
@@ -614,7 +682,6 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
   struct Process *current;
   struct SuperBlock *sb;
   struct VNode *vnode;
-  struct ISRHandler *isrhandler;
   struct MsgPort *msgport;
   
   current = get_current_process();
@@ -657,7 +724,7 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
       
     case EVFILT_SIGNAL:    
       break;
-      
+
     case EVFILT_TIMER:
       break;
       
@@ -666,14 +733,7 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
       
     case EVFILT_USER:
       break;
-      
-    case EVFILT_IRQ:
-      isrhandler = get_isrhandler(current, knote->ident);
-      
-      if (isrhandler) {
-      }      
-      break;
-      
+            
     case EVFILT_MSGPORT:
       // Check if there is already a message on port
       sb = get_superblock(current, knote->ident);
@@ -687,6 +747,9 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
           knote->on_pending_list = true;
         }        
       }
+      break;
+
+    case EVFILT_THREAD_EVENT:
       break;
       
     default:

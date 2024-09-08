@@ -36,7 +36,7 @@ struct BootInfo {
 	uint32_t cpu_type;
 
   char cpustr[CPUSTRSZ];
-  vm_size mem_size;
+  uint64_t mem_size;
   vm_addr videocore_base;
   vm_addr videocore_ceiling;
   

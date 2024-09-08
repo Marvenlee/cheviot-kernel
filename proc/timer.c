@@ -106,7 +106,7 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
 			break;
 		
 		case CLOCK_MONOTONIC_RAW:
-			sc = arch_clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+			sc = arch_clock_gettime(CLOCK_MONOTONIC_RAW, (struct timespec *)&ts);
 			break;
 		
 		default:
@@ -118,7 +118,7 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
   	return sc;
   }
 
-  if (CopyOut(_ts, &ts, sizeof(struct timespec)) != 0) {
+  if (CopyOut(_ts, (const void *)&ts, sizeof(struct timespec)) != 0) {
   	Error("clock_gettime fault");
   	return -EFAULT;
   }
@@ -163,9 +163,7 @@ int sys_alarm(int seconds)
  */
 void SleepCallback(struct Timer *timer)
 {
-  struct Process *process = timer->process;
-
-  TaskWakeup (&process->rendez);
+  TaskWakeup (&timer->thread->rendez);
 }
 
 
@@ -179,13 +177,13 @@ void SleepCallback(struct Timer *timer)
 int sys_sleep(int seconds)
 {
   int_state_t int_state;
-  struct Process *current;
+  struct Thread *current;
   struct Timer *timer;
   
-  current = get_current_process();
+  current = get_current_thread();
     
   timer = &current->sleep_timer;  
-  timer->process = current;
+  timer->thread = current;
   timer->armed = true;
   timer->callback = SleepCallback;
 
@@ -206,11 +204,11 @@ int sys_sleep(int seconds)
 int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
 {
   int_state_t int_state;
-  struct Process *current;
+  struct Thread *current;
   struct Timer *timer;
   struct timespec req, rem;
 
-  current = get_current_process();
+  current = get_current_thread();
   
   if (CopyIn(&req, _req, sizeof(req)) != 0) {
 	  Info ("sys_nanosleep: EFAULT");
@@ -218,7 +216,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   }
   
   // TODO:  spin_nanosleep() for IO processes that need to sleep for less than 10ms
-  if (io_allowed(current)) {
+  if (io_allowed(get_current_process())) {
     if (req.tv_sec == 0 && req.tv_nsec < 10000000) {
       if (arch_spin_nanosleep(&req) == 0) {
 	      return 0;
@@ -227,7 +225,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   }
       
   timer = &current->sleep_timer;  
-  timer->process = current;
+  timer->thread = current;
   timer->armed = true;
   timer->callback = SleepCallback;
 
@@ -260,10 +258,10 @@ int SetTimeout(int milliseconds, void (*callback)(struct Timer *), void *arg)
 {
   int_state_t int_state;
   struct Timer *timer;
-  struct Process *current;
+  struct Thread *current;
   int remaining = 0;
   
-  current = get_current_process();
+  current = get_current_thread();
 
   timer = &current->timeout_timer;
   
@@ -280,7 +278,7 @@ int SetTimeout(int milliseconds, void (*callback)(struct Timer *), void *arg)
   if (milliseconds > 0) {
     timer->expiration_time = hardclock_time + (milliseconds/(1000/JIFFIES_PER_SECOND)) + 1;
     
-    timer->process = current;    
+    timer->thread = current;    
     timer->callback = callback;
     timer->arg = arg;
     timer->armed = true;
@@ -326,18 +324,14 @@ void TimerTopHalf(void)
   KASSERT(max_cpu == 1);
   
   for (int t = 0; t < max_cpu; t++) {
-    if (cpu_table[t].current_process != NULL) {
-      cpu_table[t].current_process->quanta_used++;
+    if (cpu_table[t].current_thread != NULL) {
+      cpu_table[t].current_thread->quanta_used++;
     }
-
-//    cpu_table[t].reschedule_request = true;     // Unused,
   }
 
-//  int_state = DisableInterrupts(); 		// FIXME: Nested interrupts not supported, not needed
   hardclock_time++;
-//  RestoreInterrupts(int_state);
   
-  TaskWakeupFromISR(&timer_rendez);
+  TaskWakeup(&timer_rendez);
 }
 
 
@@ -349,18 +343,26 @@ void TimerTopHalf(void)
  * We have the BKL/cooperative scheduling in kernel, only single task is running until
  * Reschedule() is called.  TaskWakeup() called from callbacks such as sleep do not reschedule.
  */
-void TimerBottomHalf(void)
+static int timer_log_count;
+  
+void timer_bottom_half_task(void *arg)
 {
   int_state_t int_state;
-  bool logtimerwakeup = false;
-  
-  Info("TimerBottomHalf: hard_clock =%u",(uint32_t)hardclock_time);
-  
+  bool logtimerwakeup = false;  
   struct Timer *timer, *next_timer;
+
+  
+  Info("timer_bottom_half_task");
 
   while (1) {
     KASSERT(bkl_locked == true);
-    KASSERT(bkl_owner == timer_process);
+    KASSERT(bkl_owner == timer_thread);
+    
+    timer_log_count++;
+    
+    if ((timer_log_count) % 30 == 0) {
+      Info("timer tick %d", timer_log_count);
+    }
     
     TaskSleep(&timer_rendez);
     

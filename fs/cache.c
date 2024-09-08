@@ -23,6 +23,8 @@
 #include <kernel/vm.h>
 #include <kernel/timer.h>
 #include <kernel/types.h>
+#include <sys/time.h>
+#include <time.h>
 #include <string.h>
 
 
@@ -93,7 +95,6 @@ ssize_t read_from_cache(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
     nbytes_total += nbytes_xfer;
   }
 
-//	Info("read_from_cache() total= %d", nbytes_total);
   return nbytes_total;
 }
 
@@ -206,12 +207,19 @@ struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)
 
       buf->flags |= B_BUSY;
 
-      if (buf->flags & (B_DELWRI | B_ASYNC)) {
-        buf->flags &= ~(B_DELWRI | B_ASYNC);
+      if (buf->flags & B_ASYNC) {
+        buf->flags &= ~(B_ASYNC);
         sb = buf->vnode->superblock;
   
-        hash = buf->expiration_time % NR_DELWRI_BUCKETS;
-        LIST_REM_ENTRY(&sb->delwri_timing_wheel[hash], buf, delwri_hash_link);
+        LIST_REM_ENTRY(&sb->pendwri_buf_list, buf, async_link);
+      }
+
+
+      if (buf->flags & B_DELWRI) {
+        buf->flags &= ~(B_DELWRI);
+        sb = buf->vnode->superblock;
+  
+        LIST_REM_ENTRY(&sb->delwri_buf_list, buf, async_link);
       }
       
       return buf;
@@ -429,11 +437,15 @@ int bwrite(struct Buf *buf)
  * @param   buf, buffer to write
  * @return  0 on success, negative errno on failure
  *
- * Queue buffer for write immediately. This block is unlikely to be
+ * Queue buffer for write. This block is unlikely to be
  * written again anytime soon so write as soon as possible.
  *
- * This is called when a write will reach the end of the current block
- * and the next write will write another block.
+ * This is called when a write will reaches the end of a block
+ * with the expectation that further writes will be in another block.
+ *
+ * This is placed on the superblock's bawrite list and will be sent
+ * to the driver by the superblock's flush task.  It will also
+ * be released by the sb_flush task.
  */
 int bawrite(struct Buf *buf)
 {
@@ -445,12 +457,10 @@ int bawrite(struct Buf *buf)
   sb = vnode->superblock;
     
   buf->flags = (buf->flags | B_WRITE | B_ASYNC) & ~(B_READ | B_DELWRI);
-  buf->expiration_time = sb->softclock;
-  
-  hash = buf->expiration_time % NR_DELWRI_BUCKETS;
-  LIST_ADD_TAIL(&sb->delwri_timing_wheel[hash], buf, delwri_hash_link);
-  brelse(buf);
 
+  buf->expiration_time = get_hardclock();  
+  LIST_ADD_TAIL(&sb->pendwri_buf_list, buf, async_link);
+  TaskWakeup(&sb->bdflush_rendez);
   return 0;
 }
 
@@ -464,28 +474,23 @@ int bawrite(struct Buf *buf)
  * to be written again soon so schedule it to be written out after a
  * short delay.
  *
- * This is called when a write does not cross into the next block.
- * 
-  // TODO: Insert onto delwri queue 5 seconds from now
-  // If already on delayed write queue, reinsert it at time, so that
-  // it will eventually get flushed, if time has passed, insert it at
-  // the head so it will be written soon.
+ * A bdwrite block is released immediately so that further writes
+ * can happen.
+ *
  */
 int bdwrite(struct Buf *buf)
 {
   struct SuperBlock *sb;
   struct VNode *vnode;
-  uint32_t hash;
-
+  
   vnode = buf->vnode;
   sb = vnode->superblock;
 
   buf->flags = (buf->flags | B_WRITE | B_DELWRI) & ~(B_READ | B_ASYNC);
 
-  buf->expiration_time = sb->softclock + DELWRI_DELAY_TICKS;
+  buf->expiration_time = get_hardclock() + DELWRI_DELAY_TICKS;
 
-  hash = buf->expiration_time % NR_DELWRI_BUCKETS;
-  LIST_ADD_TAIL(&sb->delwri_timing_wheel[hash], buf, delwri_hash_link);
+  LIST_ADD_TAIL(&sb->delwri_buf_list, buf, async_link);
   brelse(buf);
   
   return 0;
@@ -544,121 +549,133 @@ size_t resize_cache(size_t free)
   // while (cache_shrink_busy)
   // cond_wait();
 
-  // Flush LRU until
-
   return -ENOSYS;
 }
 
 
-/* @brief   Initialize a superblock's timing wheel and delayed-write message pool
+/*
  *
  */
 int init_superblock_bdflush(struct SuperBlock *sb)
 {
-	Info("init_superblock_bdflush");
-	
-  sb->delwri_timing_wheel = kmalloc_page();
+  Info("init_superblock_bdflush");
   
-  if (sb->delwri_timing_wheel == NULL) {
+  sb->bdflush_thread = create_kernel_thread(bdflush_task, sb, 
+                                        SCHED_RR, SCHED_PRIO_CACHE_HANDLER, 
+                                        THREADF_KERNEL, NULL);
+  
+  if (sb->bdflush_thread == NULL) {
+    Info("bd_flush initialization failed");
     return -ENOMEM;
   }
+
+  Info("bd_flush initialization OK");
+  
+  return 0;
+}
+
+
+/*
+ *
+ */
+void fini_superblock_bdflush(struct SuperBlock *sb, int how)
+{ 
+  // TODO: Set how this should be shutdown, flush all or abort immediately.
+  TaskWakeup(&sb->bdflush_rendez);
+  
+  // TODO: wait for bdflush thread to exit.
+}
+
+
+
+/* @brief   Per-Superblock kernel task for flushing async and delayed writes to disk
+ *
+ * TODO: Maybe have some fair share between async writes and delwri blocks?
+ *
+ * pending_writes   - anything that is expired is placed on this
+ *                  - all async writes are placed on end of this  (do not brelse these in bawrite)
+ *
+ * delayed_writes   - blocks to be written out at a later time (already brelsed)
+    // Either fixed rate timeout or dynamic based on next delwrite buf.
+    // Maybe a minimum delay.  Handle cases if timeout is negative.
+    // Initially try fixed rate.
     
-  for (int t=0; t < NR_DELWRI_BUCKETS; t++) {
-    LIST_INIT(&sb->delwri_timing_wheel[t]);
-  }
-  
-  sb->softclock = get_hardclock();
-}
 
-
-/* @brief   Free delayed-write message pool and timing wheel
- *
  */
-void deinit_superblock_bdflush(struct SuperBlock *sb)
+void bdflush_task(void *arg)
 {
-  kfree_page(sb->delwri_timing_wheel);  
-  sb->delwri_timing_wheel = NULL;
-}
-
-
-/* @brief   Periodically write dirty blocks on the delayed-write list to disk
- *
- * @param   arg, unused
- * @return  0 on success when task terminates, negative errno on failure
- */
-int sys_bdflush(int fd)
-{
-  struct SuperBlock *sb;
-  struct Buf *buf;
+	struct SuperBlock *sb;
+	struct Buf *buf;
   uint64_t now;
-	int count = 0;
-	struct Process *current;
+  struct timespec timeout;
+  
+  Info("bdflush_task started");
+  
+	sb = (struct SuperBlock *)arg;
 	
-	Info("bdflush(%d)", fd);
-	
-	current = get_current_process();
-	sb = get_superblock(current, fd);
-	
-	if (sb == NULL || sb->delwri_timing_wheel == NULL) {
-	  Info ("bdflush bad fd");
-		return -EBADF;
-	}
-	
-	now = get_hardclock();
-	
-  while (sb->softclock < now) { 
-    while((buf = find_delayed_write_buf(sb, sb->softclock)) != NULL) {
-       vfs_write_async(sb, buf);
-       count++;      
+  while((sb->flags & S_ABORT) == 0) {
+  	now = get_hardclock();
+  
+    while ((buf = get_bdwrite_buf(sb, now)) != NULL) {      
+      LIST_ADD_TAIL(&sb->pendwri_buf_list, buf, async_link);
     }
-   	
-    sb->softclock++; // = BDFLUSH_SOFTCLOCK_TICKS;  FIXME: Need to quantise expire and softclock
+      
+    while ((buf = get_pending_write_buf(sb)) != NULL) {      
+      if (buf) {
+            
+        vfs_write(buf->vnode, buf->data, CLUSTER_SZ, NULL);
+        brelse(buf);      
+      }
+    }
+
+    timeout.tv_sec = 1;
+    timeout.tv_nsec = 0;
+    
+    TaskSleepInterruptible(&sb->bdflush_rendez, &timeout, INTRF_NONE);
   }
-
-  Info("bdflush count:%d", count);
-	return count;
 }
 
 
-/* @brief		Release any resources of a delayed write buffer during replymsg
+/*
  *
- *   // only do this if replyport is null
-
  */
-int bdflush_brelse(struct Msg *msg)
-{
-  brelse((struct Buf *)msg);
-}
-
-
-/* @brief   find a block that has expired on the delayed write timing wheel
- *
- * @param   sb, superblock to get delayed write block for
- * @param   softclock_ticks,  softclock time to search for delwri blocks
- * @return  buf or NULL if no entries in the delayed-write queue
- *
- * This does not remove the Buf from the delayed write timing wheel and is
- * not marked as busy. The Buf is removed by calling unhash_delayed_write_buf().
- */
-struct Buf *find_delayed_write_buf(struct SuperBlock *sb, uint64_t softclock)
+struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now)
 {
   struct Buf *buf;
-  uint32_t hash;
   
-  hash = softclock % NR_DELWRI_BUCKETS;
+  buf = LIST_HEAD(&sb->delwri_buf_list);
   
-  buf = LIST_HEAD(&sb->delwri_timing_wheel[hash]);
-  
-  while (buf != NULL) {  
-    if (buf->expiration_time <= softclock) {
-		  LIST_REM_ENTRY(&sb->delwri_timing_wheel[hash], buf, delwri_hash_link);
-		  buf->flags |= B_BUSY;
+  if (buf != NULL) {
+    if (buf->expiration_time <= now) {
+      LIST_REM_HEAD(&sb->delwri_buf_list, async_link);
+      buf->flags |= B_BUSY | B_WRITE;
+      buf->flags &= ~B_DELWRI;
       return buf;
     }
-    
-    LIST_NEXT(buf, delwri_hash_link);
+  }
+
+  return NULL;
+}
+
+
+/*
+ *
+ */
+struct Buf *get_pending_write_buf(struct SuperBlock *sb)
+{
+  struct Buf *buf;
+  
+  buf = LIST_HEAD(&sb->pendwri_buf_list);
+  
+  if (buf != NULL) {
+    LIST_REM_HEAD(&sb->pendwri_buf_list, async_link);
+    buf->flags |= B_BUSY | B_WRITE;
+    buf->flags &= ~(B_ASYNC | B_DELWRI);
+
+    return buf;
   }
   
   return NULL;
 }
+
 

@@ -65,15 +65,12 @@ int sys_rename(char *oldpath, char *newpath)
         if (parent == oldlpath.vnode) {
         }
       }
-
-
     }
 
 
-    // Ensure new path is not inside old path.
-    // Get directory of newl, keep ascending up tree, until reaching mount point
-    // If reaching oldl then cannot rename.
-
+    // Ensure new path is not inside old path (and visa versa?).
+    // keep ascending up tree for both paths, until reaching mount point
+    // One path shouldn't be in the other.
 
   */
 

@@ -33,7 +33,7 @@ struct BootInfo {
   uint32_t screen_height;
   uint32_t screen_pitch;
   void *screen_buf;
-  vm_size mem_size;
+  uint64_t mem_size;
 
   vm_addr bootloader_base;
   vm_addr bootloader_ceiling;

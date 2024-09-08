@@ -66,6 +66,8 @@ int sys_exec(char *filename, struct execargs *_args)
   }
   */
 
+  // TODO: Kill all other threads
+
   sc = do_exec(fd, _args);
   
   sys_close(fd);
@@ -88,13 +90,15 @@ int do_exec(int fd, struct execargs *_args)
   void *stack_pointer;
   void *stack_base;
   struct Process *current;
+  struct Thread *current_thread;
   struct execargs args;
   int8_t *pool;
     
   Info("do_exec");
   
   current = get_current_process();
-
+  current_thread = get_current_thread();
+  
   if (check_elf_headers(fd) != 0) {
     Error("CheckELFHeaders failed");
     return -ENOEXEC;
@@ -112,6 +116,15 @@ int do_exec(int fd, struct execargs *_args)
     return -EFAULT;
   }
 
+  if (current->exit_in_progress == true) {
+    do_exit_thread(0);
+  }
+
+  current->exit_status = 0;
+  current->exit_in_progress = true;
+
+  do_kill_other_threads_and_wait(current, current_thread);
+  
   cleanup_address_space(&current->as);
 
   if (load_process(current, fd, &entry_point) != 0) {
@@ -135,7 +148,7 @@ int do_exec(int fd, struct execargs *_args)
 
   exec_signals(current);
 
-  arch_init_exec(current, entry_point, stack_pointer, &args);
+  arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
   return 0;
 }
 

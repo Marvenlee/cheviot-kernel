@@ -78,10 +78,17 @@
 #define Info(fmt, args...)
 #define KDebug(fmt, args...)
 
-#define KASSERT(expr)
+#define KASSERT(expr)                                                          \
+  {                                                                            \
+    if (!(expr)) {                                                             \
+      PrintKernelPanic(#expr ", %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);\
+    }                                                                          \
+  }
+
 #define KernelPanic()                                                          \
   {                                                                            \
     DisableInterrupts();                                                       \
+    PrintKernelPanic("panic, %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);   \
     while(1);                                                                  \
   }
 
@@ -100,7 +107,7 @@ void KLog2(const char *format, va_list ap);
 void PrintKernelPanic(char *format, ...);
 void KLogToScreenDisable(void);
 
-void ProcessesInitialized(void);
+void NotifyLoggerProcessesInitialized(void);
 
 void PrintUserContext(struct UserContext *uc);
 void PrintMemDump(uint32_t base, size_t word_cnt);

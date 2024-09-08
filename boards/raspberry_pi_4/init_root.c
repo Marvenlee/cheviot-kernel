@@ -48,8 +48,11 @@ ssize_t ReadIFS (void *base, off_t offset, void *vaddr, size_t sz);
  * Allocates the initial stack for the process.
  * Starts the root process at the IFS.exe's entry point.
  */
-void BootstrapRootProcess(void) {
+void bootstrap_root_process(void *arg)
+{
+  (void)arg;
   struct Process *current;
+  struct Thread *current_thread;
   void *entry_point;
   void *stack_pointer;
   void *stack_base;
@@ -59,39 +62,23 @@ void BootstrapRootProcess(void) {
   void *ifs_exe_base;
   struct AddressSpace *as;
 
-  Info ("BootstrapRootProcess ...");
+  Info ("bootstrap_root_process ...");
 
 #if 1
+  // FIXME: Why is this here, shouldn't interrupts be enabled on task switch?
   Info ("** Enabling interrupts **");
   EnableInterrupts();
 #endif  
 
   current = get_current_process();
+  current_thread = get_current_thread();
+  
   as = &current->as;
 
   if ((pool = alloc_arg_pool()) == NULL) {
     Info("Root alloc arg pool failed");
     KernelPanic();
   }
-
-  
-//  CleanupAddressSpace(&current->as);
-
-/*
-  Info ("Map IFS image to 0x00400000");
-
-  if ((ifs_base = MapIFS((void *)0x00400000, bootinfo->ifs_image_size, (void *)bootinfo->ifs_image, PROT_READWRITE)) == NULL) {
-    Info("Root map IFS image failed");
-    KernelPanic();
-  }
-*/
-
-/*
-  if ((ifs_base = MapIFS((void *)0x00400000, 0x10000, (void *)0x00008000, PROT_READWRITE)) == NULL) {
-    Info("Root map IFS image failed");
-    KernelPanic();
-  }
-*/
 
   Info ("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
   Info ("ifs_exe_base phys = %08x", (vm_addr)bootinfo->ifs_exe_base);  
@@ -129,7 +116,7 @@ void BootstrapRootProcess(void) {
   Info ("Args");
   Info ("Entry Point  : %08x", (vm_addr) entry_point);
   
-  arch_init_exec(current, entry_point, stack_pointer, &args);
+  arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
 }
 
 

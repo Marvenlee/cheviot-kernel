@@ -25,10 +25,6 @@
 #include <kernel/kqueue.h>
 
 
-// Static prototypes
-static struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
-
-
 /* @brief   Lookup a vnode from a file descriptor
  *
  * @param   proc, process in which the file descriptor belongs
@@ -134,6 +130,8 @@ struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr)
   vnode->vnode_covered = NULL;
   vnode->pipe = NULL;
   
+  vnode->tty_pgrp = INVALID_PID;
+  
   vnode->inode_nr = inode_nr;
   
   vnode->mode = 0;
@@ -163,35 +161,31 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
 
-  // FIXME: vnode_get, Why is a while loop needed ?  Were we going to wait for a vnode to be freed?
-  // FIXME: how does this compare to cache.c getblk
+  if (sb->flags & S_ABORT) {
+    return NULL;
+  }
   
-  while (1) {
-    if (sb->flags & S_ABORT) {
-      return NULL;
+  if ((vnode = vnode_find(sb, inode_nr)) != NULL) {
+    vnode->reference_cnt++;
+    sb->reference_cnt++;
+  
+    while (vnode->busy) {
+      TaskSleep(&vnode->rendez);
     }
-    
-    if ((vnode = vnode_find(sb, inode_nr)) != NULL) {
-      vnode->reference_cnt++;
-      sb->reference_cnt++;
-    
-      while (vnode->busy) {
-        TaskSleep(&vnode->rendez);
-      }
 
-      vnode->busy = true;
+    vnode->busy = true;
 
-      if ((vnode->flags & V_FREE) == V_FREE) {
-        LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_entry);
-      }
-
-      return vnode;
-    
-    } else {
-      return NULL;
+    if ((vnode->flags & V_FREE) == V_FREE) {
+      LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_entry);
     }
+
+    return vnode;
+  
+  } else {
+    return NULL;
   }
 }
+
 
 /*
  * Used to increment reference count of existing VNode.  Used within FChDir so
@@ -202,6 +196,7 @@ void vnode_inc_ref(struct VNode *vnode)
   vnode->reference_cnt++;
   vnode->superblock->reference_cnt++;
 }
+
 
 /*
  * @brief   Release a VNode
@@ -292,7 +287,7 @@ void vnode_unlock(struct VNode *vnode)
  *
  * TODO : Hash vnode by sb and inode_nr
  */
-static struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
+struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
 {
   int v;
 

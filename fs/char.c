@@ -26,6 +26,7 @@
 #include <kernel/board/boot.h>
 #include <kernel/globals.h>
 #include <sys/termios.h>
+#include <unistd.h>
 
 
 /* @brief   Read data from a character device
@@ -72,7 +73,8 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   current = get_current_process();
   
   while (vnode->reader_cnt != 0) {
-    if (TaskSleepInterruptible(&vnode->rendez) != 0) {
+    if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
+      Error("read_from_char reader_cnt -EINTR");
       return -EINTR;
     }    
   }
@@ -86,6 +88,8 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
    
     if (xfered > 0) {  
       CopyOut (dst, buf, xfered);
+    } else if (xfered == -EINTR) {
+      Info("char vfs_read returned -EINTR");
     }
   }
   
@@ -113,18 +117,22 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   current = get_current_process();
 
   while (vnode->writer_cnt != 0) {
-    if (TaskSleepInterruptible(&vnode->rendez) != 0) {
+    if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
+      Error("write_to_char writer_cnt -EINTR");
       return -EINTR;
     }    
   }
 
   vnode->writer_cnt = 1;
-
   xfer = (sz < sizeof buf) ? sz : sizeof buf;
 
   if (xfer > 0) {      
     CopyIn (buf, src, xfer);
     xfered = vfs_write(vnode, buf, xfer, NULL);
+    
+    if (xfered == -EINTR) {
+      Info("char vfs_write returned -EINTR");
+    }
   }
     
   vnode->writer_cnt = 0;
@@ -133,24 +141,6 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   Info("** write_to_char(sz:%d) xfered = %d", sz, xfered);
 
   return xfered;
-}
-
-
-/* @brief   Set attributes of terminal device
- *
- */
-int sys_tcsetattr (int fd, struct termios *_termios)
-{
-  return -ENOSYS;
-}
-
-
-/* @brief   Get attributes of terminal device
- *
- */
-int sys_tcgetattr (int fd, struct termios *_termios)
-{
-  return -ENOSYS;
 }
 
 
@@ -188,13 +178,108 @@ int sys_isatty(int fd)
 
   return sc;
 }
+
+
+/* @brief   Set attributes of terminal device
+ *
+ */
+int ioctl_tcsetattr(int fd, struct termios *_termios)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Get attributes of terminal device
+ *
+ */
+int ioctl_tcgetattr(int fd, struct termios *_termios)
+{
+  return -ENOSYS;
+}
+
+
+/*
+ *
+ */
+int ioctl_tiocsctty(int fd, int arg)
+{
+  struct VNode *vnode;
+  struct Process *current;
+    
+  Info("ioctl_tiocsctty(fd:%d, arg:%d)", fd, arg);
+  
+  current = get_current_process();
+
+  vnode = get_fd_vnode(current, fd);    // FIXME: does this increment ref count ?
+
+  if (vnode == NULL) {
+    Info("ioctl_tiocsctty -EINVAL");
+    return -EINVAL;
+  }
+
+  if (S_ISCHR(vnode->mode) == 0) {
+    return -EINVAL;
+  }
+
+  if (current->fproc->controlling_tty != NULL) {
+    vnode_put(current->fproc->controlling_tty);  
+  }  
+  
+  current->fproc->controlling_tty = vnode;
+  vnode->tty_pgrp = get_current_pid();
+  vnode_inc_ref(vnode);
+  vnode_put(vnode);
+
+  return 0;
+}
+
+
+/*
+ *
+ */
+int ioctl_tiocnotty(int fd)
+{
+  struct VNode *vnode;
+  struct Process *current;
+  
+  current = get_current_process();
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    return -EINVAL;
+  }
+
+  if (S_ISCHR(vnode->mode) == 0) {
+    return -EINVAL;
+  }
+        
+  if (vnode->tty_pgrp != current->pgrp) {
+    return -EPERM;
+  }  
+
+  if (current->session_leader == true) {
+    // Send SIGCONT and SIGHUP to foreground process group
+    sys_kill(-vnode->tty_pgrp, SIGCONT);
+    sys_kill(-vnode->tty_pgrp, SIGHUP);
+  }
+  
+  vnode->tty_pgrp = -1;  
+  vnode_put(vnode);
+
+  return 0;
+}
  
  
 /* @brief   Set the file handle to be used to receive kernel debug logs
  *
  */
-int sys_set_syslog_file(int fd)
+int ioctl_setsyslog(int fd)
 {
+  // TODO:  set syslog file
   return -ENOSYS;
 }
+
+
+
+
 

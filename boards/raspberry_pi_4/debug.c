@@ -65,7 +65,7 @@ void InitDebug(void)
  *
  * Logging output is prefixed with the process ID of the caller 
  */
-void ProcessesInitialized(void)
+void NotifyLoggerProcessesInitialized(void)
 {
   processes_initialized = true;
 }
@@ -111,7 +111,7 @@ void DoLog(const char *format, ...)
 	
   if (processes_initialized) {
   	current = get_current_process();
-    Snprintf(&klog_entry[0], KLOG_WIDTH, "%4d: %s:", GetPid(), current->basename);
+    Snprintf(&klog_entry[0], KLOG_WIDTH, "%4d: %s:", get_current_tid(), current->basename);
 	  KPrintString(&klog_entry[0]);
   } else {
 	  KPrintString("----:");  

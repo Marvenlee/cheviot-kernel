@@ -27,6 +27,65 @@
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
+#include <kernel/kqueue.h>
+
+/* @brief   Allow thread events to wake up a thread blocked on kevent().
+ *
+ * This will apply to ANY kqueue we have registered with.
+ */
+ 
+int sys_thread_event_kevent_mask(int kq, uint32_t event_mask)
+{
+  struct KQueue *kqueue;
+  struct Thread *cthread;
+  struct Process *cproc;
+  
+  int sc = 0;
+  struct kevent ev;
+  
+  ev.ident = get_current_tid();  
+  ev.filter = EVFILT_THREAD_EVENT;          
+  ev.flags = 0;
+  ev.fflags = 0;
+  ev.data = NULL;
+  ev.udata = NULL;
+    
+  Info("sys_thread_event_kevent_mask(%08x)", event_mask);
+  
+  cproc = get_current_process();
+  cthread = get_current_thread();
+  
+  cthread->kevent_event_mask = event_mask;
+  
+  if (cthread->event_knote == NULL) {
+    kqueue = get_kqueue(cproc, kq);
+  
+    if (kqueue == NULL) {
+      return -EINVAL;
+    }
+  
+    while (kqueue->busy == true) {
+      TaskSleep(&kqueue->busy_rendez);
+    }
+    kqueue->busy = true;
+
+    cthread->event_knote = alloc_knote(kqueue, &ev);
+    
+    if (cthread->event_knote != NULL) {
+      cthread->event_kqueue = kqueue;
+      enable_knote(kqueue, cthread->event_knote);
+    } else {
+      cthread->kevent_event_mask = 0;
+      cthread->event_kqueue = kqueue;
+      sc = -ENOMEM;
+    }
+
+    kqueue->busy = false;
+    TaskWakeup(&kqueue->busy_rendez);
+  }
+  
+  return sc;
+}
 
 
 /*
@@ -34,17 +93,21 @@
  */
 uint32_t sys_thread_event_check(uint32_t event_mask)
 {
-  struct Process *current;
+  struct Thread *cthread;
   int sc = 0;
   int_state_t int_state;
   uint32_t caught_events;
+  uint32_t new_pending_events;
   
-  current = get_current_process();  // FIXME: Replace with threads
-
+  cthread = get_current_thread();
+  
   int_state = DisableInterrupts();
-  caught_events = current->pending_events & event_mask;
-  current->pending_events &= ~caught_events;
+  caught_events = cthread->pending_events & event_mask;
+  cthread->pending_events &= ~caught_events;
+  new_pending_events = cthread->pending_events;
   RestoreInterrupts(int_state);
+  
+  Info("sys_thread_event_check() caught:%08x remaining:%08x", caught_events, new_pending_events);
   
   return caught_events;
 }
@@ -55,21 +118,25 @@ uint32_t sys_thread_event_check(uint32_t event_mask)
  */
 uint32_t sys_thread_event_wait(uint32_t event_mask)
 {
-  struct Process *current;
+  struct Thread *cthread;
   int_state_t int_state;
   uint32_t caught_events;
   
-  current = get_current_process();  // FIXME: Replace with threads
+  cthread = get_current_thread();
+
+  // Should interrupts be disabled for all of this?
   
-  if ((current->pending_events & event_mask) == 0) {
-    TaskSleepInterruptible(&current->rendez);   // FIXME: Check result
+  cthread->event_mask = event_mask;
+  
+  if ((cthread->pending_events & cthread->event_mask) == 0) {
+    TaskSleepInterruptible(&cthread->rendez, NULL, INTRF_ALL);   // FIXME: Check sc result, could be signal or event
                                                      // Should we loop ?
                                                      // Should we exit if pending signals?
   }
   
   int_state = DisableInterrupts();
-  caught_events = current->pending_events & event_mask;
-  current->pending_events &= ~caught_events;
+  caught_events = cthread->pending_events & cthread->event_mask;
+  cthread->pending_events &= ~caught_events;
   RestoreInterrupts(int_state);
   
   return caught_events;
@@ -79,22 +146,29 @@ uint32_t sys_thread_event_wait(uint32_t event_mask)
 /*
  *
  */
-int sys_thread_event_signal(int thread_id, int event)
+int sys_thread_event_signal(int tid, int event)
 {
-  struct Process *proc;
+  struct Thread *thread;
+  struct Thread *cthread;
   int_state_t int_state;
     
-  proc = get_current_process(); // FIXME: Replace with thread IDS when threads are supported.
+  cthread = get_current_thread();
+  thread = get_thread(tid);
   
-  if (proc == NULL) {
-    return -EINVAL;
+  if (thread == NULL || thread->process != cthread->process) {
+    return -EPERM;
   }
 
   int_state = DisableInterrupts();
-  proc->pending_events |= (1<<event);
+
+  thread->pending_events |= (1<<event);
+  if ((thread->pending_events & thread->kevent_event_mask) != 0) {  
+    TaskWakeupSpecific(thread, INTRF_EVENT);
+  }
+  
   RestoreInterrupts(int_state);
 
-  TaskWakeupSpecific(proc);
+
 }
 
 
@@ -102,17 +176,16 @@ int sys_thread_event_signal(int thread_id, int event)
  *
  * Interrupts should be disabled when calling this function.
  */
-int isr_thread_event_signal(int thread_id, int event)
+int isr_thread_event_signal(struct Thread *thread, int event)
 {
-  struct Process *proc;
-  
-  proc = GetProcess(thread_id);  // FIXME: Replace with thread IDs when threads are supported.
-  
-  if (proc == NULL) {
+  if (thread == NULL) {
     return -EINVAL;
   }
 
-  proc->pending_events |= (1<<event);
-  TaskWakeupSpecific(proc);
+  thread->pending_events |= (1<<event);
+  if ((thread->pending_events & thread->kevent_event_mask) != 0) {  
+    TaskWakeupSpecific(thread, INTRF_EVENT);
+  }
+  return 0;
 }
 

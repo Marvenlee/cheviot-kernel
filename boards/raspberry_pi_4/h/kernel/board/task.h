@@ -77,7 +77,7 @@ struct ExceptionState
                                    
 #define MAX_CPU           1
 #define USER_STACK_SZ     0x20000
-#define PROCESS_SZ        8192
+#define KERNEL_STACK_SZ   0x1000
 
 /* Exception types */
 #define EI_PAGEFAULT      0
@@ -95,7 +95,8 @@ struct ExceptionState
 struct CPU
 {
   struct Process *current_process;
-  struct Process *idle_process;
+  struct Thread  *current_thread;
+  struct Thread *idle_thread;
   int reschedule_request;
   vm_addr svc_stack;
   vm_addr interrupt_stack;
@@ -112,10 +113,21 @@ extern struct CPU cpu_table[MAX_CPU];
  * Prototypes
  */
 struct CPU *get_cpu();
-struct Process *get_current_process();
+struct CPU *arch_pick_cpu(void);
 
-void StartProcess(void);
+
+//void StartProcess(void);
+
+extern void start_of_forked_process(void);
+extern void start_of_execed_process(void);
+extern void start_of_kernel_thread(void);
+extern void start_of_user_thread(void);
 
 void save_fp_context(uint32_t *context);
+
+void bootstrap_root_process(void *arg);
+
+void idle_task(void *arg);
+void TimerBottomHalf(void *arg);
 
 #endif

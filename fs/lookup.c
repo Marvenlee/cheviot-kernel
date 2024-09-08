@@ -365,11 +365,22 @@ int walk_component(struct lookupdata *ld)
   }
   
   KASSERT(ld->parent != NULL);
+
+#if 0
+  if (sb->flags & MNTF_DEVFS_TTY_SPECIAL) {
+    if (StrCmp(ld->last_component, "tty") == 0) {
+      // TODO: Get controlling_tty of this process
+    }
     
+  } else if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
+    return rc;
+  }  
+#else
   if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
     return rc;
   }
-  
+#endif
+
   vnode_mounted_here = ld->vnode->vnode_mounted_here;
 
   // TODO: Check permissions/access here

@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-//#define KDEBUG 1
+//#define KDEBUG
 
 /*
  * ARM-specific process creation and deletion code.
+ *
+ * TODO: Rename to context.c or arch_context.c
  */
  
 #include <kernel/board/arm.h>
@@ -31,12 +33,39 @@
 #include <kernel/utility.h>
 #include <string.h>
 
-extern void StartForkProcess(void);
-extern void StartExecProcess(void);
 
-void start_kernel_process_log(void)
+/*
+ * TODO: Remove me, added for debugging
+ */
+void start_kernel_thread_log(void)
 {
-  Info ("start_kernel_process_log()");
+  Info ("start_kernel_thread_log()");
+}
+
+void start_forked_thread_log(void)
+{
+  Info ("start_forked_thread_log()");
+}
+
+
+void start_forked_thread_inside_log(struct UserContext *uc)
+{
+  Info ("start_forked_thread_inside_log()");
+
+  Info ("uc->r0 = %08x", uc->r0);
+  Info ("uc->sp = %08x", uc->sp);
+  Info ("uc->lr = %08x", uc->lr);
+  Info ("uc->pc = %08x", uc->pc);
+}
+
+
+/*
+ * TODO: Remove arch_pick_cpu from below arch_ functions.  cpu is supplied into
+ * do_create_thread
+ */
+struct CPU *arch_pick_cpu(void)
+{
+  return &cpu_table[0];
 }
 
 
@@ -46,65 +75,71 @@ void start_kernel_process_log(void)
  * and kernel stack so that PrepareProcess() is executed on the context
  * of the new process.
  */
-int arch_fork_process(struct Process *proc, struct Process *current)
+int arch_init_fork_thread(struct Process *new_proc, struct Process *current_proc, 
+                      struct Thread *new_thread, struct Thread *current_thread)
 {
   struct UserContext *uc_current;
-  struct UserContext *uc_proc;
+  struct UserContext *uc_new;
   uint32_t *context;
 
-  uc_current = (struct UserContext *)((vm_addr)current + PROCESS_SZ -
+  Info("arch_forked_thread(new_thread:%08x)", new_thread);
+
+  uc_current = (struct UserContext *)((vm_addr)current_thread->stack + KERNEL_STACK_SZ -
                                       sizeof(struct UserContext));
-  uc_proc = (struct UserContext *)((vm_addr)proc + PROCESS_SZ -
+                                      
+  uc_new = (struct UserContext *)((vm_addr)new_thread->stack + KERNEL_STACK_SZ -
                                    sizeof(struct UserContext));
 
-  uc_proc->r0 = 0;
-  uc_proc->r1 = uc_current->r1;
-  uc_proc->r2 = uc_current->r2;
-  uc_proc->r3 = uc_current->r3;
-  uc_proc->r4 = uc_current->r4;
-  uc_proc->r5 = uc_current->r5;
-  uc_proc->r6 = uc_current->r6;
-  uc_proc->r7 = uc_current->r7;
-  uc_proc->r8 = uc_current->r8;
-  uc_proc->r9 = uc_current->r9;
-  uc_proc->r10 = uc_current->r10;
-  uc_proc->r11 = uc_current->r11;
-  uc_proc->r12 = uc_current->r12;
-  uc_proc->sp = uc_current->sp;
-  uc_proc->lr = uc_current->lr;
-  uc_proc->pc = uc_current->pc;
-  uc_proc->cpsr = uc_current->cpsr;
+  uc_new->r0 = 0;       // We return 0 to indicate we're new process (parent gets PID)
+  uc_new->r1 = uc_current->r1;
+  uc_new->r2 = uc_current->r2;
+  uc_new->r3 = uc_current->r3;
+  uc_new->r4 = uc_current->r4;
+  uc_new->r5 = uc_current->r5;
+  uc_new->r6 = uc_current->r6;
+  uc_new->r7 = uc_current->r7;
+  uc_new->r8 = uc_current->r8;
+  uc_new->r9 = uc_current->r9;
+  uc_new->r10 = uc_current->r10;
+  uc_new->r11 = uc_current->r11;
+  uc_new->r12 = uc_current->r12;
+  uc_new->sp = uc_current->sp;
+  uc_new->lr = uc_current->lr;
+  uc_new->pc = uc_current->pc;
+  uc_new->cpsr = uc_current->cpsr;
 
-  Info ("arch_fork_process cpsr = %08x", uc_proc->cpsr);
+  Info ("arch_fork_process sp = %08x", uc_new->sp);
+  Info ("arch_fork_process lr = %08x", uc_new->lr);
+  Info ("arch_fork_process pc = %08x", uc_new->pc);
+  Info ("arch_fork_process cpsr = %08x", uc_new->cpsr);
 
-  // Simple question, Is uc_current pointing to actual context of root process,
-  // or not?
+  context = ((uint32_t *)uc_new) - N_CONTEXT_WORD;
 
-  context = ((uint32_t *)uc_proc) - N_CONTEXT_WORD;
-
-  KASSERT(uc_proc->pc != 0);
+  KASSERT(uc_new->pc != 0);
 
   for (int t = 0; t < 13; t++) {
-    context[t] = 0xdeadbee0 + t;
+    context[t] = 0xf005ba10 + t;
   }
 
-  context[13] = (uint32_t)uc_proc;
-  context[14] = (uint32_t)StartForkProcess;
+  context[13] = (uint32_t)uc_new;
+  context[14] = (uint32_t)start_of_forked_process;
 
-  save_fp_context(&context[15]);
+  save_fp_context(&context[15]);  // Save 16+1 of current thread onto new thread's context
 
-  proc->context = context;
-  proc->cpu = current->cpu;
+  new_thread->context = context;
 
-  proc->catch_state.pc = current->catch_state.pc;
+  Info ("arch_fork_process context = %08x", (uint32_t)new_thread->context);
 
+  new_thread->catch_state.pc = 0xfee15bad;
+  
   return 0;
 }
 
 
 /* @brief   Set CPU registers in preparation for a process Exec'ing
+ *
  */
-void arch_init_exec(struct Process *proc, void *entry_point,
+void arch_init_exec_thread(struct Process *proc, struct Thread *thread, void *entry_point,
                   void *stack_pointer, struct execargs *args)
 {
   struct UserContext *uc;
@@ -113,7 +148,7 @@ void arch_init_exec(struct Process *proc, void *entry_point,
 
   cpsr = USR_MODE | CPSR_DEFAULT_BITS; 
 
-  uc = (struct UserContext *)((vm_addr)proc + PROCESS_SZ -
+  uc = (struct UserContext *)((vm_addr)thread->stack + KERNEL_STACK_SZ -
                               sizeof(struct UserContext));
 
   memset(uc, 0, sizeof(*uc));
@@ -126,7 +161,7 @@ void arch_init_exec(struct Process *proc, void *entry_point,
   uc->sp = (uint32_t)stack_pointer;
   uc->cpsr = cpsr;
 
-  Info ("arch_init_exec");
+  Info ("arch_init_exec_thread");
   Info ("cpsr = %08x", uc->cpsr);
   Info ("sp = %08x", uc->sp);
   Info ("pc = %08x", uc->pc);
@@ -138,7 +173,7 @@ void arch_init_exec(struct Process *proc, void *entry_point,
   }
 
   context[13] = (uint32_t)uc;
-  context[14] = (uint32_t)StartExecProcess;
+  context[14] = (uint32_t)start_of_execed_process;
 
   context[15] = 0x00000000;  // FPU status register
   for (int t=0; t<32; t+=2) {
@@ -146,16 +181,121 @@ void arch_init_exec(struct Process *proc, void *entry_point,
     context[16 + t + 1] = 0x7FF00000;  // SNaN
   }
 
-  proc->context = context;
-  proc->catch_state.pc = 0xdeadbeef;
+  thread->context = context;
+  thread->catch_state.pc = 0xfee15bad;
   
-  GetContext(proc->context);
+  GetContext(thread->context);
 }
 
 
-/* @brief   Architecture specific handling when freeing a process
+
+
+
+/*
+ *
  */
-void arch_free_process(struct Process *proc)
+void arch_init_user_thread(struct Thread *thread, void *entry, void *arg)
+{
+  uint32_t cpsr;
+  struct UserContext *uc;
+  uint32_t *context;
+
+  uc = (struct UserContext *)((vm_addr)thread->stack + KERNEL_STACK_SZ -
+                              sizeof(struct UserContext));
+
+#if 1
+  cpsr = USR_MODE | CPSR_DEFAULT_BITS;
+#else
+  cpsr = cpsr_dnm_state | USR_MODE | CPSR_DEFAULT_BITS;
+#endif
+  
+  memset(uc, 0, sizeof(*uc));
+  uc->pc = (uint32_t)0xdeadeee3;      // Why are these set to odd addresses?
+  uc->cpsr = cpsr;
+  uc->sp = (uint32_t)0xdeadeee1;
+
+// kernel save/restore context
+
+  context = ((uint32_t *)uc) - N_CONTEXT_WORD;
+  
+  context[0] = (uint32_t)arg;
+  context[1] = (uint32_t)entry;
+
+  for (int t = 2; t <= 12; t++) {
+    context[t] = 0;
+  }
+
+  Info("Setting FPU state, addr:%08x", (uint32_t)context); 
+
+  context[13] = (uint32_t)uc;
+  context[14] = (uint32_t)start_of_user_thread;
+
+  context[15] = 0x00000000;  // FPU status register
+  for (int t=0; t<32; t+=2) {
+    context[16 + t ] = 0x00000000;
+    context[16 + t + 1] = 0x7FF00000;  // SNaN
+  }
+  
+  Info("Set FPU state, addr:%08x", (uint32_t)context); 
+
+  thread->context = context;
+  thread->cpu = arch_pick_cpu();  
+  thread->catch_state.pc = 0xfee15bad;
+}
+
+
+/*
+ *
+ */
+void arch_init_kernel_thread(struct Thread *thread, void *entry, void *arg)
+{
+  struct UserContext *uc;
+  uint32_t *context;
+  uint32_t cpsr;
+  
+#if 1
+  cpsr = SYS_MODE | CPSR_DEFAULT_BITS;
+#else
+  cpsr = cpsr_dnm_state | SYS_MODE | CPSR_DEFAULT_BITS;
+#endif
+  
+  uc = (struct UserContext *)((vm_addr)thread->stack + KERNEL_STACK_SZ
+                              - sizeof(struct UserContext));
+  memset(uc, 0, sizeof(*uc));
+  uc->pc = (uint32_t)0xdeadeee3;
+  uc->cpsr = cpsr;
+  uc->sp = (uint32_t)0xdeadeee1;
+
+  // kernel save/restore context
+
+  context = ((uint32_t *)uc) - N_CONTEXT_WORD;
+
+  context[0] = (uint32_t)arg;
+  context[1] = (uint32_t)entry;
+  
+  for (int t = 2; t <= 12; t++) {
+    context[t] = 0;
+  }
+
+  context[13] = (uint32_t)uc;
+  context[14] = (uint32_t)start_of_kernel_thread;
+
+  context[15] = 0x00000000;  // FPU status register
+  for (int t=0; t<32; t+=2) {
+    context[16 + t ] = 0x00000000;
+    context[16 + t + 1] = 0x7FF00000;  // SNaN
+  }
+
+  thread->context = context;  
+  thread->cpu = arch_pick_cpu();
+  thread->catch_state.pc = 0xfee15bad;
+}
+
+
+/* @brief   Architecture specific handling when freeing a thread
+ */
+void arch_stop_thread(struct Thread *thread)
 {
 }
+
 

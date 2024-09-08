@@ -54,6 +54,15 @@
 .endm
 
 
+/* @brief   Get a pointer to the current thread
+ *
+ */
+.macro Mget_current_thread reg
+    ldr \reg, =cpu_table
+    ldr \reg, [\reg, #CPU_CURRENT_THREAD]
+.endm
+
+
 /* @brief   Store register context in a UserContext structure from a SWI interrupt
  *
  */

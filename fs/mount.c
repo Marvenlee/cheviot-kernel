@@ -412,7 +412,7 @@ int close_mount(struct Process *proc, int fd)
   // TODO: Read-only filesystems don't need delayed writes
 
   if (S_ISDIR(vnode_mounted_here->mode)) {
-    deinit_superblock_bdflush(sb);
+    fini_superblock_bdflush(sb);
   }
 
   vnode_covered->vnode_mounted_here = NULL;

@@ -142,13 +142,14 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(sbin_PROGRAMS)
-am__kernel_SOURCES_DIST = proc/globals.c proc/interrupt.c proc/proc.c \
-	proc/sched.c proc/signal.c proc/sleep_wakeup_bkl.c \
-	proc/sysconf.c proc/thread_events.c proc/timer.c fs/access.c \
-	fs/block.c fs/cache.c fs/char.c fs/dir.c fs/dnlc.c fs/exec.c \
-	fs/filp.c fs/filedesc.c fs/globals.c fs/id.c fs/init.c \
-	fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c fs/mount.c \
-	fs/msg.c fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
+am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
+	proc/pid.c proc/proc.c proc/sched.c proc/signal.c \
+	proc/sleep_wakeup_bkl.c proc/sysconf.c proc/thread.c \
+	proc/thread_events.c proc/timer.c fs/access.c fs/block.c \
+	fs/cache.c fs/char.c fs/dir.c fs/dnlc.c fs/exec.c fs/filp.c \
+	fs/filedesc.c fs/fproc.c fs/globals.c fs/init.c fs/ioctl.c \
+	fs/kqueue.c fs/link.c fs/lookup.c fs/mount.c fs/msg.c \
+	fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
 	fs/signal.c fs/stat.c fs/symlink.c fs/sync.c fs/truncate.c \
 	fs/vfs.c fs/vnode.c fs/write.c utility/doprintf.c \
 	utility/string.c vm/as.c vm/globals.c vm/page.c vm/pagefault.c \
@@ -214,24 +215,26 @@ am__dirstamp = $(am__leading_dot)dirstamp
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/signals.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/timer.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/vectors.$(OBJEXT)
-am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/interrupt.$(OBJEXT) \
+am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
+	proc/interrupt.$(OBJEXT) proc/pid.$(OBJEXT) \
 	proc/proc.$(OBJEXT) proc/sched.$(OBJEXT) proc/signal.$(OBJEXT) \
 	proc/sleep_wakeup_bkl.$(OBJEXT) proc/sysconf.$(OBJEXT) \
-	proc/thread_events.$(OBJEXT) proc/timer.$(OBJEXT) \
-	fs/access.$(OBJEXT) fs/block.$(OBJEXT) fs/cache.$(OBJEXT) \
-	fs/char.$(OBJEXT) fs/dir.$(OBJEXT) fs/dnlc.$(OBJEXT) \
-	fs/exec.$(OBJEXT) fs/filp.$(OBJEXT) fs/filedesc.$(OBJEXT) \
-	fs/globals.$(OBJEXT) fs/id.$(OBJEXT) fs/init.$(OBJEXT) \
-	fs/ioctl.$(OBJEXT) fs/kqueue.$(OBJEXT) fs/link.$(OBJEXT) \
-	fs/lookup.$(OBJEXT) fs/mount.$(OBJEXT) fs/msg.$(OBJEXT) \
-	fs/open.$(OBJEXT) fs/pipe.$(OBJEXT) fs/read.$(OBJEXT) \
-	fs/rename.$(OBJEXT) fs/seek.$(OBJEXT) fs/signal.$(OBJEXT) \
-	fs/stat.$(OBJEXT) fs/symlink.$(OBJEXT) fs/sync.$(OBJEXT) \
-	fs/truncate.$(OBJEXT) fs/vfs.$(OBJEXT) fs/vnode.$(OBJEXT) \
-	fs/write.$(OBJEXT) utility/doprintf.$(OBJEXT) \
-	utility/string.$(OBJEXT) vm/as.$(OBJEXT) vm/globals.$(OBJEXT) \
-	vm/page.$(OBJEXT) vm/pagefault.$(OBJEXT) vm/segment.$(OBJEXT) \
-	vm/vm.$(OBJEXT) $(am__objects_1) $(am__objects_2)
+	proc/thread.$(OBJEXT) proc/thread_events.$(OBJEXT) \
+	proc/timer.$(OBJEXT) fs/access.$(OBJEXT) fs/block.$(OBJEXT) \
+	fs/cache.$(OBJEXT) fs/char.$(OBJEXT) fs/dir.$(OBJEXT) \
+	fs/dnlc.$(OBJEXT) fs/exec.$(OBJEXT) fs/filp.$(OBJEXT) \
+	fs/filedesc.$(OBJEXT) fs/fproc.$(OBJEXT) fs/globals.$(OBJEXT) \
+	fs/init.$(OBJEXT) fs/ioctl.$(OBJEXT) fs/kqueue.$(OBJEXT) \
+	fs/link.$(OBJEXT) fs/lookup.$(OBJEXT) fs/mount.$(OBJEXT) \
+	fs/msg.$(OBJEXT) fs/open.$(OBJEXT) fs/pipe.$(OBJEXT) \
+	fs/read.$(OBJEXT) fs/rename.$(OBJEXT) fs/seek.$(OBJEXT) \
+	fs/signal.$(OBJEXT) fs/stat.$(OBJEXT) fs/symlink.$(OBJEXT) \
+	fs/sync.$(OBJEXT) fs/truncate.$(OBJEXT) fs/vfs.$(OBJEXT) \
+	fs/vnode.$(OBJEXT) fs/write.$(OBJEXT) \
+	utility/doprintf.$(OBJEXT) utility/string.$(OBJEXT) \
+	vm/as.$(OBJEXT) vm/globals.$(OBJEXT) vm/page.$(OBJEXT) \
+	vm/pagefault.$(OBJEXT) vm/segment.$(OBJEXT) vm/vm.$(OBJEXT) \
+	$(am__objects_1) $(am__objects_2)
 kernel_OBJECTS = $(am_kernel_OBJECTS)
 kernel_DEPENDENCIES =
 kernel_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(kernel_LDFLAGS) \
@@ -292,7 +295,7 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	fs/$(DEPDIR)/cache.Po fs/$(DEPDIR)/char.Po fs/$(DEPDIR)/dir.Po \
 	fs/$(DEPDIR)/dnlc.Po fs/$(DEPDIR)/exec.Po \
 	fs/$(DEPDIR)/filedesc.Po fs/$(DEPDIR)/filp.Po \
-	fs/$(DEPDIR)/globals.Po fs/$(DEPDIR)/id.Po \
+	fs/$(DEPDIR)/fproc.Po fs/$(DEPDIR)/globals.Po \
 	fs/$(DEPDIR)/init.Po fs/$(DEPDIR)/ioctl.Po \
 	fs/$(DEPDIR)/kqueue.Po fs/$(DEPDIR)/link.Po \
 	fs/$(DEPDIR)/lookup.Po fs/$(DEPDIR)/mount.Po \
@@ -303,14 +306,16 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	fs/$(DEPDIR)/sync.Po fs/$(DEPDIR)/truncate.Po \
 	fs/$(DEPDIR)/vfs.Po fs/$(DEPDIR)/vnode.Po \
 	fs/$(DEPDIR)/write.Po proc/$(DEPDIR)/globals.Po \
-	proc/$(DEPDIR)/interrupt.Po proc/$(DEPDIR)/proc.Po \
+	proc/$(DEPDIR)/id.Po proc/$(DEPDIR)/interrupt.Po \
+	proc/$(DEPDIR)/pid.Po proc/$(DEPDIR)/proc.Po \
 	proc/$(DEPDIR)/sched.Po proc/$(DEPDIR)/signal.Po \
 	proc/$(DEPDIR)/sleep_wakeup_bkl.Po proc/$(DEPDIR)/sysconf.Po \
-	proc/$(DEPDIR)/thread_events.Po proc/$(DEPDIR)/timer.Po \
-	utility/$(DEPDIR)/doprintf.Po utility/$(DEPDIR)/string.Po \
-	vm/$(DEPDIR)/as.Po vm/$(DEPDIR)/globals.Po \
-	vm/$(DEPDIR)/page.Po vm/$(DEPDIR)/pagefault.Po \
-	vm/$(DEPDIR)/segment.Po vm/$(DEPDIR)/vm.Po
+	proc/$(DEPDIR)/thread.Po proc/$(DEPDIR)/thread_events.Po \
+	proc/$(DEPDIR)/timer.Po utility/$(DEPDIR)/doprintf.Po \
+	utility/$(DEPDIR)/string.Po vm/$(DEPDIR)/as.Po \
+	vm/$(DEPDIR)/globals.Po vm/$(DEPDIR)/page.Po \
+	vm/$(DEPDIR)/pagefault.Po vm/$(DEPDIR)/segment.Po \
+	vm/$(DEPDIR)/vm.Po
 am__mv = mv -f
 CPPASCOMPILE = $(CCAS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CCASFLAGS) $(CCASFLAGS)
@@ -471,17 +476,18 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-kernel_SOURCES = proc/globals.c proc/interrupt.c proc/proc.c \
-	proc/sched.c proc/signal.c proc/sleep_wakeup_bkl.c \
-	proc/sysconf.c proc/thread_events.c proc/timer.c fs/access.c \
-	fs/block.c fs/cache.c fs/char.c fs/dir.c fs/dnlc.c fs/exec.c \
-	fs/filp.c fs/filedesc.c fs/globals.c fs/id.c fs/init.c \
-	fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c fs/mount.c \
-	fs/msg.c fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
-	fs/signal.c fs/stat.c fs/symlink.c fs/sync.c fs/truncate.c \
-	fs/vfs.c fs/vnode.c fs/write.c utility/doprintf.c \
-	utility/string.c vm/as.c vm/globals.c vm/page.c vm/pagefault.c \
-	vm/segment.c vm/vm.c $(am__append_1) $(am__append_2)
+kernel_SOURCES = proc/globals.c proc/id.c proc/interrupt.c proc/pid.c \
+	proc/proc.c proc/sched.c proc/signal.c proc/sleep_wakeup_bkl.c \
+	proc/sysconf.c proc/thread.c proc/thread_events.c proc/timer.c \
+	fs/access.c fs/block.c fs/cache.c fs/char.c fs/dir.c fs/dnlc.c \
+	fs/exec.c fs/filp.c fs/filedesc.c fs/fproc.c fs/globals.c \
+	fs/init.c fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c \
+	fs/mount.c fs/msg.c fs/open.c fs/pipe.c fs/read.c fs/rename.c \
+	fs/seek.c fs/signal.c fs/stat.c fs/symlink.c fs/sync.c \
+	fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
+	utility/doprintf.c utility/string.c vm/as.c vm/globals.c \
+	vm/page.c vm/pagefault.c vm/segment.c vm/vm.c $(am__append_1) \
+	$(am__append_2)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CFLAGS = -O0 -g2 -std=c99 -mcpu=cortex-a72 -mfpu=vfpv3-d16
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CFLAGS = -O0 -g2 -std=c99
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CPPFLAGS = -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
@@ -588,7 +594,10 @@ proc/$(DEPDIR)/$(am__dirstamp):
 	@: > proc/$(DEPDIR)/$(am__dirstamp)
 proc/globals.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
+proc/id.$(OBJEXT): proc/$(am__dirstamp) proc/$(DEPDIR)/$(am__dirstamp)
 proc/interrupt.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
+proc/pid.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/proc.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
@@ -599,6 +608,8 @@ proc/signal.$(OBJEXT): proc/$(am__dirstamp) \
 proc/sleep_wakeup_bkl.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/sysconf.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
+proc/thread.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/thread_events.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
@@ -619,8 +630,8 @@ fs/dnlc.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/exec.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/filp.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/filedesc.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
+fs/fproc.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/globals.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
-fs/id.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/init.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/ioctl.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/kqueue.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
@@ -850,8 +861,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/exec.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/filedesc.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/filp.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/fproc.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/id.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/init.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/ioctl.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/kqueue.Po@am__quote@ # am--include-marker
@@ -873,12 +884,15 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/vnode.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/write.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/id.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/interrupt.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/pid.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/proc.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sched.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/signal.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sleep_wakeup_bkl.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sysconf.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_events.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/timer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@utility/$(DEPDIR)/doprintf.Po@am__quote@ # am--include-marker
@@ -1259,8 +1273,8 @@ distclean: distclean-am
 	-rm -f fs/$(DEPDIR)/exec.Po
 	-rm -f fs/$(DEPDIR)/filedesc.Po
 	-rm -f fs/$(DEPDIR)/filp.Po
+	-rm -f fs/$(DEPDIR)/fproc.Po
 	-rm -f fs/$(DEPDIR)/globals.Po
-	-rm -f fs/$(DEPDIR)/id.Po
 	-rm -f fs/$(DEPDIR)/init.Po
 	-rm -f fs/$(DEPDIR)/ioctl.Po
 	-rm -f fs/$(DEPDIR)/kqueue.Po
@@ -1282,12 +1296,15 @@ distclean: distclean-am
 	-rm -f fs/$(DEPDIR)/vnode.Po
 	-rm -f fs/$(DEPDIR)/write.Po
 	-rm -f proc/$(DEPDIR)/globals.Po
+	-rm -f proc/$(DEPDIR)/id.Po
 	-rm -f proc/$(DEPDIR)/interrupt.Po
+	-rm -f proc/$(DEPDIR)/pid.Po
 	-rm -f proc/$(DEPDIR)/proc.Po
 	-rm -f proc/$(DEPDIR)/sched.Po
 	-rm -f proc/$(DEPDIR)/signal.Po
 	-rm -f proc/$(DEPDIR)/sleep_wakeup_bkl.Po
 	-rm -f proc/$(DEPDIR)/sysconf.Po
+	-rm -f proc/$(DEPDIR)/thread.Po
 	-rm -f proc/$(DEPDIR)/thread_events.Po
 	-rm -f proc/$(DEPDIR)/timer.Po
 	-rm -f utility/$(DEPDIR)/doprintf.Po
@@ -1391,8 +1408,8 @@ maintainer-clean: maintainer-clean-am
 	-rm -f fs/$(DEPDIR)/exec.Po
 	-rm -f fs/$(DEPDIR)/filedesc.Po
 	-rm -f fs/$(DEPDIR)/filp.Po
+	-rm -f fs/$(DEPDIR)/fproc.Po
 	-rm -f fs/$(DEPDIR)/globals.Po
-	-rm -f fs/$(DEPDIR)/id.Po
 	-rm -f fs/$(DEPDIR)/init.Po
 	-rm -f fs/$(DEPDIR)/ioctl.Po
 	-rm -f fs/$(DEPDIR)/kqueue.Po
@@ -1414,12 +1431,15 @@ maintainer-clean: maintainer-clean-am
 	-rm -f fs/$(DEPDIR)/vnode.Po
 	-rm -f fs/$(DEPDIR)/write.Po
 	-rm -f proc/$(DEPDIR)/globals.Po
+	-rm -f proc/$(DEPDIR)/id.Po
 	-rm -f proc/$(DEPDIR)/interrupt.Po
+	-rm -f proc/$(DEPDIR)/pid.Po
 	-rm -f proc/$(DEPDIR)/proc.Po
 	-rm -f proc/$(DEPDIR)/sched.Po
 	-rm -f proc/$(DEPDIR)/signal.Po
 	-rm -f proc/$(DEPDIR)/sleep_wakeup_bkl.Po
 	-rm -f proc/$(DEPDIR)/sysconf.Po
+	-rm -f proc/$(DEPDIR)/thread.Po
 	-rm -f proc/$(DEPDIR)/thread_events.Po
 	-rm -f proc/$(DEPDIR)/timer.Po
 	-rm -f utility/$(DEPDIR)/doprintf.Po

@@ -34,6 +34,12 @@
 
 /*
  *
+ * TODO: Need to go back to linked lists of MemRegions for 
+ * address space managment instead of array of segments.  The array of
+ * segments was used initially as this allowed a quick binary search
+ * of an address space for segments.  The plan was to originally be a 
+ * SASOS with multiple domains (page directories) and the ability to
+ * map and unmap large segments quickly between domains.
  */
 vm_addr segment_create(struct AddressSpace *as, vm_offset addr, vm_size size,
                       int type, bits32_t flags)

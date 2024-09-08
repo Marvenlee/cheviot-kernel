@@ -54,6 +54,8 @@ int page_fault(vm_addr addr, bits32_t access)
 
   current = get_current_process();
  
+  Info("pf: current proc:%08x, pid:%d", (uint32_t)current, current->pid);
+ 
   real_addr = addr;
   addr = ALIGN_DOWN(addr, PAGE_SIZE);
   

@@ -76,7 +76,7 @@ void init_processes(void)
   free_process_cnt = max_process;
 
   for (int t = 0; t < max_process; t++) {
-    proc = GetProcess(t);
+    proc = get_process(t);
     proc->in_use = false;
   }
 
@@ -165,7 +165,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   proc = NULL;
 
   for (pid=0; pid < max_process; pid++) {
-    proc = GetProcess(pid);
+    proc = get_process(pid);
     
     if (proc->in_use == false) {
       break;

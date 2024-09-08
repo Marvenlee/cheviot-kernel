@@ -52,7 +52,7 @@ vm_addr sys_virtualtophysaddr(vm_addr addr)
   va = ALIGN_DOWN(addr, PAGE_SIZE);
  
   if (!io_allowed(current)) {
-    return NULL;
+    return (vm_addr)NULL;
   }
  
   if (pmap_is_page_present(as, va) == false) {

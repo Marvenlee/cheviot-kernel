@@ -45,10 +45,10 @@ void init_io_addresses(void)
   gpio_regs  = (struct bcm2711_gpio_registers *)bootinfo->gpio_base;
   aux_regs   = (struct bcm2711_aux_registers *)bootinfo->aux_base;  
 
-	hal_set_mbox_base(bootinfo->mailbox_base);  
+	hal_set_mbox_base((void *)bootinfo->mailbox_base);  
 	
-  gic_dist_regs      = bootinfo->gicd_base;
-  gic_cpu_iface_regs = bootinfo->gicc_base[0];
+  gic_dist_regs      = (struct bcm2711_gic_dist_registers *) bootinfo->gicd_base;
+  gic_cpu_iface_regs = (struct bcm2711_gic_cpu_iface_registers *) bootinfo->gicc_base[0];
 }
 
 
@@ -92,7 +92,7 @@ void init_vm(void)
 
   // Mark IFS image pages as in-use. This will be mapped into root process BootstrapRootProcess.
 //  init_pageframe_flags(bootinfo->ifs_image, bootinfo->ifs_image + bootinfo->ifs_image_size, PGF_INUSE);
-  init_pageframe_flags(bootinfo->ifs_image, bootinfo->mem_size, PGF_INUSE);
+  init_pageframe_flags(bootinfo->ifs_image, (vm_addr)bootinfo->mem_size, PGF_INUSE);
 
   Info ("reserved from 0 to boot base");
   Info ("reserved boot base : %08x", boot_base);
@@ -107,10 +107,10 @@ void init_vm(void)
   Info ("reserved videocore ceil : %08x", bootinfo->videocore_base);
   Info ("reserved IFS base : %08x", bootinfo->ifs_image);
 //  Info ("reserved IFS ceil : %08x", bootinfo->ifs_image + bootinfo->ifs_image_size);
-  Info ("reserved IFS ceil : %08x", bootinfo->ifs_image + bootinfo->mem_size);
+  Info ("reserved IFS ceil : %08x", bootinfo->ifs_image + (vm_addr)bootinfo->mem_size);
 
   // Error checking, all pages should have 0 or 1 references.
-  for (pa = 0; pa < mem_size; pa += PAGE_SIZE) {
+  for (pa = 0; pa < (vm_addr)mem_size; pa += PAGE_SIZE) {
     KASSERT(pageframe_table[pa / PAGE_SIZE].reference_cnt <= 1);
   }
   

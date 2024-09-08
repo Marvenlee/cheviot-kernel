@@ -23,7 +23,7 @@
 #include <kernel/types.h>
 #include <kernel/vm.h>
 #include <poll.h>
-
+#include <string.h>
 
 // Static Prototypes
 static int do_open(struct lookupdata *ld, int oflags, mode_t mode);

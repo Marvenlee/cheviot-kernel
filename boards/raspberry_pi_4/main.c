@@ -69,13 +69,13 @@ void Main(void)
   memcpy(&bootinfo_kernel, bootinfo, sizeof bootinfo_kernel);
   bootinfo = &bootinfo_kernel;
 
-//  aux_regs = (void *)AUX_BASE;   // Move into init_io_addresses
-
-  mem_size = bootinfo->mem_size;
+  mem_size = (vm_addr)bootinfo->mem_size;
 
   init_io_addresses();     // Rename to init_early_vm()
 
+  max_pid = NPROCESS + NTHREAD;
   max_process = NPROCESS;
+  max_thread = NTHREAD;
   max_pageframe = mem_size / PAGE_SIZE;
   max_buf = 4 * 1024;
   max_superblock = NR_SUPERBLOCK;
@@ -95,7 +95,9 @@ void Main(void)
   pageframe_table   = bootstrap_alloc(max_pageframe * sizeof(struct Pageframe));
   buf_table         = bootstrap_alloc(max_buf * sizeof(struct Buf));
   pipe_table        = bootstrap_alloc(max_pipe * sizeof (struct Pipe));
-  process_table     = bootstrap_alloc(max_process * PROCESS_SZ);
+  pid_table         = bootstrap_alloc(max_pid * sizeof (struct PidDesc));
+  process_table     = bootstrap_alloc(max_process * sizeof (struct Process));
+  thread_table      = bootstrap_alloc(max_thread * sizeof (struct Thread));
   superblock_table  = bootstrap_alloc(max_superblock * sizeof(struct SuperBlock));
   filp_table        = bootstrap_alloc(max_filp * sizeof(struct Filp));
   vnode_table       = bootstrap_alloc(max_vnode * sizeof(struct VNode));
@@ -103,7 +105,7 @@ void Main(void)
   knote_table       = bootstrap_alloc(max_knote * sizeof(struct KNote));
   isr_handler_table = bootstrap_alloc(max_isr_handler * sizeof(struct ISRHandler));
 
-	mailbuffer_pa = pmap_va_to_pa((vm_addr)mailbuffer);
+	mailbuffer_pa = (uint32_t *)pmap_va_to_pa((vm_addr)mailbuffer);
 	
   Info("calling init_io_pagetables (updates pagedir)"); 
 
@@ -151,12 +153,20 @@ void Main(void)
 
   Info("calling init_processes"); 
 
-  init_processes();
+  init_processes();  
+
+  Info("processes initialized");
+  Info("calling start_scheduler");
   
-  Error("InitProcesses failed");
+  start_scheduler();
+
   while (1) {
   }
 }
+
+
+
+
 
 
 /* @brief   Initialize the bootstrap heap pointer

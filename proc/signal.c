@@ -20,6 +20,8 @@
  * libc code updating to handle signals too.
  */
 
+//#define KDEBUG
+
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/filesystem.h>
@@ -74,7 +76,8 @@ const uint32_t sigprop[NSIG] = {
  */
 void sig_exit(int signal)
 {
-  sys_exit(signal<<8);  // TODO: FIXME signal exit
+  Info("sig_exit(signal:%d)", signal);
+  sys_exit(signal<<8);
 }
 
 
@@ -82,7 +85,7 @@ void sig_exit(int signal)
  */ 
 void fork_signals(struct Process *dst, struct Process *src)
 {
-	for (int t=1; t<NSIG; t++) {
+	for (int t=1; t <= NSIG; t++) {
 		dst->signal.handler[t-1] = src->signal.handler[t-1];
 		dst->signal.handler_mask[t-1] = src->signal.handler_mask[t-1];		
 		dst->signal.si_code[t-1] = 0;
@@ -96,6 +99,7 @@ void fork_signals(struct Process *dst, struct Process *src)
 	dst->signal.restorer    = src->signal.restorer;	
 	dst->signal.sigsuspend_oldmask = 0;
 	dst->signal.use_sigsuspend_mask = false;
+	dst->signal.sigreturn_sigframe = NULL;
 }
 
 
@@ -103,7 +107,7 @@ void fork_signals(struct Process *dst, struct Process *src)
  */
 void init_signals(struct Process *dst)
 {
-	for (int t=1; t<NSIG; t++) {
+	for (int t=1; t <= NSIG; t++) {
 		dst->signal.handler[t-1] = SIG_DFL;
 		dst->signal.handler_mask[t-1] = 0x00000000;		
 		dst->signal.si_code[t-1] = 0;
@@ -117,6 +121,7 @@ void init_signals(struct Process *dst)
 	dst->signal.restorer    = NULL;
 	dst->signal.sigsuspend_oldmask = 0;
 	dst->signal.use_sigsuspend_mask = false;	
+	dst->signal.sigreturn_sigframe = NULL;
 }
 
 
@@ -125,7 +130,7 @@ void init_signals(struct Process *dst)
  */
 void exec_signals(struct Process *dst)
 {
-	for (int t=1; t<NSIG; t++) {
+	for (int t=1; t <= NSIG; t++) {
 		if (dst->signal.handler[t-1] != SIG_IGN) {
 			dst->signal.handler[t-1] = SIG_DFL;
     }
@@ -140,6 +145,7 @@ void exec_signals(struct Process *dst)
 	dst->signal.restorer    = NULL;
 	dst->signal.sigsuspend_oldmask = 0;
 	dst->signal.use_sigsuspend_mask = false;	
+	dst->signal.sigreturn_sigframe = NULL;
 }
 
 
@@ -154,10 +160,18 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 	struct sigaction act, oact;
 	struct Process *current;
 	
+	Info("sys_sigaction(signal:%d)", signal);
+	
 	current = get_current_process();	
 
-	if (signal <= 0 || signal >= NSIG) {
+	if (signal <= 0 || signal >= NSIG) {        // FIXME  > NSIG
+  	Info("sys_sigaction -EINVAL");
 	  return -EINVAL;
+	}
+	
+	if (signal == SIGKILL || signal == SIGSTOP) {
+  	Error("sys_sigaction -EINVAL SIGKILL | SIGSTOP");
+		return -EINVAL;
 	}
 	
 	if (oact_out != NULL) {
@@ -168,39 +182,45 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 		oact.sa_mask = current->signal.handler_mask[signal-1];
 
 		if (CopyOut (oact_out, &oact, sizeof (struct sigaction)) != 0) {
+    	Info("sys_sigaction -EFAULT act_out");
 		  return -EFAULT;
 		}
 	}
 	
 	if (act_in != NULL) {
 		if (CopyIn(&act, act_in, sizeof (struct sigaction)) != 0) {
+    	Info("sys_sigaction -FAULT act_in");
 			return -EFAULT;
     }
 
-		if (signal == SIGKILL || signal == SIGSTOP) {
-			return -EINVAL;
-		}
-
 		if (act.sa_flags & SA_SIGINFO) {
+		  Info("sys_sigaction sa_flags set SA_SIGINFO");
 			current->signal.sig_info |= SIGBIT(signal);
 		}
 		
 		if (act.sa_flags & SA_NODEFER) {
+		  Info("sys_sigaction sa_flags set SA_NODEFER");
 			current->signal.sig_nodefer |= SIGBIT(signal);
 		}
     
 		if (act.sa_flags & SA_RESETHAND) {
+		  Info("sys_sigaction sa_flags set SA_RESETHAND");
 			current->signal.sig_resethand |= SIGBIT(signal);
 		}
 
     // FIXME: Ummm, when did we add this?  Rename to sa_restorer
     if (act.sa_flags & SA_RESTORER) {
+		  Info("sys_sigaction sa_flags set SA_RESTORER");
       current->signal.restorer = (void (*)(void)) act.sa_restorer;
     }
 
     current->signal.handler[signal-1] = (void *) act._signal_handlers._handler;
     current->signal.handler_mask[signal-1] = act.sa_mask;
     current->signal.handler_mask[signal-1] &= ~(SIGBIT(SIGKILL) | SIGBIT(SIGSTOP));
+
+
+    Info("handler set to: %08x", (uint32_t)current->signal.handler[signal-1]);
+    Info("mask for signal: %d is %08x", signal, current->signal.handler_mask[signal-1]);
 	}
 	
 	return 0;
@@ -215,72 +235,147 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
  */
 int sys_kill(int pid, int signal)
 {
-	struct Process *proc;
-	int rc = 0;	
-
-	if (signal <= 0 || signal >= NSIG || pid == 0) {
+	Info("sys_kill(pid:%d, signal:%d)", pid, signal);
+    
+	if (signal <= 0 || signal > NSIG || pid == 0) {
 	  return -EINVAL;
 	}
 	
 	if (pid > 0) {
-		proc = GetProcess (pid);
-    
-    if (proc == NULL || proc->state == PROC_STATE_UNALLOC) {
-			return -EINVAL;
-		}
-
-		DisableInterrupts();
-		
-		if (proc->signal.handler[signal-1] != SIG_IGN) {
-			proc->signal.sig_pending |= SIGBIT (signal);
-			proc->signal.si_code[signal-1] = SI_USER;
-
-			if (proc->state == PROC_STATE_RENDEZ_BLOCKED && (proc->signal.sig_pending & proc->signal.sig_mask)) {				
-				proc->state = PROC_STATE_READY;
-				SchedReady (proc);
-				Reschedule();
-			}
-		}
-		
-		EnableInterrupts();
-	
+	  return do_kill_process(pid, signal);	
 	}	else {
-		pid = -pid;
-		
-		for (int t=0; t < max_process; t++) {
-			proc = GetProcess(t);
-
-      if (proc == NULL) {
-          continue;
-      }
-
-			DisableInterrupts();
-
-			if (proc->state != PROC_STATE_UNALLOC) {
-			  /* FIXME: WAS && proc->pid != pid) */ 
-				if (proc->pgrp == pid) {
-					if (proc->signal.handler[signal-1] != SIG_IGN) {
-						proc->signal.sig_pending |= SIGBIT(signal);
-      			proc->signal.si_code[signal-1] = SI_USER;
-
-						if (proc->state == PROC_STATE_RENDEZ_BLOCKED
-						    && (proc->signal.sig_pending & proc->signal.sig_mask)) {	
-						  // TODO: What else needs to be done to wake up rendez?
-						  // Add a Wakeup(proc) function ?
-							proc->state = PROC_STATE_READY;
-							SchedReady (proc);
-							Reschedule();
-						}
-					}
-				}
-			}
-			
-			EnableInterrupts();
-		}
+		return do_kill_process_group(-pid, signal);
 	}
 
-	return rc;
+	return 0;
 }
+
+
+/*
+ *
+ */
+int do_kill_process(pid_t pid, int signal)
+{
+	struct Process *proc;
+	struct Thread *thread;
+	int_state_t int_state;
+
+	if (pid < 0 || pid >= max_process) {
+	  return -EINVAL;
+	}
+	  
+	proc = get_process(pid);
+  
+  if (proc == NULL) {
+		return -EINVAL;
+	}
+
+
+  do_signal_process(proc, signal);
+  
+//	int_state = DisableInterrupts();
+	
+	if (proc->signal.handler[signal-1] != SIG_IGN) {
+		proc->signal.sig_pending |= SIGBIT (signal);
+		proc->signal.si_code[signal-1] = SI_USER;
+  
+//    thread = LIST_HEAD(&proc->thread_list);   // FIXME: Doe we need to signal all threads in a process?
+                                                // FIXME: What about sigkill ?
+//    TaskWakeupSpecific(thread, INTRF_SIGNAL);
+	}
+	
+//	RestoreInterrupts(int_state);
+  return 0;
+}
+
+
+/*
+ *
+ */
+int do_kill_process_group(pid_t pgrp, int signal)
+{
+	struct Process *proc;
+	struct Thread *thread;
+	struct PidDesc *pd;
+	int_state_t int_state;
+
+	if (pgrp < 0 || pgrp >= max_process) {
+	  return -EINVAL;
+	}
+	
+	pd = pid_to_piddesc(pgrp);
+	
+	if (pd == NULL) {
+	  return -EINVAL;
+	}
+		
+	if ((pd->flags & PIDF_PGRP) == 0) {
+	  return -EINVAL;
+	}
+	
+	proc = LIST_HEAD(&pd->pgrp_list);
+	
+	while (proc != NULL) {	  
+    do_signal_process(proc, signal);	  
+	  proc = LIST_NEXT(proc, pgrp_link);
+	}
+	
+	for (int t=0; t < max_process; t++) {
+		proc = get_process(t);
+
+    if (proc == NULL) {
+        continue;
+    }
+		
+	}
+
+  return 0;
+}
+
+
+/*
+ *
+ */
+int do_signal_process(struct Process *proc, int signal)
+{
+  struct Thread *thread;
+  bool delivered = false;
+    
+	if (proc->signal.handler[signal-1] != SIG_IGN) {
+		proc->signal.sig_pending |= SIGBIT(signal);
+  	proc->signal.si_code[signal-1] = SI_USER;
+    
+    thread = LIST_HEAD(&proc->thread_list);
+
+    while (thread != NULL) {
+	    if (thread->state == THREAD_STATE_RENDEZ_BLOCKED &&
+	        (SIGBIT(signal) & ~thread->signal.sig_mask) != 0) {	
+        thread->signal.sig_pending = SIGBIT(signal);      
+        TaskWakeupSpecific(thread, INTRF_SIGNAL);
+        delivered = true;
+        break;
+      }
+      
+      thread = LIST_NEXT(thread, thread_link);
+    }
+  }
+  
+  return (delivered) ? 0 : -ENOENT;
+}
+
+
+/*
+ *
+ */
+int do_signal_thread(struct Thread *thread, int signal)
+{
+  bool delivered = false;
+
+  return (delivered) ? 0 : -ENOENT;
+}
+
+
+
 
 
 /* @brief   Wait for a signal to occur.
@@ -293,6 +388,7 @@ int sys_sigsuspend(const sigset_t *mask_in)
 	sigset_t mask;
 	uint32_t intstate;
 	struct Process *current;
+	int_state_t int_state;
 	
 	current = get_current_process();
 	
@@ -300,7 +396,7 @@ int sys_sigsuspend(const sigset_t *mask_in)
 	  return -EFAULT;
 	}
 	
-	DisableInterrupts();
+	int_state = DisableInterrupts();
 
 	current->signal.sigsuspend_oldmask = current->signal.sig_mask;
 	current->signal.use_sigsuspend_mask = true;
@@ -311,7 +407,7 @@ int sys_sigsuspend(const sigset_t *mask_in)
 	  TaskSleep(&current->rendez);
 	}
 	
-	EnableInterrupts();	
+	RestoreInterrupts(int_state);	
 	return 0;
 }
 
@@ -380,9 +476,51 @@ int sys_sigpending(sigset_t *set_out)
  */ 
 void do_signal_default(int sig)
 {
+  Info("do_signal_default(%d)", sig);
+  
 	if (sigprop[sig] & SP_KILL) {
 		sig_exit(sig);
 	}
 }
 
+
+/* @brief   Pick a single signal from a set of signals
+ *
+ */
+int pick_signal(uint32_t sigbits)
+{
+	int sig;
+
+  if (sigbits == 0) {
+    return 0;
+  }
+
+  sig = 32;
+  
+  if ((sigbits & 0xFFFF0000) == 0) {
+     sig -= 16; 
+     sigbits <<= 16;
+  }
+  
+  if ((sigbits & 0xFF000000) == 0) {
+    sig -= 8;
+    sigbits <<= 8;
+  }
+  
+  if ((sigbits & 0xF0000000) == 0) {
+    sig -= 4; 
+    sigbits <<= 4;
+  }
+  
+  if ((sigbits & 0xC0000000) == 0) { 
+    sig -= 2;
+    sigbits <<= 2;
+  }
+  
+  if ((sigbits & 0x80000000) == 0) {
+    sig -= 1;
+  }  
+
+  return sig;
+}
 

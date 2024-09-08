@@ -32,6 +32,22 @@
 #include <string.h>
 
 
+/*
+ * TODO: How was root address space originally created.?
+ */
+int create_address_space(struct AddressSpace *as)
+{
+  if (pmap_create(as) != 0) {
+    return -ENOMEM;
+  }
+
+  as->segment_cnt = 1;
+  as->segment_table[0] = VM_USER_BASE | SEG_TYPE_FREE;
+  as->segment_table[1] = VM_USER_CEILING | SEG_TYPE_CEILING;
+  return 0;
+}
+
+
 /* @brief   Duplicate the address space during a fork
  *
  * @param   new_as, empty address space of child process

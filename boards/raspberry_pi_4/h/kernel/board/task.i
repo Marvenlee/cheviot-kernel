@@ -56,10 +56,6 @@
 .equ EXCEPTION_DFSR,                16
 
 
-// Process size (including stack)
-.equ PROCESS_SZ,                8192
-
-
 // task_state.flags
 .equ TSF_EXIT,                  (1<<0)
 .equ TSF_KILL,                  (1<<1)
@@ -69,12 +65,13 @@
 
 // struct CPU equivalent offsets
 .equ CPU_CURRENT_PROCESS,       0
-.equ CPU_IDLE_PROCESS,          4
-.equ CPU_RESCHEDULE_REQUEST,    8
-.equ CPU_SVC_STACK,             12
-.equ CPU_INTERRUPT_STACK,       16
-.equ CPU_EXCEPTION_STACK,       20
-.equ SIZEOF_CPU,                24
+.equ CPU_CURRENT_THREAD,        4
+.equ CPU_IDLE_PROCESS,          8
+.equ CPU_RESCHEDULE_REQUEST,    12
+.equ CPU_SVC_STACK,             16
+.equ CPU_INTERRUPT_STACK,       20
+.equ CPU_EXCEPTION_STACK,       24
+.equ SIZEOF_CPU,                28
 
 
 // cpu_table

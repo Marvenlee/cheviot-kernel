@@ -23,13 +23,90 @@
 #include <kernel/types.h>
 #include <kernel/vm.h>
 #include <poll.h>
+#include <sys/termios.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 
 
 /*
  *
  */
-int sys_ioctl(int fd, int cmd, void *arg)
+int sys_ioctl(int fd, int cmd, intptr_t arg)
 {
-  return -ENOSYS;
+  int sc;
+  struct Filp *filp;
+  struct VNode *vnode;
+  struct Process *current;
+  
+  Info("sys_ioctl(fd:%d, cmd:%d", fd, cmd);
+  
+  current = get_current_process();
+  filp = get_filp(current, fd);
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    Error("iotctl - FD invalid, no vnode");
+    return -EINVAL;
+  }
+    
+  if (!S_ISCHR(vnode->mode)) {
+    Error("iotctl - FD invalid, not char");
+    return -EINVAL;
+  }
+  
+  switch (cmd)
+  {
+    case TCSETS:
+      sc = -ENOTSUP;
+      break;
+
+    case TCSETSW:
+      sc = -ENOTSUP;
+      break;
+
+    case TCSETSF:
+      sc = -ENOTSUP;
+      break;
+
+    case TCGETS:
+      sc = -ENOTSUP;
+      break;
+
+    case TIOCGPGRP:
+      sc = -ENOTSUP;
+      break;
+
+    case TIOCSPGRP:
+      sc = -ENOTSUP;
+      break;
+
+    case TCXONC:
+      sc = -ENOTSUP;
+      break;
+
+    case TCFLSH:
+      sc = -ENOTSUP;
+      break;
+
+    case TIOCSCTTY:
+      sc = ioctl_tiocsctty(fd, arg);
+      break;
+      
+    case TIOCNOTTY:
+      sc = ioctl_tiocnotty(fd);
+      break;
+      
+    case IOCTL_SETSYSLOG:
+      sc = -ENOTSUP;        // TODO: Redirect logging output here.
+      break;        
+      
+    default:
+      sc = -ENOTSUP;
+      break;
+  }
+
+  Error("iotctl - returned %d", sc);
+  return sc;
 }
+
 

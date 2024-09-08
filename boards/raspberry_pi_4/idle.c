@@ -30,17 +30,19 @@
 #include <kernel/vm.h>
 #include <sys/execargs.h>
 
+
 /* @brief The Idle task entry point
  */ 
-void Idle(void)
+void idle_task(void *arg)
 {
-//  Info("***** IDLE PROCESS Started");
-
-//  DisableInterrupts();
+  (void)arg;
+  
+  Info("** idle task **");
   KernelUnlock();
   EnableInterrupts();
   
   while(1) {
+  // TODO: Need WFI wait for interrupt instruction
   }
 }
 

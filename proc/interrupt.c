@@ -19,36 +19,15 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-#define KDEBUG 1
+//#define KDEBUG 1
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
+#include <kernel/interrupt.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
-
-
-/* @brief   Raise an kevent on an interrupt's file descriptor
- *
- * @param   fd, file descriptor to raise a kevent for
- * @return  0 on success, negative errno on failure
- *
- * The purpose of this system call is to be able to wake up a
- * main thread waiting on an interrupt file descriptor using kqueue.
- * A separate "bottom-half" thread dedicated to handling interrupts
- * waits on events sent from the interrupt handler. If an interrupt
- * thread needs to wake up the main thread, for example, to notify
- * that an operation has completed, it can call knotei() to do so.
- *
- * TODO: Can we make this more generic for other objects?
- * Or can we replace with events interrupting kevent() ?
- *
- */
-int sys_knoteinterruptserver(int fd)
-{
-  return -ENOSYS;
-}
 
 
 /* @brief   Registers an interrupt notification server
@@ -69,52 +48,148 @@ int sys_knoteinterruptserver(int fd)
  * unmask interrupts quickly to avoid starving the other users of the
  * interrupt.
  */
-int sys_addinterruptserver(int irq, int thread_id, int event)
+int sys_addinterruptserver(int irq, int event)
 {
-  struct Process *current;
+  struct Process *current_proc;
+  struct Thread *current_thread;
   struct ISRHandler *isrhandler;
-  int fd;
+  int isrid;
   int_state_t int_state;
     
-  current = get_current_process();
-
-  if (!io_allowed(current)) {
+  Info("sys_addinterruptserver(irq:%d, event:%d", irq, event);
+  
+  current_proc = get_current_process();
+  current_thread = get_current_thread();
+    
+  if (!io_allowed(current_proc)) {
     return -EPERM;
   }
 
   if (irq < 0 || irq > NIRQ) {
-    Error("irq out of range");
     return -EINVAL;
   }
   
-  fd = alloc_fd_isrhandler(current);
+  isrhandler = alloc_isrhandler();
   
-  if (fd < 0) {
-    Error("failed to alloc fd_isrhandler");  
+  if (isrhandler == NULL) {
     return -ENOMEM;
   }
   
-  isrhandler = get_isrhandler(current, fd);
-
-  isrhandler->isr_irq = irq;
-  isrhandler->thread_id = thread_id;
+  isrhandler->irq = irq;
+  isrhandler->thread = current_thread;
   isrhandler->event = event;
-  isrhandler->isr_process = current;
-  
-  int_state = DisableInterrupts();
-  
-  LIST_ADD_TAIL(&isr_handler_list[irq], isrhandler,
-                isr_handler_entry);
 
-  irq_handler_cnt[irq]++;    
+  LIST_ADD_TAIL(&current_thread->isr_handler_list, isrhandler, thread_isr_handler_link);
+  int_state = DisableInterrupts();
+
+  LIST_ADD_TAIL(&isr_handler_list[irq], isrhandler, isr_handler_entry);
+
+  irq_handler_cnt[irq]++;
   irq_mask_cnt[irq]++;
-  
+
   if (irq_mask_cnt > 0) {
     disable_irq(irq);
   }
-  
+
   RestoreInterrupts(int_state);
-  return fd;
+
+  return isrhandler_to_isrid(isrhandler);
+}
+
+
+/*
+ * TODO: We should automatically remove interrupt servers when terminating a thread
+ */
+int sys_reminterruptserver(int isr)
+{
+  struct Process *current_proc;
+  struct Thread *current_thread;
+  struct ISRHandler *isrhandler;
+  int isrid;
+  int_state_t int_state;
+  
+  current_proc = get_current_process();
+  current_thread = get_current_thread();
+
+  isrhandler = LIST_HEAD(&current_thread->isr_handler_list);
+
+  if (isrhandler == NULL) {
+    return -ENOENT;
+  }
+  
+  while(isrhandler != NULL) {
+    if (isrhandler_to_isrid(isrhandler) == isrid) {
+      do_free_isrhandler(current_proc, current_thread, isrhandler);
+      break;
+    }
+    
+    isrhandler = LIST_NEXT(isrhandler, thread_isr_handler_link);
+  }
+  
+  return 0;
+}
+
+
+void do_free_all_isrhandlers(struct Process *proc, struct Thread *thread)
+{
+  struct ISRHandler *isrhandler;
+  
+  while ((isrhandler = LIST_HEAD(&thread->isr_handler_list)) != NULL) {
+    do_free_isrhandler(proc, thread, isrhandler);    
+  }
+}
+
+
+/*
+ * TODO: Called by reminterruptserver() and thread_exit()/sys_exit() to free an interrupt handler.
+ * If there are no handlers for a given IRQ the interrupt is masked.
+ *
+ */
+int do_free_isrhandler(struct Process *proc, struct Thread *thread, struct ISRHandler *isrhandler)
+{
+  int irq;
+  int_state_t int_state;
+  
+  if (thread->process != proc || isrhandler->thread != thread) {
+    return -EINVAL;
+  }
+  
+  irq = isrhandler->irq;
+
+  int_state = DisableInterrupts();
+
+  LIST_REM_ENTRY(&thread->isr_handler_list, isrhandler, thread_isr_handler_link);
+
+  LIST_REM_ENTRY(&isr_handler_list[irq], isrhandler, isr_handler_entry);
+  irq_handler_cnt[irq]--;
+
+  if (irq_handler_cnt[irq] == 0) {
+    irq_mask_cnt[irq] = 0;
+    disable_irq(irq);
+  }
+
+  RestoreInterrupts(int_state);
+
+  free_isrhandler(isrhandler);
+  return 0;
+}
+
+
+/*
+ *
+ */
+int isrhandler_to_isrid(struct ISRHandler *isrhandler)
+{
+  return isrhandler - isr_handler_table;
+}
+
+
+/*
+ *
+ */
+struct ISRHandler *isrid_to_isrhandler(int isrid)
+{
+  return &isr_handler_table[isrid];
 }
 
 
@@ -191,114 +266,11 @@ int interrupt_server_broadcast_event(int irq)
 
   isr_handler = LIST_HEAD(&isr_handler_list[irq]);
 
-  while (isr_handler != NULL) {        
-    isr_thread_event_signal(isr_handler->thread_id, isr_handler->event);
+  while (isr_handler != NULL) {
+    isr_thread_event_signal(isr_handler->thread, isr_handler->event);
     isr_handler = LIST_NEXT(isr_handler, isr_handler_entry);
   }
 
-  return 0;
-}
-
-
-/*
- * Called by CloseHandle() to free an interrupt handler.  If there are no
- * handlers for a given IRQ the interrupt is masked.
- *
- * TODO: Need to prevent forking of interrupt descriptors (dup in same process is ok)
- */
-int close_isrhandler(struct Process *proc, int fd)
-{
-  struct ISRHandler *isrhandler;
-  int irq;
-  int_state_t int_state;
-  
-  isrhandler = get_isrhandler(proc, fd);
-  
-  if (isrhandler == NULL) {
-    return -EINVAL;
-  }
-
-  irq = isrhandler->isr_irq;
-
-  int_state = DisableInterrupts();
-
-  LIST_REM_ENTRY(&isr_handler_list[irq], isrhandler, isr_handler_entry);
-  irq_handler_cnt[irq]--;
-
-  if (irq_handler_cnt[irq] == 0) {
-    irq_mask_cnt[irq] = 0;
-    disable_irq(irq);
-  }
-
-  RestoreInterrupts(int_state);
-
-  free_fd_isrhandler(proc, fd);
-  return 0;
-}
-
-
-/*
- *
- */
-struct ISRHandler *get_isrhandler(struct Process *proc, int fd)
-{
-  struct Filp *filp;
-  
-  filp = get_filp(proc, fd);
-  
-  if (filp == NULL) {
-    return NULL;
-  }
-  
-  if (filp->type != FILP_TYPE_ISRHANDLER) {
-    return NULL;
-  }
-  
-  return filp->u.isrhandler;
-}
-
-
-/*
- * Allocates a handle structure.
- */
-int alloc_fd_isrhandler(struct Process *proc)
-{
-  int fd;
-  struct ISRHandler *isrhandler;
-  
-  fd = alloc_fd_filp(proc);
-  
-  if (fd < 0) {
-    return -EMFILE;
-  }
-  
-  isrhandler = alloc_isrhandler();
-  
-  if (isrhandler == NULL) {
-    free_fd_filp(proc, fd);
-    return -EMFILE;
-  }
-  
-  set_fd(proc, fd, FILP_TYPE_ISRHANDLER, FD_FLAG_CLOEXEC, isrhandler);  
-  return fd;
-}
-
-
-/*
- * Returns a handle to the free handle list.
- */
-int free_fd_isrhandler(struct Process *proc, int fd)
-{
-  struct ISRHandler *isrhandler;
-  
-  isrhandler = get_isrhandler(proc, fd);
-
-  if (isrhandler == NULL) {
-    return -EINVAL;
-  }
-
-  free_isrhandler(isrhandler);
-  free_fd_filp(proc, fd);
   return 0;
 }
 
@@ -317,7 +289,6 @@ struct ISRHandler *alloc_isrhandler(void)
   }
 
   LIST_REM_HEAD(&isr_handler_free_list, free_link);
-  isrhandler->reference_cnt = 1;
   return isrhandler;
 }
 
@@ -331,11 +302,7 @@ void free_isrhandler(struct ISRHandler *isrhandler)
     return;
   }
 
-  isrhandler->reference_cnt--;
-  
-  if (isrhandler->reference_cnt == 0) {
-    LIST_ADD_HEAD(&isr_handler_free_list, isrhandler, free_link);
-  }
+  LIST_ADD_HEAD(&isr_handler_free_list, isrhandler, free_link);
 }
 
 

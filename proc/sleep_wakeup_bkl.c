@@ -57,16 +57,16 @@ static void TaskTimedSleepCallback(struct Timer *timer);
  */
 void KernelLock(void)
 {
-  struct Process *current;
+  struct Thread *current;
 
-  current = get_current_process();
+  current = get_current_thread();
 
   if (bkl_locked == false) {
     bkl_locked = true;
     bkl_owner = current;
   } else {
     LIST_ADD_TAIL(&bkl_blocked_list, current, blocked_link);
-    current->state = PROC_STATE_BKL_BLOCKED;
+    current->state = THREAD_STATE_BKL_BLOCKED;
     SchedUnready(current);
     Reschedule();
   }
@@ -91,23 +91,23 @@ void KernelLock(void)
  */
 void KernelUnlock(void)
 {
-  struct Process *proc;
+  struct Thread *thread;
 
   if (bkl_locked == true) {
-    proc = LIST_HEAD(&bkl_blocked_list);   // Pick the next process that is blocked on bkl
+    thread = LIST_HEAD(&bkl_blocked_list);   // Pick the next thread that is blocked on bkl
 
-    if (proc != NULL) {
+    if (thread != NULL) {
       bkl_locked = true;      // It should be locked already by previous if statement
-      bkl_owner = proc;
+      bkl_owner = thread;
 
       LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
 
-      proc->state = PROC_STATE_READY;
-      SchedReady(proc);       // 
+      thread->state = THREAD_STATE_READY;
+      SchedReady(thread);       // 
       Reschedule();
     } else {
       bkl_locked = false;
-      bkl_owner = (void *)0xcafef00d;
+      bkl_owner = (void *)NULL;
     }
   } else {
     KernelPanic();
@@ -131,31 +131,31 @@ void InitRendez(struct Rendez *Rendez)
  */
 void TaskSleep(struct Rendez *rendez)
 {
-  struct Process *proc;
-  struct Process *current;
+  struct Thread *thread;
+  struct Thread *current;
   int_state_t int_state;
     
-  current = get_current_process();
+  current = get_current_thread();
 
   int_state = DisableInterrupts();
 
   KASSERT(bkl_locked == true);
   KASSERT(bkl_owner == current);
   
-  proc = LIST_HEAD(&bkl_blocked_list);
+  thread = LIST_HEAD(&bkl_blocked_list);
 
-  if (proc != NULL) {
+  if (thread != NULL) {
     LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
-    proc->state = PROC_STATE_READY;
-    bkl_owner = proc;
-    SchedReady(proc);
+    thread->state = THREAD_STATE_READY;
+    bkl_owner = thread;
+    SchedReady(thread);
   } else {
     bkl_locked = false;
-    bkl_owner = (void *)0xdeadbeef;
+    bkl_owner = (void *)NULL;
   }
 
   LIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
-  current->state = PROC_STATE_RENDEZ_BLOCKED;
+  current->state = THREAD_STATE_RENDEZ_BLOCKED;
   current->blocking_rendez = rendez;
   SchedUnready(current);
   Reschedule();
@@ -164,55 +164,6 @@ void TaskSleep(struct Rendez *rendez)
   KASSERT(bkl_owner == current);
 
   RestoreInterrupts(int_state);
-}
-
-
-/* @brief   Sleep on a Rendez condition variable (interruptible)
- *
- * @param   rendez, condition variable to sleep on
- * 
- */
-int TaskSleepInterruptible(struct Rendez *rendez)
-{
-  struct Process *proc;
-  struct Process *current;
-  int_state_t int_state;
-  int sc = 0;
-  
-  current = get_current_process();
-
-  int_state = DisableInterrupts();
-
-  KASSERT(bkl_locked == true);
-  KASSERT(bkl_owner == current);
-
-  if ((sc = TaskCheckPendingEventsAndSignals(current)) == 0) {
-    proc = LIST_HEAD(&bkl_blocked_list);
-
-    if (proc != NULL) {
-      LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
-      proc->state = PROC_STATE_READY;
-      bkl_owner = proc;
-      SchedReady(proc);
-    } else {
-      bkl_locked = false;
-      bkl_owner = (void *)0xdeadbeef;
-    }
-
-    LIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
-    current->state = PROC_STATE_RENDEZ_BLOCKED;
-    current->blocking_rendez = rendez;
-    SchedUnready(current);
-    Reschedule();
- 
-    KASSERT(bkl_locked == true);
-    KASSERT(bkl_owner == current);
-
-    sc = TaskCheckPendingEventsAndSignals(current);
-  }
-     
-  RestoreInterrupts(int_state);
-  return sc;
 }
 
 
@@ -224,68 +175,77 @@ int TaskSleepInterruptible(struct Rendez *rendez)
  *          -EINTR if an event or signal is pending
  *          -ETIMEDOUT if a timeout occured
  *          other negative errno on failure
+ *
+ * TODO: Merge TaskSleepInterruptible, allow timeout to be optional
  */
-int TaskTimedSleep(struct Rendez *rendez, struct timespec *ts)
+int TaskSleepInterruptible(struct Rendez *rendez, struct timespec *ts, uint32_t intr_flags)
 {
-  struct Process *proc;
-  struct Process *current;
+  struct Thread *thread;
+  struct Thread *current;
   struct Timer *timer;
   uint64_t now;
   int_state_t int_state;
   int sc;
   
-  current = get_current_process();
+  current = get_current_thread();
 
   int_state = DisableInterrupts();
 
   KASSERT(bkl_locked == true);
   KASSERT(bkl_owner == current);
 
-  if (TaskCheckPendingEventsAndSignals(current) != 0) {
+  if (TaskCheckInterruptible(current, intr_flags) != 0) {
     RestoreInterrupts(int_state);
     return -EINTR;
   }
 
-  proc = LIST_HEAD(&bkl_blocked_list);
+  thread = LIST_HEAD(&bkl_blocked_list);
 
-  if (proc != NULL) {
+  if (thread != NULL) {
     LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
-    proc->state = PROC_STATE_READY;
-    bkl_owner = proc;
-    SchedReady(proc);
+    thread->state = THREAD_STATE_READY;
+    bkl_owner = thread;
+    SchedReady(thread);
   } else {
     bkl_locked = false;
-    bkl_owner = (void *)0xdeadbeef;
+    bkl_owner = (void *)NULL;
   }
-    
-  timer = &current->sleep_timer;  
-  timer->process = current;
-  timer->arg = rendez;
-  timer->armed = true;
-  timer->callback = TaskTimedSleepCallback;
+  
+  if (ts != NULL) {
+    timer = &current->sleep_timer;  
+    timer->thread = current;
+    timer->arg = rendez;
+    timer->armed = true;
+    timer->callback = TaskTimedSleepCallback;
 
-  now = get_hardclock();  
-  timer->expiration_time = now + (ts->tv_sec * JIFFIES_PER_SECOND + ts->tv_nsec / NANOSECONDS_PER_JIFFY);
-
-  LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+    now = get_hardclock();  
+    timer->expiration_time = now + (ts->tv_sec * JIFFIES_PER_SECOND + ts->tv_nsec / NANOSECONDS_PER_JIFFY);
+    LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+  }  
   
   LIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
-  current->state = PROC_STATE_RENDEZ_BLOCKED;
+  current->state = THREAD_STATE_RENDEZ_BLOCKED;
+
+  current->intr_flags = intr_flags;
   current->blocking_rendez = rendez;
   SchedUnready(current);
   Reschedule();
 
-  sc = TaskCheckPendingEventsAndSignals(current);
+  current->intr_flags = 0;
 
-  if (timer->armed == true) {
-    LIST_REM_ENTRY(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
-    timer->armed = false;
-    timer->process = NULL;
-    timer->callback = NULL;
-  } else if (sc == 0) {
-    sc = -ETIMEDOUT;
+  sc = TaskCheckInterruptible(current, intr_flags);
+  
+  if (ts != NULL) {
+    if (timer->armed == true) {
+      LIST_REM_ENTRY(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+      timer->armed = false;
+      timer->thread = NULL;
+      timer->callback = NULL;
+    } else if (sc == 0) {
+      sc = -ETIMEDOUT;
+    }
   }
-
+  
   RestoreInterrupts(int_state);
   return sc;
 }
@@ -293,16 +253,26 @@ int TaskTimedSleep(struct Rendez *rendez, struct timespec *ts)
 
 /* @brief   Check for pending events and signals
  *
- * @param   proc, process to check
+ * @param   thread, thread to check
  * @return  0 if no signals or events pending, -EINTR otherwise
  */
-int TaskCheckPendingEventsAndSignals(struct Process *proc)
+int TaskCheckInterruptible(struct Thread *thread, uint32_t intr_flags)
 {
-  if(proc->pending_events != 0 ||
-    (proc->signal.sig_pending & ~proc->signal.sig_mask) != 0 ) {
-    return -EINTR;
+  if (intr_flags & INTRF_EVENT) {  
+    if((thread->pending_events & thread->event_mask) != 0) {
+      return -EINTR;
+    }
+
   }
   
+/*
+  if (intr_flags & INTRF_SIGNAL) {  
+    if((thread->signal.sig_pending & ~thread->signal.sig_mask) != 0 ) {
+      Info("signal interrupt %08x", (thread->signal.sig_pending & ~thread->signal.sig_mask));
+      return -EINTR;
+    }
+  }
+*/
   return 0;
 }
 
@@ -316,17 +286,19 @@ int TaskCheckPendingEventsAndSignals(struct Process *proc)
  */
 static void TaskTimedSleepCallback(struct Timer *timer)
 {
-  struct Process *proc = timer->process;
+  struct Thread *thread = timer->thread;
   struct Rendez *rendez = timer->arg;
   int_state_t int_state;
   
   int_state = DisableInterrupts();
 
-  if (proc != NULL && proc->state == PROC_STATE_RENDEZ_BLOCKED) {
-    LIST_REM_ENTRY(&rendez->blocked_list, proc, blocked_link);
-    proc->blocking_rendez = NULL;
-    LIST_ADD_TAIL(&bkl_blocked_list, proc, blocked_link);
-    proc->state = PROC_STATE_BKL_BLOCKED;
+  KASSERT(thread->blocking_rendez == rendez);
+
+  if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED) {
+    LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
+    thread->blocking_rendez = NULL;
+    LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+    thread->state = THREAD_STATE_BKL_BLOCKED;
   }
   
   RestoreInterrupts(int_state);
@@ -335,22 +307,25 @@ static void TaskTimedSleepCallback(struct Timer *timer)
 
 /* @brief   Wakeup a single task waiting on a condition variable
  *
- * @param   rendez, the condition variable to wake up a task from
+ * @param   rendez, the condition variable to wake up a thread from
  */
 void TaskWakeup(struct Rendez *rendez)
 {
-  struct Process *proc;
+  struct Thread *thread;
   int_state_t int_state;
   
   int_state = DisableInterrupts();
 
-  proc = LIST_HEAD(&rendez->blocked_list);
+  thread = LIST_HEAD(&rendez->blocked_list);
 
-  if (proc != NULL) {
+  if (thread != NULL) {
+    KASSERT(thread->blocking_rendez == rendez);   
+    KASSERT(thread->state == THREAD_STATE_RENDEZ_BLOCKED);   
+
     LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
-    proc->blocking_rendez = rendez;
-    LIST_ADD_TAIL(&bkl_blocked_list, proc, blocked_link);
-    proc->state = PROC_STATE_BKL_BLOCKED;
+    thread->blocking_rendez = NULL;
+    LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+    thread->state = THREAD_STATE_BKL_BLOCKED;
   }
 
   RestoreInterrupts(int_state);
@@ -359,55 +334,29 @@ void TaskWakeup(struct Rendez *rendez)
 
 /* @brief   Wakeup a specific task if it is waiting on a condition variable
  *
- * @param   proc, process to wakeup
+ * @param   thread, thread to wakeup
  */
-void TaskWakeupSpecific(struct Process *proc)
+void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
 {
   int_state_t int_state;
   struct Rendez *rendez;
   
   int_state = DisableInterrupts();
 
-  if (proc != NULL && proc->state == PROC_STATE_RENDEZ_BLOCKED) {
-    rendez = proc->blocking_rendez;
-    LIST_REM_ENTRY(&rendez->blocked_list, proc, blocked_link);
-    proc->blocking_rendez = NULL;
-    LIST_ADD_TAIL(&bkl_blocked_list, proc, blocked_link);
-    proc->state = PROC_STATE_BKL_BLOCKED;
+  if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED &&
+      (thread->intr_flags & intr_reason) != 0) {
+    KASSERT(thread->blocking_rendez != NULL);
+    rendez = thread->blocking_rendez;
+    LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
+    thread->blocking_rendez = NULL;
+    LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+    thread->state = THREAD_STATE_BKL_BLOCKED;
   }
 
   RestoreInterrupts(int_state);
 }
 
 
-
-/* @brief   Wakeup a blocked task from an interrupt handler
- *
- * @param   rendez, the condition variable to wake up a task from
- */
-void TaskWakeupFromISR(struct Rendez *rendez)
-{
-  int_state_t int_state;
-  struct Process *proc;
-  struct CPU *cpu;
-
-  int_state = DisableInterrupts();
-
-  proc = LIST_HEAD(&rendez->blocked_list);
-
-  if (proc != NULL) {
-    KASSERT(proc->state = PROC_STATE_RENDEZ_BLOCKED);
-    KASSERT(proc->blocking_rendez != NULL);
-    KASSERT(proc->blocking_rendez == rendez);
-    
-    LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
-    proc->blocking_rendez = NULL;
-    LIST_ADD_TAIL(&bkl_blocked_list, proc, blocked_link);
-    proc->state = PROC_STATE_BKL_BLOCKED;
-  }
-
-  RestoreInterrupts(int_state);
-}
 
 
 /* @brief   Wakeup all tasks waiting on a condition variable
@@ -416,27 +365,27 @@ void TaskWakeupFromISR(struct Rendez *rendez)
  */
 void  TaskWakeupAll(struct Rendez *rendez)
 {
-  struct Process *proc;
+  struct Thread *thread;
   int_state_t int_state;
   
   do {
     int_state = DisableInterrupts();
 
-    proc = LIST_HEAD(&rendez->blocked_list);
+    thread = LIST_HEAD(&rendez->blocked_list);
 
-    if (proc != NULL) {
+    if (thread != NULL) {
       KASSERT(bkl_locked == true);
       
       LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
-      proc->blocking_rendez = NULL;
-      LIST_ADD_TAIL(&bkl_blocked_list, proc, blocked_link);
-      proc->state = PROC_STATE_BKL_BLOCKED;
+      thread->blocking_rendez = NULL;
+      LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+      thread->state = THREAD_STATE_BKL_BLOCKED;
     }
 
-    proc = LIST_HEAD(&rendez->blocked_list);
+    thread = LIST_HEAD(&rendez->blocked_list);
     RestoreInterrupts(int_state);
 
-  } while (proc != NULL);
+  } while (thread != NULL);
 }
 
 

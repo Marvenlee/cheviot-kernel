@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -29,7 +29,7 @@
 
 /* @brief   Send a signal to processes with a particular open file
  *
- * @param   portid, file descriptor of the mount point created by sys_mount()
+ * @param   fd, file descriptor of the mount point created by sys_mount()
  * @param   ino, inode number of file whose processes with it open shall receive signal
  * @param   signal, signal to raise
  *
@@ -42,10 +42,46 @@
  * This may change to only support character devices, the "ino" parameter will
  * then be deprecated.
  */
-int sys_signalnotify(int portid, int ino, int signal)
+int sys_signalnotify(int fd, int ino_nr, int signal)
 {
-  return -ENOSYS;
+  struct Process *current;
+  struct VNode *target_vnode;
+  struct SuperBlock *sb;
+  int sc = 0;
+  
+  Info("sys_signalnotify(fd:%d, ino:%d, sig:%d)", fd, ino_nr, signal);
+  
+  current = get_current_process();  
+  
+  sb = get_superblock(current, fd);
+
+  if (sb == NULL) {
+    Error("sys_signalnotify -EBADF fd not msgport sb");
+    return -EBADF;
+  }
+  
+  target_vnode = vnode_find(sb, ino_nr);
+  
+  if (target_vnode == NULL) {
+    Error("sys_signalnotify -EINVAL, ino_nr invalid");
+    return -EINVAL;
+  }
+
+  // TODO: Need mount() to explicitly set that it is a tty
+
+  if (S_ISCHR(target_vnode->mode)) {    
+    if (target_vnode->tty_pgrp != -1) {
+      sc = sys_kill(-target_vnode->tty_pgrp, signal);
+    } else {
+      Error("pgrp does not exist -EBADF");
+      sc = -EBADF;
+    }
+    
+  } else {
+    Error("sys_signalnotify -EBADF not char");
+    sc = -EBADF;
+  }
+  
+  return sc;
 }
-
-
 

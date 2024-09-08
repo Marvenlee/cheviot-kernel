@@ -6,14 +6,14 @@
 #include <kernel/types.h>
 
 
-struct Process;
+struct Thread;
 
 
 /* @brief   Kernel condition variable for TaskSleep()/TaskWakeup() calls
  */
 struct Rendez
 {
-  LIST(Process, blocked_list);
+  LIST(Thread, blocked_list);
 };
 
 

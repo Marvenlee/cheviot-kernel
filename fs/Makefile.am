@@ -10,8 +10,8 @@ kernel_SOURCES += \
   fs/exec.c \
   fs/filp.c \
   fs/filedesc.c \
+  fs/fproc.c \
   fs/globals.c \
-  fs/id.c \
   fs/init.c \
   fs/ioctl.c \
   fs/kqueue.c \

@@ -33,6 +33,7 @@ struct Buf;
 struct Msgport;
 struct ISRHandler;
 struct KQueue;
+struct TTYState;
 
 // List types
 LIST_TYPE(Buf, buf_list_t, buf_link_t);
@@ -42,6 +43,7 @@ LIST_TYPE(VFS, vfs_list_t, vfs_link_t);
 LIST_TYPE(Filp, filp_list_t, filp_link_t);
 LIST_TYPE(SuperBlock, superblock_list_t, superblock_link_t);
 LIST_TYPE(Pipe, pipe_list_t, pipe_link_t);
+LIST_TYPE(TTYState, ttystate_list_t, ttystate_link_t);
 LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 
 
@@ -67,7 +69,6 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define DNAME_SZ        64
 #define DNAME_HASH      32
 
-#define NR_DELWRI_BUCKETS  (PAGE_SIZE / sizeof(buf_list_t))
 
 // Static table sizes (TODO: Adjust based on RAM size)
 #define NR_SOCKET       1024
@@ -78,6 +79,7 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define NR_PIPE         64
 #define NR_BUF          1024    // Dynamically allocate ?
 #define NR_MSGID2MSG    256     // Must match NPROCESS or greater
+
 
 // Buffer size and number of hash table entries
 #define CACHE_PAGETABLES_CNT        256
@@ -92,30 +94,27 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 
 #define PIPE_BUF_SZ     4096      // Buffer size of pipes (should be same as page size)
 
-//#define BDFLUSH_WAKEUP_INTERVAL_MS    300  // Period between runs of the bd_flush task
-//#define BDFLUSH_SOFTCLOCK_TICKS       50   // time between buckets on delayed-write timing wheels
-#define DELWRI_DELAY_TICKS            500  // Time in ticks to delay a delayed-write
 
+#define DELWRI_DELAY_TICKS            500  // Time in ticks to delay a delayed-write
+#define SCHED_PRIO_CACHE_HANDLER      16   // Task priority of bdflush tasks.
+  
 
 /* @brief   A single cluster of a file in the file buffer cache
  */
 struct Buf
 {  
-  struct Msg msg;
-  struct IOV siov[2];							// fsreq for CMD_WRITE and buf->data
-  struct fsreq req;
-
   struct Rendez rendez;
   bits32_t flags;
   struct VNode *vnode;
 
-  off64_t cluster_offset;					// TODO: Rename to file_offset
+  off64_t cluster_offset;					// TODO: Rename to file_offset or just offset
   void *data;                     // Address of the page-sized buffer holding cached file data
 
   buf_link_t free_link;           // Free list entry
   buf_link_t lookup_link;         // Hash table entry
-  buf_link_t delwri_hash_link;    // Delayed write hash table entry  
-  
+
+  buf_link_t async_link;          // bawrite or bdflush LRU list entry  
+
   uint64_t expiration_time;       // Time that a delayed-write block should be flushed
 };
 
@@ -173,6 +172,9 @@ struct VNode
   struct Pipe *pipe;      // FIXME Perhaps a union of different specialist objects?
                           // Will we need something for sockets and socketpair ?
                           // Or will we have a FS handler for those?
+
+//  pid_t session_leader;
+  pid_t tty_pgrp;     // process group of tty
   
   ino_t inode_nr; // inode number
   mode_t mode;    // file type, protection, etc
@@ -226,10 +228,11 @@ struct SuperBlock
 
   superblock_link_t link;
   
-  buf_list_t bdflush_list;
-    
-  buf_list_t *delwri_timing_wheel;    // Timing wheel for writing async and delayed write bufs       
-  uint64_t softclock;
+  struct Thread *bdflush_thread;
+  struct Rendez bdflush_rendez;  
+  
+  buf_list_t pendwri_buf_list;    // List of blocks whose expiration time has expired
+  buf_list_t delwri_buf_list;    // List of blocks on the delayed write list       
 };
 
 // SuperBlock.flags
@@ -261,7 +264,6 @@ struct Filp {
     struct VNode *vnode;
     struct SuperBlock *superblock;
     struct KQueue *kqueue;
-    struct ISRHandler *isrhandler;
   } u;
   
   off64_t offset;
@@ -276,7 +278,6 @@ struct Filp {
 #define FILP_TYPE_VNODE        1
 #define FILP_TYPE_SUPERBLOCK   2
 #define FILP_TYPE_KQUEUE       3
-#define FILP_TYPE_ISRHANDLER   4
 #define FILP_TYPE_PIPE         5
 #define FILP_TYPE_SOCKET       6
 #define FILP_TYPE_SOCKETPAIR   7
@@ -285,14 +286,18 @@ struct Filp {
 /* @brief   Management of a process's file descriptors
  */
 struct FProcess
-{
-  struct Filp *fd_table[OPEN_MAX];          // OPEN_MAX and FD_SETSIZE should be equal
-  fd_set fd_close_on_exec_set;        // Newlib defines size of 
-  fd_set fd_in_use_set;
-  
+{ 
   mode_t umask;
   struct VNode *current_dir;
   struct VNode *root_dir;
+
+  struct VNode *controlling_tty;
+  
+  fd_set fd_close_on_exec_set;        // Newlib defines size of 
+  fd_set fd_in_use_set;
+
+  struct Filp *fd_table[OPEN_MAX];          // OPEN_MAX and FD_SETSIZE should be equal
+
 };
 
 
@@ -302,8 +307,8 @@ struct lookupdata {
   struct VNode *start_vnode;
   struct VNode *vnode;
   struct VNode *parent;
-  char path[PATH_MAX];
-  char *last_component;
+  char path[1024];        // FIXME: URGENT! PATH_MAX, allocate path on separate page, release lookup buffer
+  char *last_component;   // at end of FS function.  We now have 4K kernel stacks, not 8K.
   char *position;
   char separator;
   int flags;
@@ -319,6 +324,7 @@ mode_t sys_umask(mode_t mode);
 int sys_chmod(char *_path, mode_t mode);
 int sys_chown(char *_path, uid_t uid, gid_t gid);
 int is_allowed(struct VNode *node, mode_t mode);
+bool match_supplementary_group(struct Process *proc, gid_t gid);
 
 // fs/block.c
 ssize_t read_from_block (struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
@@ -338,16 +344,25 @@ struct Buf *findblk(struct VNode *vnode, uint64_t cluster_base);
 int btruncate(struct VNode *vnode);
 size_t resize_cache(size_t free);
 int init_superblock_bdflush(struct SuperBlock *sb);
-void deinit_superblock_bdflush(struct SuperBlock *sb);
-int sys_bdflush(int fd);
-int bdflush_brelse(struct Msg *msg);
-struct Buf *find_delayed_write_buf(struct SuperBlock *sb, uint64_t softclock);
+void fini_superblock_bdflush(struct SuperBlock *sb, int how);
+void bdflush_task(void *arg);
+struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now);
+struct Buf *get_pending_write_buf(struct SuperBlock *sb);
+
 
 
 /* fs/char.c */
 int sys_isatty(int fd);
 ssize_t read_from_char(struct VNode *vnode, void *src, size_t nbytes);
 ssize_t write_to_char(struct VNode *vnode, void *src, size_t nbytes);                               
+int sys_isatty(int fd);
+int ioctl_tcsetattr(int fd, struct termios *_termios);
+int ioctl_tcgetattr(int fd, struct termios *_termios);
+int ioctl_tiocsctty(int fd, int arg);
+int ioctl_tiocnotty(int fd);
+int ioctl_setsyslog(int fd);
+
+
 
 /* fs/dir.c */
 int sys_chdir(char *path);
@@ -384,9 +399,6 @@ int do_close(struct Process *proc, int fd);
 
 int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd);
 
-int init_fproc(struct Process *proc);
-int fini_fproc(struct Process *proc);
-int fork_process_fds(struct Process *newp, struct Process *oldp);
 int close_on_exec_process_fds(void);
 
 int alloc_fd(struct Process *proc, int min_fd, int max_fd);
@@ -400,6 +412,11 @@ int alloc_fd_filp(struct Process *proc);
 int free_fd_filp(struct Process *proc, int fd);
 struct Filp *alloc_filp(void);
 void free_filp(struct Filp *filp);
+
+/* fs/fproc.c */
+int init_fproc(struct Process *proc);
+int fini_fproc(struct Process *proc);
+int fork_process_fds(struct Process *newp, struct Process *oldp);
 
 /* fs/init.c */
 int init_vfs(void);
@@ -472,7 +489,6 @@ int sys_fsync(int fd);
 /* fs/vfs.c */
 ssize_t vfs_read(struct VNode *vnode, void *buf, size_t nbytes, off64_t *offset);
 ssize_t vfs_write(struct VNode *vnode, void *buf, size_t nbytes, off64_t *offset);
-int vfs_write_async(struct SuperBlock *sb, struct Buf *buf);
 int vfs_readdir(struct VNode *vnode, void *buf, size_t bytes, off64_t *cookie);
 int vfs_lookup(struct VNode *dir, char *name, struct VNode **result);
 int vfs_create(struct VNode *dvnode, char *name, int oflags, struct stat *stat, struct VNode **result);                             
@@ -500,6 +516,8 @@ void vnode_free(struct VNode *vnode);      // Delete a vnode from cache and disk
 
 void vnode_lock(struct VNode *vnode);      // Acquire busy lock
 void vnode_unlock(struct VNode *vnode);    // Release busy lock
+
+struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 
 /* fs/write.c */
 ssize_t sys_write(int fd, void *buf, size_t count);

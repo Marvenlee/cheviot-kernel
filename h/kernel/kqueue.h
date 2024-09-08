@@ -1,13 +1,12 @@
 #ifndef KERNEL_KQUEUE_H
 #define KERNEL_KQUEUE_H
 
-
 #include <kernel/lists.h>
 #include <kernel/types.h>
 #include <sys/event.h>
 
+
 // Forward declarations
-struct InterruptAPI;
 struct KQueue;
 struct KNote;
 struct Process;
@@ -17,22 +16,24 @@ struct Process;
 LIST_TYPE(KNote, knote_list_t, knote_link_t);
 LIST_TYPE(KQueue, kqueue_list_t, kqueue_link_t);
 
+
 /*
  * Constants
  */
-#define NR_KQUEUE 128
-#define NR_KNOTE  2048
-#define KNOTE_HASH_SZ 64
+#define NR_KQUEUE       128
+#define NR_KNOTE        2048
+#define KNOTE_HASH_SZ   64
 
-/*
- * KQueue
+
+/* @brief   struct representing a kqueue instance
+ *
+ * Exposed to user-space via a file descriptor.
  */
 struct KQueue
 {
   bool busy;
-  int reference_cnt;  
-  //  struct Process *owner;
-  struct Rendez busy_rendez;      // Are two rendez needed?
+  int reference_cnt;
+  struct Rendez busy_rendez;      // FIXME: Are two rendez needed?
   struct Rendez event_rendez;  
   kqueue_link_t free_link;    
   knote_list_t knote_list;
@@ -40,8 +41,9 @@ struct KQueue
 };
 
 
-/*
+/* @brief   Represents an event we are interested in
  *
+ * Populated with from kqueue() changelist kevents.
  */
 struct KNote
 {
@@ -71,17 +73,19 @@ struct KNote
 /*
  * Prototypes
  */
- 
-void enable_knote(struct KQueue *kqueue, struct KNote *knote);
-void disable_knote(struct KQueue *kqueue, struct KNote *knote);
 
 int sys_kqueue(void);
 int sys_kevent(int kq, const struct kevent	*changelist, int nchanges,
                struct	kevent *eventlist, int nevents, const struct timespec *timeout);
+int sys_knotei(int fd, int ino_nr, long hint);
 
 int knote(knote_list_t *note_list, int hint);
 
+void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread);
+
 int close_kqueue(struct Process *proc, int fd);
+void enable_knote(struct KQueue *kqueue, struct KNote *knote);
+void disable_knote(struct KQueue *kqueue, struct KNote *knote);
 
 struct KQueue *get_kqueue(struct Process *proc, int fd);
 int alloc_fd_kqueue(struct Process *proc);

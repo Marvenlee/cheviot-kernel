@@ -65,7 +65,7 @@ int sys_readlink(char *_path, char *_link, size_t link_size) {
     return -ENOLINK;
   }
 
-  //    status = vfs_readlink(ld.vnode, _link, link_size);
+  // TODO:   status = vfs_readlink(ld.vnode, _link, link_size);
   vnode_put(ld.vnode);
   return status;
 }

@@ -18,7 +18,7 @@
  * Scheduling related functions
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -71,12 +71,13 @@
 void Reschedule(void)
 {
   context_word_t context[N_CONTEXT_WORD];
-  struct Process *current, *next, *proc;
+  struct Thread *current, *next, *thread;
+  struct Process *current_proc, *next_proc;
   struct CPU *cpu;
   int q;
 
   cpu = get_cpu();
-  current = get_current_process();
+  current = get_current_thread();
 
   if (current != NULL) {
     current->quanta_used ++;
@@ -114,76 +115,82 @@ void Reschedule(void)
   }
 
   if (next == NULL) {
-    next = cpu->idle_process;
+    next = cpu->idle_thread;
   }
 
   if (next != NULL) {
-    next->state = PROC_STATE_RUNNING;
-    pmap_switch(next, current);
+    next->state = THREAD_STATE_RUNNING;
+    
+    next_proc = get_thread_process(next);
+    current_proc = get_current_process();
+    pmap_switch(next_proc, current_proc);
   }
 
   if (next != current) {
     current->context = &context;
-    cpu->current_process = next;
-
+    cpu->current_thread = next;
+    cpu->current_process = next->process;
+    
     if (SetContext(&context[0]) == 0) {
       GetContext(next->context);
     }
   }
 }
 
-/* @brief   Add process to a ready queue based on its scheduling policy and priority.
+/* @brief   Add thread to a ready queue based on its scheduling policy and priority.
  */
-void SchedReady(struct Process *proc)
+void SchedReady(struct Thread *thread)
 {
-  struct Process *next;
+  struct Thread *next;
   struct CPU *cpu;
 
   cpu = get_cpu();
 
-  if (proc->sched_policy == SCHED_RR || proc->sched_policy == SCHED_FIFO) {
-    CIRCLEQ_ADD_TAIL(&sched_queue[proc->priority], proc, sched_entry);
-    sched_queue_bitmap |= (1 << proc->priority);
+  if (thread->sched_policy == SCHED_RR || thread->sched_policy == SCHED_FIFO) {
+    CIRCLEQ_ADD_TAIL(&sched_queue[thread->priority], thread, sched_entry);
+    sched_queue_bitmap |= (1 << thread->priority);
 
-  } else if (proc->sched_policy == SCHED_OTHER) {
-    CIRCLEQ_ADD_TAIL(&sched_queue[proc->priority], proc, sched_entry);
-    sched_queue_bitmap |= (1 << proc->priority);
-
+  } else if (thread->sched_policy == SCHED_OTHER) {
+    CIRCLEQ_ADD_TAIL(&sched_queue[thread->priority], thread, sched_entry);
+    sched_queue_bitmap |= (1 << thread->priority);
+  } else if (thread->sched_policy == SCHED_IDLE) {
+    // Ignore IDLE sched policy, it's never placed in a sched queue
   } else {
-    Error("Ready: Unknown sched policy %d", proc->sched_policy);
+    Error("Ready: Unknown sched policy %d", thread->sched_policy);
     KernelPanic();
   }
 
-  proc->quanta_used = 0;
+  thread->quanta_used = 0;
   cpu->reschedule_request = true;
 }
 
 
-/* @brief   Removes process from the ready queue.
+/* @brief   Removes thread from the ready queue.
  */
-void SchedUnready(struct Process *proc)
+void SchedUnready(struct Thread *thread)
 {
   struct CPU *cpu;
 
   cpu = get_cpu();
 
-  if (proc->sched_policy == SCHED_RR || proc->sched_policy == SCHED_FIFO) {
-    CIRCLEQ_REM_ENTRY(&sched_queue[proc->priority], proc, sched_entry);
-    if (CIRCLEQ_HEAD(&sched_queue[proc->priority]) == NULL) {
-      sched_queue_bitmap &= ~(1 << proc->priority);
+  if (thread->sched_policy == SCHED_RR || thread->sched_policy == SCHED_FIFO) {
+    CIRCLEQ_REM_ENTRY(&sched_queue[thread->priority], thread, sched_entry);
+    if (CIRCLEQ_HEAD(&sched_queue[thread->priority]) == NULL) {
+      sched_queue_bitmap &= ~(1 << thread->priority);
     }
 
-    proc->quanta_used = 0;
+    thread->quanta_used = 0;
     
-  } else if (proc->sched_policy == SCHED_OTHER) {
-    CIRCLEQ_REM_ENTRY(&sched_queue[proc->priority], proc, sched_entry);
-    if (CIRCLEQ_HEAD(&sched_queue[proc->priority]) == NULL) {
-      sched_queue_bitmap &= ~(1 << proc->priority);
+  } else if (thread->sched_policy == SCHED_OTHER) {
+    CIRCLEQ_REM_ENTRY(&sched_queue[thread->priority], thread, sched_entry);
+    if (CIRCLEQ_HEAD(&sched_queue[thread->priority]) == NULL) {
+      sched_queue_bitmap &= ~(1 << thread->priority);
     }
 
-    proc->priority = proc->desired_priority;
-    proc->quanta_used = 0;
-
+    thread->priority = thread->desired_priority;
+    thread->quanta_used = 0;
+  } else if (thread->sched_policy == SCHED_IDLE) {
+    // Ignore IDLE sched policy, it's never placed in a sched queue
   } else {
     Error("Unready: Unknown sched policy *****");
     KernelPanic();
@@ -193,15 +200,19 @@ void SchedUnready(struct Process *proc)
 }
 
 
-/* @brief   Set process scheduling policy and priority
+/* @brief   Set thread scheduling policy and priority
  */
 int sys_setschedparams(int policy, int priority)
 {
-  struct Process *current;
-  current = get_current_process();
+  struct Process *current_proc;
+  struct Thread *current;
+  int_state_t int_state;
+  
+  current_proc = get_current_process();
+  current = get_current_thread();
 
   if (policy == SCHED_RR || policy == SCHED_FIFO) {
-    if (!io_allowed(current)) {
+    if (!io_allowed(current_proc)) {
       return -EPERM;
     }
 
@@ -209,14 +220,14 @@ int sys_setschedparams(int policy, int priority)
       return -EINVAL;
     }
 
-    DisableInterrupts();
+    int_state = DisableInterrupts();
     SchedUnready(current);
     current->sched_policy = policy;
     current->desired_priority = priority;
     current->priority = priority;
     SchedReady(current);
     Reschedule();
-    EnableInterrupts();
+    RestoreInterrupts(int_state);
 
     return 0;
 
@@ -225,14 +236,14 @@ int sys_setschedparams(int policy, int priority)
       return -EINVAL;
     }
 
-    DisableInterrupts();
+    int_state = DisableInterrupts();
     SchedUnready(current);
     current->sched_policy = policy;
     current->desired_priority = priority;
     current->priority = priority;
     SchedReady(current);
     Reschedule();
-    EnableInterrupts();
+    RestoreInterrupts(int_state);
 
     return 0;
     
@@ -257,6 +268,104 @@ int sys_getpriority(void)
 int sys_setpriority(void)
 {
 	return 0;
+}
+
+
+/* @brief   Helper function to initially schedule a thread
+ * 
+ */
+void thread_start(struct Thread *thread)
+{
+  int_state_t int_state;
+  
+  int_state = DisableInterrupts();
+  thread->state = THREAD_STATE_READY;
+  SchedReady(thread);
+  RestoreInterrupts(int_state);
+}
+
+
+/*
+ *
+ */
+void thread_stop(void)
+{
+  struct Thread *thread;
+  struct Thread *current_thread;
+  int_state_t int_state;
+  
+  current_thread = get_current_thread();
+  
+  int_state = DisableInterrupts();
+
+  thread = LIST_HEAD(&bkl_blocked_list);
+
+  if (thread != NULL) {
+    LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
+    thread->state = THREAD_STATE_READY;
+    bkl_owner = thread;
+    SchedReady(thread);
+  } else {
+    bkl_locked = false;
+    bkl_owner = NULL;
+  }
+
+  current_thread->state = THREAD_STATE_EXITED;
+  SchedUnready(current_thread);
+  Reschedule();
+  
+  KernelPanic();
+  while(1);
+}
+
+
+/*
+ *
+ */
+int init_schedparams(struct Thread *thread, int policy, int priority)
+{
+  if (priority < 0) {
+    priority = 0;
+  }
+  
+  if (priority > 31) {
+    priority = 31;
+  }
+  
+  if (policy == SCHED_RR || policy == SCHED_FIFO) {
+    thread->quanta_used = 0;
+    thread->sched_policy = policy;
+    thread->priority = (priority >= 16) ? priority : 16;
+    thread->desired_priority = thread->priority;
+  } else if (policy == SCHED_OTHER) {
+    thread->quanta_used = 0;
+    thread->sched_policy = policy;
+    thread->priority = (priority < 16) ? priority : 0;
+    thread->desired_priority = thread->priority;
+  } else if (policy == SCHED_IDLE) {
+    thread->quanta_used = 0;
+    thread->sched_policy = SCHED_IDLE;
+    thread->priority = 0;
+    thread->desired_priority = 0;
+  } else {
+    Error("Unsupported kernel task sched policy %d", thread->sched_policy);
+    KernelPanic();
+  }
+  
+  return 0;
+}
+
+
+/*
+ *
+ */ 
+int dup_schedparams(struct Thread *thread, struct Thread *old_thread)
+{
+  thread->quanta_used = 0;
+  thread->sched_policy = old_thread->sched_policy;
+  thread->priority = old_thread->priority;
+  thread->desired_priority = old_thread->desired_priority;
+  return 0;
 }
 
 

@@ -75,7 +75,7 @@ void sys_debug(char *s)
   CopyInString (buf, s, sizeof buf);
   buf[sizeof buf - 1] = '\0';
 
-  Info("PID %4d: %s:", GetPid(), &buf[0]);
+  Info("PID %4d: %s:", get_current_pid(), &buf[0]);
 }
 
 
@@ -105,7 +105,7 @@ void DoLog(const char *format, ...)
   va_start(ap, format);
 
   if (processes_initialized) {
-    Snprintf(&klog_entry[0], 5, "%4d:", GetPid());
+    Snprintf(&klog_entry[0], 5, "%4d:", get_current_pid());
     Vsnprintf(&klog_entry[5], KLOG_WIDTH - 5, format, ap);
   } else {
     Vsnprintf(&klog_entry[0], KLOG_WIDTH, format, ap);

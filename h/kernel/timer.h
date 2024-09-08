@@ -9,6 +9,8 @@
 // Forward declarations
 struct Filp;
 struct Timer;
+struct Process;
+struct Thread;
 
 // List types
 LIST_TYPE(Timer, timer_list_t, timer_list_link_t);
@@ -34,7 +36,7 @@ struct Timer
   long long expiration_time;
   void *arg;
   void (*callback)(struct Timer *timer);
-  struct Process *process;
+  struct Thread *thread;
 };
 
 
@@ -47,7 +49,7 @@ int SetAlarm();
 int SetTimeout (int milliseconds, void (*callback)(struct Timer *timer), void *arg);
 uint64_t get_hardclock(void);
 void TimerTopHalf(void);
-void TimerBottomHalf(void);
+void timer_bottom_half_task(void *arg);
 
 // Architecture-specific busy-wait sleep
 int arch_spin_nanosleep(struct timespec *reg);

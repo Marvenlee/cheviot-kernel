@@ -52,6 +52,7 @@ void init_timer_registers(void);
 
 // arm/init_proc.c
 void init_processes(void);
+
 struct Process *create_process(void (*entry)(void), int policy, int priority,
                                bits32_t flags, struct CPU *cpu);
 
@@ -69,14 +70,12 @@ void init_bootstrap_allocator(void);
 void *bootstrap_alloc(vm_size size);
 
 
-// TODO: Misc prototypes
+// TODO: Misc prototypes  FIXME: Rename/remove these prototypes
 void InitRoot(void);
 void InitIdleTasks(void);
-void IdleTask(void);
 
-void BootstrapRootProcess(void);
+void bootstrap_root_process(void *arg);
 void Idle(void);
-void StartKernelProcess(void);
 void TimerBottomHalf(void);
 
 

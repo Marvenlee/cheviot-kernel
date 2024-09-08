@@ -20,7 +20,7 @@
 #include <kernel/types.h>
 
 
-// Move into bootinfo?
+// FIXME: Move into boot.h  (or bootinfo.h)
 #define BOOT_BASE_ADDR      0x00001000
 #define BOOT_CEILING_ADDR   0x00010000
 
@@ -33,6 +33,11 @@ extern vm_addr _heap_current;
 
 extern vm_addr core_pagetable_base;
 extern vm_addr core_pagetable_ceiling;
+
+// FIXME: statically allocate only for CPU 0, need stacks allocated for other CPUs
+extern int svc_stack_top;
+extern int interrupt_stack_top;
+extern int exception_stack_top;
 
 
 /*
@@ -52,8 +57,9 @@ void init_timer_registers(void);
 
 // arm/init_proc.c
 void init_processes(void);
-struct Process *create_process(void (*entry)(void), int policy, int priority,
-                               bits32_t flags, char *basename, struct CPU *cpu);
+void start_scheduler(void);
+void init_cpu_tables(void);
+
 
 // arm/init_vm.c
 void init_vm(void);
@@ -63,21 +69,11 @@ void init_memory_map(void);
 void init_pageframe_flags(vm_addr base, vm_addr ceiling, bits32_t flags);
 void coalesce_free_pageframes(void);
 void *io_map(vm_addr pa, size_t sz, bool bufferable);
+void init_io_addresses(void);
 
 // arm/main.c
 void init_bootstrap_allocator(void);
 void *bootstrap_alloc(vm_size size);
-
-
-// TODO: Misc prototypes
-void InitRoot(void);
-void InitIdleTasks(void);
-void IdleTask(void);
-
-void BootstrapRootProcess(void);
-void Idle(void);
-void StartKernelProcess(void);
-void TimerBottomHalf(void);
 
 
 #endif

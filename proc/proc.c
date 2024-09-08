@@ -39,43 +39,51 @@
  */
 int sys_fork(void)
 {
-  struct Process *current;
-  struct Process *proc;
-
+  struct Process *current_proc;
+  struct Process *new_proc;
+  struct Thread *current_thread;
+  struct Thread *new_thread;
+//  pid_t pid;
+  
 	Info("sys_fork()");
 
-  current = get_current_process();
+  current_proc = get_current_process();
+  current_thread = get_current_thread();
 
-  if ((proc = AllocProcess()) == NULL) {
+  if ((new_proc = alloc_process(current_proc, current_proc->flags, current_proc->basename)) == NULL) {
+    Info("fork alloc_process failed");
     return -ENOMEM;
   }
 
-  fork_process_fds(proc, current);
-  fork_signals(proc, current);
+  if (fork_address_space(&new_proc->as, &current_proc->as) != 0) {
+    Info("fork_address_space failed");
+    free_process(new_proc);
+    return -ENOMEM;
+  }
+
+  new_thread = fork_thread(new_proc, current_proc, current_thread);
+
+  if (new_thread == NULL) {
+    Info("fork_thread failed");
+    free_address_space(&new_proc->as);
+    free_process(new_proc);
+    return -ENOMEM;
+  }
+
+  fork_ids(new_proc, current_proc);
+  fork_process_fds(new_proc, current_proc);
+  fork_signals(new_proc, current_proc);  
   
-	memcpy(proc->basename, current->basename, PROC_BASENAME_SZ);
+	Info("new proc:%08x, current_proc:%08x", (uint32_t)new_proc, (uint32_t)current_proc);
 
-	Info("new proc:%08x, current:%08x", (uint32_t)proc, (uint32_t)current);
+  activate_pid(new_proc->pid);
 
-  if (arch_fork_process(proc, current) != 0) {
-    fini_fproc(proc);
-    FreeProcess(proc);
-    return -ENOMEM;
-  }	
+  Info("fork starting new_thread %d", new_thread->tid);
+  thread_start(new_thread);
 
-  if (fork_address_space(&proc->as, &current->as) != 0) {
-    fini_fproc(proc);
-    FreeProcess(proc);
-    return -ENOMEM;
-  }
+  Info("fork parent returning pid:%d", new_proc->pid);
 
-  DisableInterrupts();
-  LIST_ADD_TAIL(&current->child_list, proc, child_link);
-  proc->state = PROC_STATE_READY;
-  SchedReady(proc);
-  EnableInterrupts();
-
-  return GetProcessPid(proc);
+  return new_proc->pid;
 }
 
 
@@ -87,72 +95,44 @@ void sys_exit(int status)
 {
   struct Process *current;
   struct Process *parent;
-  struct Process *child;
-  struct Process *proc;
+  struct Thread *current_thread;
   
   Info("sys_exit(%d)", status);
   
+  current_thread = get_current_thread();
   current = get_current_process();
   parent = current->parent;
 
+  Info("got current_thread, current and parent");
+
   KASSERT (parent != NULL);
 
-  current->exit_status = status;
-
-  fini_fproc(current);
-  cleanup_address_space(&current->as);
-
-  while ((child = LIST_HEAD(&current->child_list)) != NULL) {
-    LIST_REM_HEAD(&current->child_list, child_link);
-
-    if (child->state == PROC_STATE_ZOMBIE) {
-
-      // Or attach to root
-      free_address_space(&child->as);
-      arch_free_process(child);
-      FreeProcess(child);
-    } else {
-      LIST_ADD_TAIL(&root_process->child_list, child, child_link);
-      child->parent = root_process;
-    }
-  }
-
-  // TODO: Cancel any alarms to interrupt handlers
-
-  //	parent->usignal.sig_pending |= SIGFCHLD;	
-  //	parent->usignal.siginfo_data[SIGCHLD-1].si_signo = SIGCHLD;
-  //	parent->usignal.siginfo_data[SIGCHLD-1].si_code = 0;
-  //	parent->usignal.siginfo_data[SIGCHLD-1].si_value.sival_int = 0;
-
-  if (current->pid == current->pgrp) {
-	  // FIXME: Kill (-current->pgrp, SIGHUP);
-  }
+  if (current->exit_in_progress == false) {
+    Info("exit in progress is false, first exit");
     
-  TaskWakeup(&parent->rendez);
+    current->exit_status = status;
+    current->exit_in_progress = true;
 
-  DisableInterrupts();
-  KASSERT(bkl_locked == true);
-  
-  if (bkl_owner != current) {
-      KASSERT(bkl_owner == current);
+    do_kill_other_threads_and_wait(current, current_thread);
+
+    fini_fproc(current);    
+    cleanup_address_space(&current->as);
+
+    detach_child_processes(current);
+    
+
+    // TODO: Cancel any alarms
+    
+    // TODO: send SIGFCHLD to parent process
+    // parent->usignal.sig_pending |= SIGFCHLD;	
+    //	parent->usignal.siginfo_data[SIGCHLD-1].si_signo = SIGCHLD;
+    //	parent->usignal.siginfo_data[SIGCHLD-1].si_code = 0;
+    //	parent->usignal.siginfo_data[SIGCHLD-1].si_value.sival_int = 0;
+        
   }
   
-  proc = LIST_HEAD(&bkl_blocked_list);
-
-  if (proc != NULL) {
-    LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
-    proc->state = PROC_STATE_READY;
-    bkl_owner = proc;
-    SchedReady(proc);
-  } else {
-    bkl_locked = false;
-    bkl_owner = NULL;
-  }
-
-  current->state = PROC_STATE_ZOMBIE;
-  SchedUnready(current);
-  Reschedule();
-  EnableInterrupts();
+  // The last thread to exit changes proc->state to PROC_STATE_EXITED and signals parent process
+  do_exit_thread(0);
 }
 
 
@@ -176,6 +156,7 @@ int sys_waitpid(int pid, int *status, int options)
   current = get_current_process();
 
   if (-pid >= max_process || pid >= max_process) {
+    Error("waitpid %d invalid pid", pid);
     return -EINVAL;
   }
 
@@ -184,9 +165,9 @@ int sys_waitpid(int pid, int *status, int options)
     if (pid > 0) {
       found = false;
 
-      child = GetProcess(pid);
-      if (child != NULL && child->in_use != false && child->parent == current) {
-        if (child->state == PROC_STATE_ZOMBIE) {
+      child = get_process(pid);
+      if (child != NULL && child->parent == current) {
+        if (child->state == PROC_STATE_EXITED) {
           found = true;
         }
       } else {
@@ -212,7 +193,7 @@ int sys_waitpid(int pid, int *status, int options)
         if (child->pgrp == current->pgrp) {
           found_in_pgrp++;
 
-          if (child->state == PROC_STATE_ZOMBIE) {
+          if (child->state == PROC_STATE_EXITED) {
             found = true;
             break;
           }
@@ -238,7 +219,7 @@ int sys_waitpid(int pid, int *status, int options)
       found = false;
 
       while (child != NULL) {
-        if (child->state == PROC_STATE_ZOMBIE) {
+        if (child->state == PROC_STATE_EXITED) {
           found = true;
           break;
         }
@@ -263,7 +244,7 @@ int sys_waitpid(int pid, int *status, int options)
         if (child->pgrp == -pid) {
           found_in_pgrp++;
 
-          if (child->state == PROC_STATE_ZOMBIE) {
+          if (child->state == PROC_STATE_EXITED) {
             found = true;
             break;
           }
@@ -282,7 +263,7 @@ int sys_waitpid(int pid, int *status, int options)
         err = -EAGAIN;
         goto exit;
     } else if (!found) {
-      TaskSleep(&current->rendez);
+      TaskSleep(&current->child_list_rendez);
     }
   }
 
@@ -292,7 +273,7 @@ int sys_waitpid(int pid, int *status, int options)
     goto exit;
   }
 
-  pid = GetProcessPid(child);
+  pid = get_process_pid(child);
 
   if (status != NULL) {
     current = get_current_process();
@@ -303,11 +284,11 @@ int sys_waitpid(int pid, int *status, int options)
     }
   }
 
-  LIST_REM_ENTRY(&current->child_list, child, child_link);
-
+  LIST_REM_ENTRY(&current->child_list, child, child_link);  
   free_address_space(&child->as);
-  arch_free_process(child);
-  FreeProcess(child);
+  
+// FIXME: deactivate_pid(child->pid);
+  free_process(child);
   
   return pid;
 
@@ -316,115 +297,191 @@ exit:
 }
 
 
+/* @brief   Detach or free any child processes of a process
+ *
+ */
+void detach_child_processes(struct Process *proc)
+{
+  struct Process *child;
+  
+  while ((child = LIST_HEAD(&proc->child_list)) != NULL) {
+    LIST_REM_HEAD(&proc->child_list, child_link);
+
+    if (child->state == PROC_STATE_EXITED) {
+      free_address_space(&child->as);
+      free_process(child);
+    } else {
+      LIST_ADD_TAIL(&root_process->child_list, child, child_link);
+      child->parent = root_process;
+    }
+  }
+}
+
+
+/* @brief   Create a new process
+ *
+ * The address space created only has the kernel mapped. User-Space is marked as free.
+ */
+struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, int priority,
+                               bits32_t flags, char *basename, struct CPU *cpu)
+{
+  struct Process *current_proc;
+  struct Process *new_proc;
+  struct Thread *thread;
+  pid_t pid;
+  
+  current_proc = get_current_process();
+
+  Info ("do_create_process..");
+  
+  if ((new_proc = alloc_process(current_proc, flags, basename)) == NULL) {
+    Info("fork alloc_process failed");
+    return NULL;
+  }
+
+  init_ids(new_proc);
+  init_fproc(new_proc);
+  init_signals(new_proc);
+
+  if (create_address_space(&new_proc->as) != 0) {
+    Error("pmap_create failed");
+    free_pid(pid);
+    free_process_struct(new_proc);
+    return NULL;
+  }
+  
+  thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, THREADF_USER, cpu);
+
+  thread_start(thread);
+  return new_proc;
+}
+
+
+
 /* @brief   Allocate a process structure
  *
  * @return  Allocated and initialized Process structure or NULL
  */
-struct Process *AllocProcess(void) {
+struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name)
+{
   struct Process *proc = NULL;
-  struct Process *current;
-  int pid;
+  pid_t pid;
     
-  current = get_current_process();
-
-  for (pid=0; pid < max_process; pid++) {
-    proc = GetProcess(pid);
-    
-    if (proc->in_use == false) {
-      break;
-    }
-  }
-
-  if (pid == max_process) {
+  proc = alloc_process_struct();
+  
+  if (proc == NULL) {
     return NULL;
   }
   
-  memset(proc, 0, PROCESS_SZ);
-  proc->basename[0] = '\0';
-  proc->in_use = true;
+  pid = alloc_pid(PIDF_PROCESS, (void *)proc);
+
+  if (pid < 0) {
+    free_process_struct(proc);
+    return NULL;
+  }  
+    
+  if (name != NULL) {
+    strncpy(proc->basename, name, PROC_BASENAME_SZ-1);
+  } else {
+    proc->basename[0] = '\0';
+  }
+  
   proc->pid = pid;
-  proc->parent = current;
+  proc->parent = parent;
+  
+  if (parent != NULL) {
+    LIST_ADD_TAIL(&parent->child_list, proc, child_link);
+  }
+  
   proc->state = PROC_STATE_INIT;
-  proc->blocking_rendez = NULL;
   proc->exit_status = 0;
   
   proc->flags = 0;
-  
-  proc->log_level = current->log_level;
-  proc->quanta_used = 0;
-  proc->sched_policy = current->sched_policy;
-  proc->priority = current->priority;
-  proc->desired_priority = current->desired_priority;
-  proc->pending_events = 0;
-  
-  init_msgport(&proc->reply_port);
-  init_fproc(proc);
-  
+
   InitRendez(&proc->rendez);
+  InitRendez(&proc->child_list_rendez);
+  InitRendez(&proc->thread_list_rendez);
+
   LIST_INIT(&proc->child_list);
+  LIST_INIT(&proc->thread_list);
+    
+  return proc;
+}
+
+
+/* @brief   Free a process structure
+ *
+ * @param   proc, Process structure to free
+ */
+void free_process(struct Process *proc)
+{
+  struct Process *parent;
+
+  free_pid(proc->pid);
+  parent = proc->parent;
+
+  if (parent != NULL) {
+    LIST_REM_ENTRY(&parent->child_list, proc, child_link);
+    proc->parent = NULL;
+  }
+  
+  free_process_struct(proc);
+}
+
+
+/* @brief   Allocate a struct Process and clear it
+ *
+ * @return  Allocated process structure or NULL on error
+ */
+struct Process *alloc_process_struct(void)
+{
+  struct Process *proc;
+
+  proc = LIST_HEAD(&free_process_list);
+  
+  if (proc == NULL) {
+    return NULL;
+  }  
+  
+  LIST_REM_HEAD(&free_process_list, free_link);
+  
+  memset(proc, 0, sizeof *proc);
+
+  proc->canary1 = 0xcafef00d;
+  proc->canary2 = 0xdeadbeef;
 
   return proc;
 }
 
 
-/*
+/* @brief   Free a struct Process
  *
+ * @param   proc, pointer to process to free
+ */
+void free_process_struct(struct Process *proc)
+{
+  memset(proc, 0, sizeof *proc);
+  proc->state = PROC_STATE_FREE;
+  LIST_ADD_TAIL(&free_process_list, proc, free_link);
+}
+
+
+/* @brief   Check if a process is allowed to perform privileged I/O operations
+ *
+ * @param   proc, process to check
+ * @return  true if it has privileges to perform I/O operations, false otherwise
  */
 bool io_allowed(struct Process *proc)
 {
-  if (proc->uid == 0 || proc->uid == 1 || proc->gid == 0 | proc->gid == 1) {
+#if 1
+  return true;
+#else
+  // FIXME: check PROCF_ALLOW_IO
+  if(proc->flags & PROCF_ALLOW_IO) {
     return true;
   } else {
     return false;
   }
+#endif
 }
- 
-/* @brief   Free a process structure
- *
- * @param   proc, Process structure to free
- */
-void FreeProcess(struct Process *proc)
-{
-  proc->in_use = false;
-}
-
-
-/* @brief   Get the process structure of the calling process
- * 
- * @param   pid, process ID of process to lookup
- * @return  Pointer to looked up process or NULL if it doesn't exist.
- */
-struct Process *GetProcess(int pid)
-{
-  if (pid < 0 || pid >= max_process) {
-    return NULL;
-  }
-
-  return (struct Process *)((uint8_t *)process_table + (pid * PROCESS_SZ));
-}
-
-
-/* @brief   Get the process ID of a process
- * 
- * @param   proc, Process structure to get PID of
- * @return  PID of process
- */
-int GetProcessPid(struct Process *proc)
-{
-  return proc->pid;
-}
-
-
-/* @brief   Get the Process ID of the calling process
- *
- * @return  PID of calling process
- */
-int GetPid(void)
-{
-  struct Process *current;
-  
-  current = get_current_process();
-  return current->pid;
-}
-
 

@@ -16,9 +16,9 @@
 
 #include <kernel/types.h>
 #include <kernel/filesystem.h>
+#include <kernel/interrupt.h>
 #include <kernel/proc.h>
 #include <kernel/kqueue.h>
-#include <kernel/interrupt.h>
 #include <kernel/msg.h>
 
 
@@ -39,18 +39,39 @@ struct CPU cpu_table[MAX_CPU];
 
 int max_process;
 struct Process *process_table;
-struct Process *root_process;
+process_list_t free_process_list;
 
+int max_thread;
+struct Thread *thread_table;
+thread_list_t free_thread_list;
+
+int max_pid;
+struct PidDesc *pid_table;
+piddesc_list_t free_piddesc_list;
+
+struct Process *root_process;
+struct thread *root_thread;
+
+/*
+ * Thread Reaper
+ */
+ 
+struct Thread *thread_reaper_thread;
+thread_list_t thread_reaper_detached_thread_list;
+struct Rendez thread_reaper_rendez;
+
+
+ 
 /*
  * Scheduler
  */
-process_circleq_t sched_queue[32];
+thread_circleq_t sched_queue[32];
 uint32_t sched_queue_bitmap;
 int bkl_locked;
 spinlock_t inkernel_now;
 int inkernel_lock;
-struct Process *bkl_owner;
-process_list_t bkl_blocked_list;
+struct Thread *bkl_owner;
+thread_list_t bkl_blocked_list;
 
 /*
  * Interrupt handling
@@ -68,7 +89,7 @@ isr_handler_list_t isr_handler_free_list;
 /*
  * Timer
  */
-struct Process *timer_process;
+struct Thread *timer_thread;
 timer_list_t timing_wheel[JIFFIES_PER_SECOND];
 struct Rendez timer_rendez;
 

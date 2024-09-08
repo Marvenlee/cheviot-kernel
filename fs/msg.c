@@ -25,7 +25,7 @@
  * server indicates it is finished with the message by calling ReplyMsg.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/globals.h>
@@ -35,40 +35,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <kernel/kqueue.h>
-
-
-/* @brief   Send a knote event to a vnode in the kernel
- *
- * @param   fd, file descriptor of mount on which the file exists
- * @param   ino_nr, inode number of the file
- * @param   hint, hint of why this is being notified. *
- * @return  0 on success, negative errno on error
- *
- * Perhaps change it to sys_setvnodeattrs(fd, ino_nr, flags);
- */
-int sys_knotei(int fd, int ino_nr, long hint)
-{
-  struct SuperBlock *sb;
-  struct VNode *vnode;
-  struct Process *current;
-  
-  current = get_current_process();  
-  sb = get_superblock(current, fd);
-  
-  if (sb == NULL) {
-    return -EINVAL;
-  }
-  
-  vnode = vnode_get(sb, ino_nr);
-  
-  if (vnode == NULL) {
-    return -EINVAL;
-  }
-    
-  knote(&vnode->knote_list, hint);  
-  vnode_put(vnode);
-  return 0;
-}
+#include <sys/syscalls.h>
 
 
 /* @brief   Get a message from a mount's message port
@@ -96,10 +63,10 @@ int sys_getmsg(int fd, msgid_t *_msgid, void *addr, size_t buf_sz)
   int nbytes_to_xfer;
   int remaining;
   int i;
-  struct Process *current;
+  struct Process *current_proc;
 
-  current = get_current_process();  
-  sb = get_superblock(current, fd);
+  current_proc = get_current_process();  
+  sb = get_superblock(current_proc, fd);
   
   if (sb == NULL) {
     return -EINVAL;
@@ -107,22 +74,36 @@ int sys_getmsg(int fd, msgid_t *_msgid, void *addr, size_t buf_sz)
   
   msgport = &sb->msgport;
   
-  // Check if we have a backlog slot free?
-  // Allocate msgid slot for backlog (sb->msgport_backlog_table);
-  msgid = alloc_msgid(&sb->msgbacklog);
+  msg = kpeekmsg(msgport);
   
-  if (msgid < 0) {
-  	return -EAGAIN;
+  if (msg == NULL) {
+    return 0;
   }
   
-  msg = kgetmsg(msgport);
-
-  if (msg == NULL) {
-    free_msgid(&sb->msgbacklog, msgid);
-    return 0;
-  }  
+  if (msg->msgid != -1) {
+    // This message is a CMD_ABORT message, we have resent the same message with the cmd field
+    // changed and has the same msgid.
+    msgid = msg->msgid;
+    kremovemsg(msgport, msg);
   
-  assign_msgid(&sb->msgbacklog, msgid, msg);
+  } else {
+    // Check if we have a backlog slot free?
+    // Allocate msgid slot for backlog (sb->msgport_backlog_table);
+    msgid = alloc_msgid(&sb->msgbacklog);
+    
+    if (msgid < 0) {
+    	return -EAGAIN;
+    }
+    
+    msg = kgetmsg(msgport);
+
+    if (msg == NULL) {
+      free_msgid(&sb->msgbacklog, msgid);
+      return 0;
+    }  
+    
+    assign_msgid(&sb->msgbacklog, msgid, msg);
+  }
   
   CopyOut (_msgid, &msgid, sizeof msgid);
 
@@ -158,7 +139,7 @@ int sys_getmsg(int fd, msgid_t *_msgid, void *addr, size_t buf_sz)
  */
 int sys_replymsg(int fd, msgid_t msgid, int status, void *addr, size_t buf_sz)
 {
-  struct Process *current;
+  struct Process *current_proc;
   struct SuperBlock *sb;
   struct MsgPort *msgport;
   struct Msg *msg;
@@ -169,8 +150,8 @@ int sys_replymsg(int fd, msgid_t msgid, int status, void *addr, size_t buf_sz)
   int i;
   int sc;
     
-  current = get_current_process();  
-  sb = get_superblock(current, fd);
+  current_proc = get_current_process();  
+  sb = get_superblock(current_proc, fd);
 
   if (sb == NULL) {
     return -EINVAL;
@@ -208,12 +189,10 @@ int sys_replymsg(int fd, msgid_t msgid, int status, void *addr, size_t buf_sz)
     }
   }
   
-  if (msg->reply_port != NULL) {
-  	kreplymsg(msg);
- 	} else {
- 		bdflush_brelse(msg);
- 	}
- 	
+  KASSERT(msg->reply_port != NULL);
+  
+	kreplymsg(msg);
+ 	 	
 	free_msgid(&sb->msgbacklog, msgid);
   return 0;
 }
@@ -230,7 +209,7 @@ int sys_replymsg(int fd, msgid_t msgid, int status, void *addr, size_t buf_sz)
  */
 int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
 {
-  struct Process *current;
+  struct Process *current_proc;
   struct SuperBlock *sb;
   struct MsgPort *msgport;
   struct Msg *msg;
@@ -240,8 +219,8 @@ int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   int iov_remaining;
   int i;
     
-  current = get_current_process();  
-  sb = get_superblock(current, fd);
+  current_proc = get_current_process();  
+  sb = get_superblock(current_proc, fd);
   
   if (sb == NULL) {
     return -EINVAL;
@@ -289,7 +268,7 @@ int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
  */
 int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
 {
-  struct Process *current;
+  struct Process *current_proc;
   struct SuperBlock *sb;
   struct MsgPort *msgport;
   struct Msg *msg;
@@ -301,8 +280,8 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   int sc;
 
   
-  current = get_current_process();  
-  sb = get_superblock(current, fd);
+  current_proc = get_current_process();  
+  sb = get_superblock(current_proc, fd);
   
   if (sb == NULL) {
     return -EINVAL;
@@ -347,9 +326,11 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
  *
  * This is intended for custom RPC messages that don't follow the predefined
  * filesystem commands.  The kernel will prefix messages with a fsreq IOV with
- * cmd=CMD_SENDREC before being sent to the server. 
+ * cmd=CMD_SENDREC before being sent to the server.
+ *
+ * Rename to sys_sendmsg(); 
  */
-int sys_sendrec(int fd, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV *riov)
+int sys_sendrec(int fd, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov)
 {
   return -ENOSYS;
 }
@@ -358,43 +339,48 @@ int sys_sendrec(int fd, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV
 /*
  *
  */
-/*
-int sys_getmsgportinfo(int fd, struct msgportinfo *_mpinfo)
+int sys_getmsginfo(int fd, msgid_t msgid, msginfo_t *_mi)
 {
-  struct msgportinfo mpinfo;
-
-  current = get_current_process();  
-  sb = get_superblock(current, fd);
+  struct Process *current_proc;
+  struct SuperBlock *sb;
+  struct Msg *msg;
+  msginfo_t mi;
+  
+  current_proc = get_current_process();  
+  sb = get_superblock(current_proc, fd);
   
   if (sb == NULL) {
     return -EINVAL;
   }
   
-  msgport = &sb->msgport;
+  if ((msg = msgid_to_msg(&sb->msgbacklog, msgid)) == NULL) {
+    return -EINVAL;
+  }
   
-  mpinfo->aborted_msgid_set = msgport->aborted_msgid_set;
-
-  msgport->aborted_msgid_set = 0;
-
-  CopyOut(_mpinfo, &mpinfo, sizeof mpinfo);
+  // TODO: Get info on message
+  
+  CopyOut(_mi, &mi, sizeof (msginfo_t));
   return 0;
 }
-*/
+
  
 /* @brief   Send a message to a message port and wait for a reply.
  *
  * TODO:  Need timeout and abort mechanisms into IPC in case server doesn't respond or terminates.
  * Also timeout works for when a server tries to create a second mount in its own mount path.
  */
-int ksendmsg(struct MsgPort *msgport, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV *riov)
+int ksendmsg(struct MsgPort *msgport, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov)
 {
-  struct Process *current;
+  struct Process *current_proc;
+  struct Thread *current_thread;
   struct Msg msg;
+  uint32_t saved_sig_mask;
 	int sc;
 	
-  current = get_current_process();
-      
-  msg.reply_port = &current->reply_port;  
+  current_proc = get_current_process();
+  current_thread = get_current_thread();
+  
+  msg.reply_port = &current_thread->reply_port;  
   msg.siov_cnt = siov_cnt;
   msg.siov = siov;
   msg.riov_cnt = riov_cnt;
@@ -402,26 +388,75 @@ int ksendmsg(struct MsgPort *msgport, int siov_cnt, struct IOV *siov, int riov_c
   msg.reply_status = 0;
      
   kputmsg(msgport, &msg);   
-  sc = kwaitport(&current->reply_port, NULL);
+  
+  // We need a timeout and if it occurs we forcibly abort.
 
-  if (sc != 0) {
-    // FIXME: Do something with sc
-    // msg->abort = true
-    // Remove message and msgid, mark bit in msginfo->aborted_msgid_set (saved in msgport)  
-    // Find server process or thread in it
-    // send SIGABRT
-    // 
-    // sys_getmsg returns -EABORT if there are aborted messages left.  Cannot assign message to msgid
-    // while there are aborted messages?  Needs sys_getmsgportinfo(portid, &info) to clear aborted message bits.
-    // 
-    // 
-  
-    return sc;
+//  saved_sig_mask = current_proc->signal.sig_mask;
+    
+  while ((kwaitport(&current_thread->reply_port, NULL)) != 0) {
+    // Check if message is on pending queue (not yet received by server)
+    // If so, silently remove message, set msg._reply_status to -EINTR and return.   
+    // Check signals, we may want to kill the current_proc process immediately.
+   
+    sc = kabortmsg(msgport, &msg);
+
+    if (sc != 0) {
+      return sc;
+    }
+    
+    // Mask signals or we keep looping forever in kwaitport 
+    current_proc->signal.sig_mask = 0xFFFFFFFF;
   }
+
+//  current_proc->signal.sig_mask = saved_sig_mask;
   
-  kgetmsg(&current->reply_port);
+  kgetmsg(&current_thread->reply_port);
 	
   return msg.reply_status;
+}
+
+
+/*
+ * We also need to handle the case of the message port closing due to either closing
+ * of the file handle or the server process terminating or the client being killed and
+ * and so messages need an immediate disconnec+t.
+ */
+int kabortmsg(struct MsgPort *msgport, struct Msg *msg)
+{
+  struct fsreq *fsreq;
+  
+  if (msg->msgid != -1) {
+    // message has been received and is assigned a msgid, send it again with CMD_ABORT
+    // and no parameters. IOVs will remain the same so readmsg, writemsg and replymsg will be ok.
+    // Make sure siov count >= 1.
+    
+    // Don't we want the same msgid when it's received a second time ? 
+    
+    fsreq = msg->siov[0].addr;
+    
+    if (fsreq->cmd == CMD_ABORT) {
+      return -EBUSY;
+    }
+    
+    fsreq->cmd = CMD_ABORT;
+
+    msg->port = msgport;
+    LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
+    knote(&msgport->knote_list, NOTE_MSG);
+    
+    return 0;
+    
+  } else if (msg->port == msgport) {
+    // message has not been received, but is still on message list of server, remove it 
+    kremovemsg(msgport, msg);
+    msg->msgid = -1;
+    msg->reply_status = -EINTR;
+    return -EINTR;
+
+  } else {
+    // message has replied
+    return 0;
+  }
 }
 
 
@@ -432,6 +467,7 @@ int ksendmsg(struct MsgPort *msgport, int siov_cnt, struct IOV *siov, int riov_c
  */
 int kputmsg(struct MsgPort *msgport, struct Msg *msg)
 {
+  msg->msgid = -1;
   msg->port = msgport;
   LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
 
@@ -452,6 +488,7 @@ int kreplymsg(struct Msg *msg)
   KASSERT (msg != NULL);  
   KASSERT (msg->reply_port != NULL);
   
+  msg->msgid = -1;
   msg->port = msg->reply_port;
   reply_port = msg->reply_port;
   LIST_ADD_TAIL(&reply_port->pending_msg_list, msg, link);
@@ -485,6 +522,15 @@ struct Msg *kpeekmsg(struct MsgPort *msgport)
 }
 
 
+/*
+ *
+ */
+void kremovemsg(struct MsgPort *msgport, struct Msg *msg)
+{   
+  LIST_REM_ENTRY(&msgport->pending_msg_list, msg, link);
+}
+
+
 /* @brief   Wait for a message port to receive a message
  *
  * @param   msgport, message port to wait on
@@ -498,17 +544,9 @@ int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
   int sc;
   
   if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
-    if (timeout == NULL) {
-      if (( sc = TaskSleepInterruptible(&msgport->rendez)) != 0) {
-        if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
-          return sc;
-        }
-      }
-    } else {    
-      if ((sc = TaskTimedSleep(&msgport->rendez, timeout)) != 0) {
-        if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
-          return sc;
-        }
+    if ((sc = TaskSleepInterruptible(&msgport->rendez, timeout, INTRF_NONE)) != 0) {
+      if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+        return sc;
       }
     }
   }
@@ -574,6 +612,7 @@ int init_msgbacklog(struct MsgBacklog *backlog, int backlog_sz)
 void assign_msgid(struct MsgBacklog *backlog, msgid_t msgid, struct Msg *msg)
 {
 	backlog->msg[msgid] = msg;
+	msg->msgid = msgid;
 }
 
 
@@ -632,6 +671,8 @@ void free_msgid(struct MsgBacklog *backlog, msgid_t msgid)
   }
   
   backlog->free_bitmap |= (1<<msgid);
+  
+  backlog->msg[msgid]->msgid = -1;
   backlog->msg[msgid] = NULL;
 }
 
@@ -639,7 +680,7 @@ void free_msgid(struct MsgBacklog *backlog, msgid_t msgid)
 /* @brief   Seek to a position within a multi-part message
  *
  */
-int seekiov(int iov_cnt, struct IOV *iov, off_t offset, int *i, size_t *iov_remaining)
+int seekiov(int iov_cnt, msgiov_t *iov, off_t offset, int *i, size_t *iov_remaining)
 {
   off_t base_offset;
 

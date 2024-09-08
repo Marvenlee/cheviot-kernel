@@ -26,9 +26,11 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
+#include <string.h>
 
 
 // TODO: set mailbuffer pointer and physical address
+// TODO: Move into a server along with GPIO syscalls (later move to device manager ring/ref monitor)
 
 /* @brief		Syscall for specific raspberry Pi mailbox commands.
  *
@@ -53,7 +55,7 @@ int sys_rpi_mailbox(uint32_t tag, void *request, int req_sz, void *response, int
   mailbuffer[5 + req_sz/4] = 0;		// end tag
 
   do {
-    hal_mbox_write(MBOX_PROP, mailbuffer_pa);
+    hal_mbox_write(MBOX_PROP, (uint32_t)mailbuffer_pa);
     result = hal_mbox_read(MBOX_PROP);
   } while (result == 0);
 

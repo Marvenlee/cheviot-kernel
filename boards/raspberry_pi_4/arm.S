@@ -35,6 +35,7 @@
 // Functions
 .global _start
 .global get_current_process
+.global get_current_thread
 .global get_cpu
 .global DisableInterrupts
 .global RestoreInterrupts
@@ -148,6 +149,11 @@ get_current_process:
     MGetCurrentProcess r0
     bx lr
 
+/* @brief   Get the Process structure of the caller.
+ */
+get_current_thread:
+    Mget_current_thread r0
+    bx lr
 
 /* @brief   Get the CPU structure of the caller.
  */
@@ -227,7 +233,7 @@ SpinUnlockIRQRestore:
  */ 
 CopyIn:
     push {r0-r1}
-    MGetCurrentProcess r0
+    Mget_current_thread r0
     ldr r1, =CopyInCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
@@ -239,8 +245,8 @@ CopyInLoop:
     sub r2, #1
     b CopyInLoop
 CopyInDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
@@ -258,7 +264,7 @@ CopyInCatch:
  */
 CopyInString:
     push {r0-r1}
-    MGetCurrentProcess r0
+    Mget_current_thread r0
     ldr r1, =CopyInStringCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
@@ -272,14 +278,14 @@ CopyInStringLoop:
     sub r2, #1
     b CopyInStringLoop
 CopyInStringDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
 CopyInStringNoTermDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
@@ -297,7 +303,7 @@ CopyInStringCatch:
  */ 
 CopyOut:
     push {r0-r1}
-    MGetCurrentProcess r0
+    Mget_current_thread r0
     ldr r1, =CopyOutCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
@@ -309,8 +315,8 @@ CopyOutLoop:
     sub r2, #1    
     b CopyOutLoop
 CopyOutDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
@@ -324,7 +330,7 @@ CopyOutCatch:
  */
 CopyUserString:
     push {r0-r1}
-    MGetCurrentProcess r0
+    Mget_current_thread r0
     ldr r1, =CopyUserStringCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
@@ -338,14 +344,14 @@ CopyUserStringLoop:
     sub r2, #1
     b CopyUserStringLoop
 CopyUserStringDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
 CopyUserStringNoTermDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
@@ -366,7 +372,7 @@ CopyUserStringCatch:
  */
 StrLenUser:
     push {r0-r1}
-    MGetCurrentProcess r0
+    Mget_current_thread r0
     ldr r1, =StrLenUserCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
@@ -380,15 +386,15 @@ StrLenUserLoop:
     sub r2, #1
     b StrLenUserLoop
 StrLenUserDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     // FIXME: StrLenUser Return length of string, not 0
     mov r0, #0
     bx lr
 StrLenUserNoTermDone:
-    MGetCurrentProcess r0
-    ldr r1, =#0xdeadbeef
+    Mget_current_thread r0
+    ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr

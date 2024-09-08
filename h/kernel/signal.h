@@ -42,27 +42,33 @@ struct Process;
  * User/nix signal state of a Process.
  */
 
-struct Signal {
-  _sig_func_ptr handler[NSIG - 1]; /* Action for each signal, func, SIG_DFL, SIG_IGN */
-  sigset_t handler_mask[NSIG - 1]; /* Mask to add to current sig_mask during handler.*/
+struct ProcSignalState {
+  _sig_func_ptr handler[NSIG]; /* Action for each signal, func, SIG_DFL, SIG_IGN */
+  sigset_t handler_mask[NSIG]; /* Mask to add to current sig_mask during handler.*/
+ 
+  void (*restorer)(void); /* User-mode signal trampoline, takes care of calling sys_sigreturn */ 
+  struct sigframe *sigreturn_sigframe;
 
-  int8_t si_code[NSIG - 1];             /* code (user, message etc) */ 
-  vm_addr sigsegv_ptr;
-  vm_addr sigill_ptr;
-  
   sigset_t sig_info; /* bitmap of signals that want SA_SIGINFO args. */
-
-  sigset_t sig_mask;    /* Current signal mask */
-  sigset_t sig_pending; /* bitmap of signals awaiting delivery */
-
   sigset_t sig_resethand; /* Unreliable signals */
   sigset_t sig_nodefer;   /* Don't automatically mask delivered signal */
-
   sigset_t sigsuspend_oldmask;
   bool use_sigsuspend_mask;
 
-  void (*restorer)(void); /* User-mode signal trampoline, takes care of calling sys_sigreturn */
+  sigset_t sig_mask;        /* Current signal mask */
+  sigset_t sig_pending;     /* bitmap of signals awaiting delivery */
+  int8_t si_code[NSIG];     /* Async pending signal code (user, message etc) */ 
 };
+
+
+struct ThreadSignalState {
+  sigset_t sig_mask;    /* Current signal mask */
+  sigset_t sig_pending; /* bitmap of signals awaiting delivery */
+
+//  void *sigsegv_ptr;  // Stored upon exception, cleared on delivery
+//  void *sigill_ptr;   // Stored upon exception, cleared on delivery
+};
+
 
 /*
  * Variables
@@ -85,6 +91,11 @@ void init_signals(struct Process *dst);
 void fork_signals(struct Process *dst, struct Process *src);
 void exec_signals(struct Process *dst);
 void do_signal_default(int sig);
+int do_kill_process(pid_t pid, int signal);
+int do_kill_process_group(pid_t pid, int signal);
+int pick_signal(uint32_t sigbits);
 
+int do_signal_process(struct Process *proc, int signal);
+int do_signal_thread(struct Thread *thread, int signal);
 
 #endif

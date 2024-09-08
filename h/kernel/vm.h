@@ -85,6 +85,7 @@ struct AddressSpace
  */
 
 // vm/addressspace.c
+int create_address_space(struct AddressSpace *new_as);
 int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as);
 void cleanup_address_space(struct AddressSpace *as);
 void free_address_space(struct AddressSpace *as);

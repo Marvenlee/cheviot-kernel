@@ -26,9 +26,10 @@
 .global reset_vector
 .global undef_instr_vector
 .global fiq_vector
-.global StartForkProcess
-.global StartExecProcess
-.global StartKernelProcess
+.global start_of_forked_process
+.global start_of_execed_process
+.global start_of_user_thread
+.global start_of_kernel_thread
 
 .section .text
 
@@ -71,17 +72,18 @@ syscall_table:
     .long sys_maskinterrupt             // 17
     .long sys_unmaskinterrupt           // 18
 
-    .long sys_set_syslog_file           // 19   TODO: Add sys_set_syslog_file and libc code
+    .long sys_deprecatedsyscall         // 19   TODO: Was set_syslog_file, replaced with ioctl
                                                 // TODO: Add open_syslog() to get syslog handle for writing.
     .long sys_exec                      // 20   
-     
-    .long sys_createmsgport             // 21 
-    .long sys_deprecatedsyscall         // 22   TODO: Was unmount
+
+    // Add sys_mountport,  sys_createport can be an atomic/combined mknod2() and mountport();     
+    .long sys_createmsgport             // 21   TODO: Rename to createport(). 
+    .long sys_deprecatedsyscall         // 22   TODO: Was unmount, add back again, unmount(path, force)
 
     // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
     // Need listen(mount_fd) to create new listener handle (multiple for char device server)
     
-    .long sys_sendrec                   // 23  TODO:
+    .long sys_sendrec                   // 23  TODO: Implement
     .long sys_getmsg                    // 24  
     .long sys_replymsg                  // 25
     .long sys_readmsg                   // 26
@@ -156,7 +158,7 @@ syscall_table:
     .long sys_sigsuspend                // 78
     
     .long sys_mknod                     // 79
-    .long sys_renamemsgport             // 80
+    .long sys_renamemsgport             // 80       // TODO: Change to renamemount()
     
     .long sys_chroot                    // 81
 
@@ -176,13 +178,16 @@ syscall_table:
 
 		.long sys_clock_gettime							// 94
 
+    // TODO: Move into pi_mailbox server initially, use sendrec API
+    // then move into device manager ring/ref monitor,
+
 		.long sys_rpi_mailbox								// 95   // Architecture-specific syscalls, to be
 		.long sys_rpi_configure_gpio				// 96   // moved out of kernel into "ring 1" "device manager"
 		.long sys_rpi_set_gpio							// 97   // once we support multiple protection rings
 
 		.long sys_clock_settime							// 98
 
-		.long sys_bdflush										// 99
+		.long sys_deprecatedsyscall   			// 99  FIXME: Was sys_bdflush
 
     .long sys_sigreturn                 // 100
     
@@ -191,15 +196,27 @@ syscall_table:
     .long sys_thread_event_check        // 103
 
     .long sys_ismount                   // 104
+    
+    .long sys_getmsginfo                // 105 TODO: Deprecate, move into fsreq, remove fsreq from iov[0]
+    
+    .long sys_setsid                    // 106
+    .long sys_getsid                    // 107
+    
+    .long sys_reminterruptserver        // 108
+    
+    .long sys_thread_event_kevent_mask  // 109
+    
+    .long sys_thread_create             // 110
+    .long sys_thread_join               // 111
+    .long sys_thread_exit               // 112
+    
+    .long sys_thread_gettid             // 113
+    .long sys_thread_self               // 114
 
-    /*  
-    .long sys_thread_create
-    .long sys_thread_exit
-    .long sys_thread_join
+    /*
     .long sys_thread_cancel
     .long sys_thread_setprio
     .long sys_thread_setschedparam    
-    .long sys_thread_self
     
     .long sys_thread_mutex_lock
     .long sys_thread_mutex_unlock
@@ -215,7 +232,7 @@ syscall_table:
     */
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 104
+#define MAX_SYSCALL                 114
 
 
 /* @brief   System call entry point
@@ -353,36 +370,73 @@ fiq_vector:
 /* ****************************************************************************
  */
 
+/* @brief   Starting point of a forked process
+ *
+ */
 .balign 16
-StartForkProcess:
+start_of_forked_process:
+    bl start_forked_thread_log
     bl KernelLock    
     mov r0, sp
+    bl start_forked_thread_inside_log    
+    mov r0, sp
     bl check_signals
+
+    MDisableInterrupts
     bl KernelUnlock
      
-    MDisableInterrupts
     MSWIPopRegs
     subs pc, lr, #0
 
 
+/* @brief     Tail of an exec'd process.
+ *
+ * The kernel lock is already obtained upon entry into the exec syscall, so
+ * we do not need to obtain it here.  We've set things up to return to new entry
+ * point on new stack.
+ */
 .balign 16
-StartExecProcess:
+start_of_execed_process:
     mov r0, sp    
     bl check_signals
+
+    MDisableInterrupts
     bl KernelUnlock
      
-    MDisableInterrupts
     MSWIPopRegs
     subs pc, lr, #0
 
-
+/* @brief   Starting point of a user thread
+ *
+ */
 .balign 16
-StartKernelProcess:
-    push {r0}
-    bl start_kernel_process_log
+start_of_user_thread:
+    push {r0-r1}
+    bl start_kernel_thread_log
     bl KernelLock
-    pop {r0}
-    blx r0
-    mov r0, #0
-    bl sys_exit    
+    pop {r0-r1}
+    blx r1
+    
+    // Shouldn't get here, we call GetContext() inside arch_init_exec from BootstrapRootProcess
+    // FIXME: kernel panic if we do
+
+    mov r1, #0
+    bl sys_exit 
+
+
+/* @brief   Starting point of a kernel thread
+ *
+ */
+.balign 16
+start_of_kernel_thread:
+    push {r0-r1}
+    bl start_kernel_thread_log
+    bl KernelLock
+    pop {r0-r1}
+    blx r1
+    
+    mov r1, #0
+    bl sys_exit 
+
+
     

@@ -3,18 +3,14 @@
 
 #include <sys/syscalls.h>
 #include <kernel/types.h>
+#include <kernel/interrupt.h>
 #include <kernel/filesystem.h>
 #include <kernel/lists.h>
 #include <kernel/proc.h>
 #include <kernel/vm.h>
 #include <kernel/kqueue.h>
-#include <kernel/interrupt.h>
 #include <kernel/msg.h>
 
-
-
-extern struct Process *root_process;
-extern struct Process *timer_process;
 
 /*
  * Memory
@@ -30,6 +26,7 @@ extern pageframe_list_t free_64k_pf_list;
 /*
  * Timer
  */
+extern struct Thread *timer_thread;
 extern timer_list_t timing_wheel[JIFFIES_PER_SECOND];
 extern struct Rendez timer_rendez;
 
@@ -59,23 +56,44 @@ extern int max_cpu;
 extern int cpu_cnt;
 extern struct CPU cpu_table[1];
 
+// TODO: PID table will be fixed size (for processes, threads, pgrps and sessions)
+// Threads and process structs will be dynamically allocated, with buddy allocator
+// 64k blocks per process (for FD tables, threads, process page tables, kernel stacks, etc).
+
 extern int max_process;
 extern struct Process *process_table;
+extern process_list_t free_process_list;
+
+extern int max_thread;
+extern struct Thread *thread_table;
+extern thread_list_t free_thread_list;
+ 
+extern int max_pid;
+extern struct PidDesc *pid_table;
+extern piddesc_list_t free_piddesc_list;
 
 extern struct Process *root_process;
+extern struct Thread *root_thread; 
+
+/*
+ * Thread reaper
+ */
+extern struct Thread *thread_reaper_thread;
+extern thread_list_t thread_reaper_detached_thread_list;
+extern struct Rendez thread_reaper_rendez;
 
 /*
  * Scheduler
  */
 
-extern process_circleq_t sched_queue[32];
+extern thread_circleq_t sched_queue[32];
 extern uint32_t sched_queue_bitmap;
 
 extern int bkl_locked;
 extern spinlock_t inkernel_now;
 extern int inkernel_lock;
-extern struct Process *bkl_owner;
-extern process_list_t bkl_blocked_list;
+extern struct Thread *bkl_owner;
+extern thread_list_t bkl_blocked_list;
 
 /*
  * free counters (unused?)

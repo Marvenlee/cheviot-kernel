@@ -28,15 +28,16 @@ LIST_TYPE(Msg, msg_list_t, msg_link_t);
 struct Msg
 {
   msg_link_t link;
+  msgid_t msgid;
   struct MsgPort *port;       // The port it is attached to or NULL if not attached.
                               // Set to reply_port on reply, so any msgid_to_msg fails after replymsg
                               
   struct MsgPort *reply_port; // The reply port to reply to
   int reply_status;  
   int siov_cnt;
-  struct IOV *siov;
+  msgiov_t *siov;
   int riov_cnt;
-  struct IOV *riov;
+  msgiov_t *riov;
 };
 
 
@@ -58,6 +59,10 @@ struct MsgPort
   struct Rendez rendez;
   msg_list_t pending_msg_list;
   knote_list_t knote_list;    
+  
+  msgidset_t inflight_msgids;
+  msgidset_t abort_msgids;
+
   void *context;              // For pointer to superblock or other data
 };
 
@@ -69,21 +74,23 @@ struct MsgPort
 /*
  * Prototypes
  */
-int sys_knotei(int fd, int ino_nr, long hint);
-int sys_sendrec(int fd, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV *riov);
+int sys_sendrec(int fd, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
 int sys_getmsg(int server_fd, msgid_t *msgid, void *buf, size_t buf_sz);
 int sys_replymsg(int server_fd, msgid_t msgid, int status, void *buf, size_t buf_sz);
 int sys_readmsg(int server_fd, msgid_t msgid, void *buf, size_t buf_sz, off_t offset);
 int sys_writemsg(int server_fd, msgid_t msgid, void *buf, size_t buf_sz, off_t offset);
 
-int ksendmsg(struct MsgPort *msgport, int siov_cnt, struct IOV *siov, int riov_cnt, struct IOV *riov);
+int kabortmsg(struct MsgPort *msgport, struct Msg *msg);
+int ksendmsg(struct MsgPort *msgport, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
 int kputmsg(struct MsgPort *msgport, struct Msg *msg);
 int kreplymsg(struct Msg *msg);
 struct Msg *kgetmsg(struct MsgPort *port);
 struct Msg *kpeekmsg(struct MsgPort *port);
+void kremovemsg(struct MsgPort *msgport, struct Msg *msg);
 
 int kwaitport(struct MsgPort *msgport, struct timespec *timeout);
-int seekiov(int iov_cnt, struct IOV *iov, off_t offset, int *i, size_t *iov_remaining);
+
+int seekiov(int iov_cnt, msgiov_t *iov, off_t offset, int *i, size_t *iov_remaining);
 
 void assign_msgid(struct MsgBacklog *backlog, msgid_t msgid, struct Msg *msg);
 struct Msg *msgid_to_msg(struct MsgBacklog *backlog, msgid_t msgid);
