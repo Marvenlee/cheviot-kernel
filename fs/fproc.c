@@ -45,8 +45,6 @@ int init_fproc(struct Process *proc)
   FD_ZERO(&fproc->fd_in_use_set);
   FD_ZERO(&fproc->fd_close_on_exec_set);
 
-  fproc->controlling_tty = NULL;
-
   for (int t=0; t<OPEN_MAX; t++) {  
     fproc->fd_table[t] = NULL;
   }  
@@ -78,10 +76,6 @@ int fini_fproc(struct Process *proc)
     vnode_put(fproc->root_dir);
   }
 
-  if (fproc->controlling_tty != NULL) {
-    vnode_put(fproc->controlling_tty);
-  }
-
   kfree_page(proc->fproc);
   proc->fproc = NULL;
   return 0;
@@ -105,12 +99,6 @@ int fork_process_fds(struct Process *newp, struct Process *oldp)
     
   old_fproc = oldp->fproc;
   newp->fproc = new_fproc;
-
-  new_fproc->controlling_tty = old_fproc->controlling_tty;
-  
-  if (new_fproc->controlling_tty != NULL) {
-    vnode_inc_ref(new_fproc->controlling_tty);
-  }
   
   new_fproc->current_dir = old_fproc->current_dir;
     
@@ -146,12 +134,6 @@ int fork_process_fds(struct Process *newp, struct Process *oldp)
 
   return 0;
 }
-
-
-
-
-
- 
 
 
 

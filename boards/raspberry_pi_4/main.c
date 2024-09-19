@@ -96,6 +96,8 @@ void Main(void)
   buf_table         = bootstrap_alloc(max_buf * sizeof(struct Buf));
   pipe_table        = bootstrap_alloc(max_pipe * sizeof (struct Pipe));
   pid_table         = bootstrap_alloc(max_pid * sizeof (struct PidDesc));
+  session_table     = bootstrap_alloc(max_pid * sizeof (struct Session));
+  pgrp_table        = bootstrap_alloc(max_pid * sizeof (struct Pgrp));
   process_table     = bootstrap_alloc(max_process * sizeof (struct Process));
   thread_table      = bootstrap_alloc(max_thread * sizeof (struct Thread));
   superblock_table  = bootstrap_alloc(max_superblock * sizeof(struct SuperBlock));

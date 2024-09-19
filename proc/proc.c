@@ -30,7 +30,6 @@
 #include <sys/execargs.h>
 #include <sys/wait.h>
 
-
 /* @brief   Fork the calling process
  *
  * @return  In parent process, a positive non-zero Process ID of the child process
@@ -43,7 +42,6 @@ int sys_fork(void)
   struct Process *new_proc;
   struct Thread *current_thread;
   struct Thread *new_thread;
-//  pid_t pid;
   
 	Info("sys_fork()");
 
@@ -51,38 +49,30 @@ int sys_fork(void)
   current_thread = get_current_thread();
 
   if ((new_proc = alloc_process(current_proc, current_proc->flags, current_proc->basename)) == NULL) {
-    Info("fork alloc_process failed");
     return -ENOMEM;
   }
 
   if (fork_address_space(&new_proc->as, &current_proc->as) != 0) {
-    Info("fork_address_space failed");
     free_process(new_proc);
     return -ENOMEM;
   }
+
+  fork_session_pgrp(new_proc, current_proc);
+  fork_ids(new_proc, current_proc);
+  fork_process_fds(new_proc, current_proc);
+  fork_signals(new_proc, current_proc);  
 
   new_thread = fork_thread(new_proc, current_proc, current_thread);
 
   if (new_thread == NULL) {
-    Info("fork_thread failed");
     free_address_space(&new_proc->as);
+    fini_fproc(new_proc);
+    fini_session_pgrp(new_proc);
     free_process(new_proc);
     return -ENOMEM;
   }
-
-  fork_ids(new_proc, current_proc);
-  fork_process_fds(new_proc, current_proc);
-  fork_signals(new_proc, current_proc);  
   
-	Info("new proc:%08x, current_proc:%08x", (uint32_t)new_proc, (uint32_t)current_proc);
-
-  activate_pid(new_proc->pid);
-
-  Info("fork starting new_thread %d", new_thread->tid);
   thread_start(new_thread);
-
-  Info("fork parent returning pid:%d", new_proc->pid);
-
   return new_proc->pid;
 }
 
@@ -103,24 +93,21 @@ void sys_exit(int status)
   current = get_current_process();
   parent = current->parent;
 
-  Info("got current_thread, current and parent");
-
   KASSERT (parent != NULL);
 
   if (current->exit_in_progress == false) {
-    Info("exit in progress is false, first exit");
-    
     current->exit_status = status;
     current->exit_in_progress = true;
 
     do_kill_other_threads_and_wait(current, current_thread);
 
-    fini_fproc(current);    
+    fini_fproc(current);
+    fini_session_pgrp(current);
+    
     cleanup_address_space(&current->as);
 
     detach_child_processes(current);
     
-
     // TODO: Cancel any alarms
     
     // TODO: send SIGFCHLD to parent process
@@ -156,7 +143,6 @@ int sys_waitpid(int pid, int *status, int options)
   current = get_current_process();
 
   if (-pid >= max_process || pid >= max_process) {
-    Error("waitpid %d invalid pid", pid);
     return -EINVAL;
   }
 
@@ -190,7 +176,7 @@ int sys_waitpid(int pid, int *status, int options)
       found_in_pgrp = 0;
 
       while (child != NULL) {
-        if (child->pgrp == current->pgrp) {
+        if (child->pgid == current->pgid) {
           found_in_pgrp++;
 
           if (child->state == PROC_STATE_EXITED) {
@@ -241,7 +227,7 @@ int sys_waitpid(int pid, int *status, int options)
       found_in_pgrp = 0;
 
       while (child != NULL) {
-        if (child->pgrp == -pid) {
+        if (child->pgid == -pid) {
           found_in_pgrp++;
 
           if (child->state == PROC_STATE_EXITED) {
@@ -287,7 +273,6 @@ int sys_waitpid(int pid, int *status, int options)
   LIST_REM_ENTRY(&current->child_list, child, child_link);  
   free_address_space(&child->as);
   
-// FIXME: deactivate_pid(child->pid);
   free_process(child);
   
   return pid;
@@ -328,29 +313,33 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
   struct Process *current_proc;
   struct Process *new_proc;
   struct Thread *thread;
-  pid_t pid;
   
   current_proc = get_current_process();
 
   Info ("do_create_process..");
   
   if ((new_proc = alloc_process(current_proc, flags, basename)) == NULL) {
-    Info("fork alloc_process failed");
-    return NULL;
-  }
-
-  init_ids(new_proc);
-  init_fproc(new_proc);
-  init_signals(new_proc);
-
-  if (create_address_space(&new_proc->as) != 0) {
-    Error("pmap_create failed");
-    free_pid(pid);
-    free_process_struct(new_proc);
     return NULL;
   }
   
-  thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, THREADF_USER, cpu);
+  if (create_address_space(&new_proc->as) != 0) {
+    free_process(new_proc);
+    return NULL;
+  }
+
+  init_session_pgrp(new_proc);
+  init_ids(new_proc);
+  init_fproc(new_proc);
+  init_signals(new_proc);
+  
+  thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, 0, THREADF_USER, cpu);
+
+  if (thread == NULL) {
+    free_address_space(&new_proc->as);
+    fini_fproc(new_proc);
+    fini_session_pgrp(new_proc);
+    free_process(new_proc);
+  }
 
   thread_start(thread);
   return new_proc;
@@ -373,7 +362,7 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
     return NULL;
   }
   
-  pid = alloc_pid(PIDF_PROCESS, (void *)proc);
+  pid = alloc_pid_proc(proc);
 
   if (pid < 0) {
     free_process_struct(proc);
@@ -404,6 +393,7 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
 
   LIST_INIT(&proc->child_list);
   LIST_INIT(&proc->thread_list);
+  LIST_INIT(&proc->unmasked_signal_thread_list);
     
   return proc;
 }

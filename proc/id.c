@@ -162,75 +162,6 @@ int sys_issetugid(void)
 /*
  *
  */
-int sys_setsid(void)
-{
-  struct Process *current = get_current_process();
-
-  Info("sys_setsid()");
-
-	if (current->pgrp == current->pid) {
-	  return -EPERM;
-  }	  
-	
-	current->pgrp = current->pid;	
-  return -ENOSYS;
-}
-
-
-/*
- *
- */
-int sys_getsid(pid_t pid)
-{
-  struct Process *current = get_current_process();
-  struct Process *proc;
-
-  if (pid == 0) {
-    proc = current;
-  } else {
-    proc = get_process(pid);
-  }
-    
-  if (proc == NULL) {
-    return -ESRCH;
-  }
-  
-  if (current->sid != proc->sid) {
-    return -EPERM;
-  }
-    
-  return proc->sid;
-}
-
-
-/*
- *
- */
-int sys_setpgrp(void)
-{
-  struct Process *current = get_current_process();
-
-  Info("sys_setpgrp()");
-  
-  current->pgrp = current->pid;
-  return 0;
-}
-
-
-/*
- *
- */
-pid_t sys_getpgrp(void)
-{
-  struct Process *current = get_current_process();
-
-  return current->pgrp;
-}
-
-
-/*
- *
- */
 int setreuid(uid_t ruid, uid_t euid)
 {
   struct Process *current = get_current_process();
@@ -481,10 +412,7 @@ void init_ids(struct Process *proc)
   proc->euid = 0;                // effective uid
   proc->egid = 0;                // effective gid
   proc->suid = 0;                // saved uid
-  proc->sgid = 0;                // saved gid
-  
-  proc->pgrp = -1;               // process group to which this process belongs
-  proc->sid  = -1;               // session this process belongs
+  proc->sgid = 0;                // saved gid  
 }
 
 
@@ -505,9 +433,6 @@ void fork_ids(struct Process *new_proc, struct Process *old_proc)
   new_proc->egid = old_proc->egid;         // effective gid
   new_proc->suid = old_proc->suid;         // saved uid
   new_proc->sgid = old_proc->sgid;         // saved gid
-  
-  new_proc->pgrp = old_proc->pgrp;         // process group to which this process belongs
-  new_proc->sid  = old_proc->sid;          // session this process belongs
 }
 
 

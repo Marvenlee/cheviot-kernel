@@ -95,7 +95,7 @@ struct bcm2711_gic_cpu_iface_registers
  * Total number of interrupts on bcm2711 used in Raspberry Pi 4
  */
 #define NIRQ (192)
-
+#define BASE_USER_IRQ (96)
 
 /*
  * GICv2 GIC400 register flags and masks

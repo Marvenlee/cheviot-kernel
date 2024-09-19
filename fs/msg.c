@@ -328,16 +328,169 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
  * filesystem commands.  The kernel will prefix messages with a fsreq IOV with
  * cmd=CMD_SENDREC before being sent to the server.
  *
- * Rename to sys_sendmsg(); 
+ * TODO: This is currently implemented as a quick and dirty hack.  We only
+ * support short messages as we need to copy them into the kernel before sending
+ * to the server.  The same applies to replies.
+ *
+ * When we implement address-space to address-space direct copying we can
+ * remove the copying into/out of the kernel and handle any size messages upto
+ * the limits of the address space.
+ *
+ * This also applies to read() and write() calls for block and character devices
+ * that also copy data into temporary kernel buffers before sending them onto
+ * the server.
+ *
+ * Finally we may also want to tag certain IOV vectors so that they can be
+ * marked eligible for page-swapping with the server for zero-copy IPC.  
  */
-int sys_sendrec(int fd, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov)
+ssize_t sys_sendmsg(int fd, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
 {
-  return -ENOSYS;
+  struct Process *current;
+  struct SuperBlock *sb;
+  struct VNode *vnode;
+  struct fsreq req;
+  msgiov_t siov[8];
+  msgiov_t riov[8];
+  uint8_t sbuf[512];
+  uint8_t rbuf[512];
+  size_t sbuf_total_sz;
+  size_t rbuf_total_sz;
+  msgiov_t msgsiov[2];
+  msgiov_t msgriov[1];  
+  ssize_t xfered;
+  ssize_t nbytes_response;
+  int nbytes_to_read;
+  int nbytes_read;
+  int nbytes_to_write;
+  int nbytes_written;
+  int buf_remaining;
+  int iov_remaining;
+  int i;
+  
+  if (siov_cnt < 1 || siov_cnt > 8 || riov_cnt < 0 || riov_cnt > 8) {
+    return -EINVAL;
+  }
+
+  if (CopyIn(siov, _siov, sizeof(msgiov_t) * siov_cnt) != 0) {
+    return -EFAULT;
+  }
+
+  if (riov_cnt > 0) {
+    if (CopyIn(riov, _riov, sizeof(msgiov_t) * riov_cnt) != 0) {
+      return -EFAULT;
+    }
+  }
+
+  sbuf_total_sz = 0;
+  for (int t=0; t<siov_cnt; t++) {
+    sbuf_total_sz += siov[t].size;
+  }
+
+  rbuf_total_sz = 0;
+  for (int t=0; t<riov_cnt; t++) {
+    rbuf_total_sz += riov[t].size;
+  }
+
+  if (sbuf_total_sz > sizeof sbuf || rbuf_total_sz > sizeof rbuf) {
+    return -E2BIG;
+  }
+
+
+  // TODO: Check total of IOVs < buf sizes
+
+  current = get_current_process();
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    return -EBADF;
+  }
+
+  sb = vnode->superblock;
+
+
+//  if (is_allowed(vnode, R_OK) != 0) {
+//    return -EACCES;
+//  }
+
+  nbytes_read = 0;  
+  i=0;
+  iov_remaining = siov[0].size;
+    
+  while (i < siov_cnt && nbytes_read < sbuf_total_sz) {
+    buf_remaining = sbuf_total_sz - nbytes_read;
+    nbytes_to_read = (buf_remaining < iov_remaining) ? buf_remaining : iov_remaining;
+
+    CopyIn(sbuf + nbytes_read,
+            siov[i].addr + siov[i].size - iov_remaining,
+            nbytes_to_read);
+
+    nbytes_read += nbytes_to_read;
+    i++;
+    iov_remaining = siov[i].size;
+  }
+
+  memset(&req, 0, sizeof req);
+  req.cmd = CMD_SENDMSG;
+  req.args.sendmsg.inode_nr = vnode->inode_nr;
+  req.args.sendmsg.subclass = 0;
+  req.args.sendmsg.ssize = sbuf_total_sz;
+  req.args.sendmsg.rsize = rbuf_total_sz;
+
+  msgsiov[0].addr = &req;
+  msgsiov[0].size = sizeof req;
+  msgsiov[1].addr = sbuf;
+  msgsiov[1].size = sbuf_total_sz;  
+  msgriov[0].addr = rbuf;
+  msgriov[0].size = rbuf_total_sz;
+
+  nbytes_response = ksendmsg(&sb->msgport, 2 , msgsiov, 1, msgriov);
+
+  if (nbytes_response > 0) { 
+    if (nbytes_response < rbuf_total_sz) {
+      rbuf_total_sz = nbytes_response;
+    }
+
+    if (nbytes_response > rbuf_total_sz) {
+      vnode_unlock(vnode);
+      return -E2BIG;
+    }
+
+    if (riov_cnt > 0) {
+      nbytes_written = 0;
+      i=0;
+      iov_remaining = riov[0].size;
+
+      while (i < riov_cnt && nbytes_written < rbuf_total_sz) {
+        buf_remaining = rbuf_total_sz - nbytes_written;
+        nbytes_to_write = (iov_remaining < buf_remaining) ? iov_remaining : buf_remaining;
+
+        int sc = CopyOut(riov[i].addr + riov[i].size - iov_remaining,
+               rbuf + nbytes_written, nbytes_to_write);
+
+        if (sc != 0) {
+          nbytes_response = sc;
+          break;
+        }
+
+        nbytes_written += nbytes_to_write;
+        i++;
+        iov_remaining = riov[i].size;
+      }
+    }
+  }  
+
+  vnode_unlock(vnode);
+  return nbytes_response;
 }
 
 
+
+
+
 /*
- *
+ * TODO: Remove, if needed move fields into fsreq.
+ * Modify receivemsg so that fsreq is received separately from IOVs.
+ * Same for replymsg and fsreply
  */
 int sys_getmsginfo(int fd, msgid_t msgid, msginfo_t *_mi)
 {
@@ -374,7 +527,6 @@ int ksendmsg(struct MsgPort *msgport, int siov_cnt, msgiov_t *siov, int riov_cnt
   struct Process *current_proc;
   struct Thread *current_thread;
   struct Msg msg;
-  uint32_t saved_sig_mask;
 	int sc;
 	
   current_proc = get_current_process();
@@ -389,27 +541,21 @@ int ksendmsg(struct MsgPort *msgport, int siov_cnt, msgiov_t *siov, int riov_cnt
      
   kputmsg(msgport, &msg);   
   
-  // We need a timeout and if it occurs we forcibly abort.
+  // TODO: We need a timeout/alarm and if it occurs we forcibly abort.
 
-//  saved_sig_mask = current_proc->signal.sig_mask;
-    
   while ((kwaitport(&current_thread->reply_port, NULL)) != 0) {
     // Check if message is on pending queue (not yet received by server)
-    // If so, silently remove message, set msg._reply_status to -EINTR and return.   
-    // Check signals, we may want to kill the current_proc process immediately.
+    // If so, silently remove message, set msg._reply_status to -EINTR and return. 
+      
+    // TODO: Check signals, we may want to kill the current_proc process immediately.
    
     sc = kabortmsg(msgport, &msg);
 
     if (sc != 0) {
       return sc;
     }
-    
-    // Mask signals or we keep looping forever in kwaitport 
-    current_proc->signal.sig_mask = 0xFFFFFFFF;
   }
 
-//  current_proc->signal.sig_mask = saved_sig_mask;
-  
   kgetmsg(&current_thread->reply_port);
 	
   return msg.reply_status;
@@ -538,6 +684,8 @@ void kremovemsg(struct MsgPort *msgport, struct Msg *msg)
  * @return  0 on success,
  *          -ETIMEDOUT on timeout
  *          negative errno on other failure
+ *
+ * TODO: Allow kwaitport to be interrupted by signals.
  */
 int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
 {
@@ -546,6 +694,7 @@ int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
   if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
     if ((sc = TaskSleepInterruptible(&msgport->rendez, timeout, INTRF_NONE)) != 0) {
       if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+        Warn("kwaitport sc=%d", sc);
         return sc;
       }
     }

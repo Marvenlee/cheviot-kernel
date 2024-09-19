@@ -130,7 +130,7 @@ struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr)
   vnode->vnode_covered = NULL;
   vnode->pipe = NULL;
   
-  vnode->tty_pgrp = INVALID_PID;
+  vnode->tty_sid = INVALID_PID;
   
   vnode->inode_nr = inode_nr;
   

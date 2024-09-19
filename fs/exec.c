@@ -146,7 +146,7 @@ int do_exec(int fd, struct execargs *_args)
 
   // FIXME: CloseOnExec (current);
 
-  exec_signals(current);
+  exec_signals(current, current_thread);
 
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
   return 0;

@@ -35,22 +35,30 @@
  * TODO: Add user-space "self/TLS" pointer as argument.
  * Move policy/priority into sched_params struct.
  * Remove basename.
+ *
+ * TODO: May need to inherit
  */
 pid_t sys_thread_create(void (*entry)(void *), void *arg,
                                   int policy, int priority,
-                                  bits32_t flags, char *basename)
+                                  uint32_t flags, char *basename)
 {
   struct Process *current_proc;
+  struct Thread *current_thread;
   struct Thread *thread;
   
   current_proc = get_current_process();
-  
+  current_thread = get_current_thread();
+    
   thread = do_create_thread(current_proc, entry, arg,
-                              policy, priority, flags, get_cpu());
+                              policy, priority, flags, 
+                              current_thread->signal.sig_mask, 
+                              get_cpu());
 
   if (thread == NULL) {
     return -ENOMEM;
   }
+
+  thread_start(thread);
   
   return get_thread_tid(thread);
 }
@@ -124,7 +132,7 @@ struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, s
     return NULL;
   }
 
-  tid = alloc_pid(PIDF_THREAD, thread);
+  tid = alloc_pid_thread(thread);
   
   if (tid < 0) {
     free_thread_struct(thread);  
@@ -140,14 +148,12 @@ struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, s
   }
   
   
-  init_thread(thread, get_cpu(), new_proc, stack, tid);
+  init_thread(thread, get_cpu(), new_proc, stack, tid, 0x00000000);
   init_msgport(&thread->reply_port);
   dup_schedparams(thread, old_thread);
 
-  // Rename to arch_init_fork_thread();
   arch_init_fork_thread(new_proc, old_proc, thread, old_thread);
 
-  activate_pid(thread->tid);
   return thread;
 }
 
@@ -162,7 +168,7 @@ struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy
 
   flags |= THREADF_KERNEL;
     
-  thread = do_create_thread(root_process, entry, arg, policy, priority, flags, cpu);
+  thread = do_create_thread(root_process, entry, arg, policy, priority, flags, 0x00000000, cpu);
 
   if (thread != NULL) {
     thread_start(thread);
@@ -176,7 +182,8 @@ struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy
  *
  */
 struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *), void *arg,
-                                int policy, int priority, uint32_t flags, struct CPU *cpu)
+                                int policy, int priority, uint32_t flags, uint32_t sig_mask,
+                                struct CPU *cpu)
 {
   struct Thread *thread;
   pid_t tid;
@@ -190,7 +197,7 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
     return NULL;
   }
 
-  tid = alloc_pid(PIDF_THREAD, thread);
+  tid = alloc_pid_thread(thread);
   
   if (tid < 0) {
     free_thread_struct(thread);  
@@ -205,7 +212,7 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
     return NULL;
   }
   
-  init_thread(thread, get_cpu(), new_proc, stack, tid);
+  init_thread(thread, get_cpu(), new_proc, stack, tid, sig_mask);
   init_msgport(&thread->reply_port);
   init_schedparams(thread, policy, priority);
 
@@ -215,7 +222,6 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
     arch_init_user_thread(thread, entry, arg);
   }
   
-  activate_pid(thread->tid);
   return thread;
 }
 
@@ -224,7 +230,8 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
  *
  * Later add thread affinity mask and some load balancing.
  */
-void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack, pid_t tid)
+void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack,
+                 pid_t tid, uint32_t sig_mask)
 {
   InitRendez(&thread->rendez);
 
@@ -239,21 +246,34 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
   thread->blocking_rendez = NULL;
   thread->exit_status = 0;
 
+  Info("init_thread thread:%08x, tid:%d, proc:%08x", (uint32_t)thread, tid, (uint32_t)proc);
+
   thread->intr_flags = 0;
   thread->kevent_event_mask = 0;
   thread->event_mask = 0;
   thread->pending_events = 0;
-  thread->timeout_expired = false;
   thread->detached = false;
-  thread->eintr = false;
 
   thread->event_knote = NULL;
   thread->event_kqueue = NULL;
   LIST_INIT(&thread->knote_list);
-
   LIST_INIT(&thread->isr_handler_list);
 
   // TODO: init signal state
+  thread->signal.sig_mask = sig_mask; 
+  thread->signal.sig_pending = 0;
+	thread->signal.sigsuspend_oldmask = 0;
+	thread->signal.use_sigsuspend_mask = false;
+	thread->signal.sigreturn_sigframe = NULL;
+
+  for (int t=0; t<NSIG; t++) {
+    thread->signal.si_code[t] = 0;
+    thread->signal.si_value[t] = 0;
+  }
+
+  if (sig_mask != 0xFFFFFFFF) {
+    LIST_ADD_TAIL(&proc->unmasked_signal_thread_list, thread, unmasked_signal_thread_link);
+  }    
 }
 
 
@@ -317,6 +337,7 @@ int do_exit_thread(intptr_t status)
     proc->state = PROC_STATE_EXITED;
     
     if (proc->parent != NULL) {
+      // FIXME: sys_kill(proc->parent->pid, SIGCHLD);
       TaskWakeupAll(&proc->parent->child_list_rendez);
     }
   }

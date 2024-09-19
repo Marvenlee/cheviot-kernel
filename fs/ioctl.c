@@ -72,12 +72,16 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
       sc = -ENOTSUP;
       break;
 
-    case TIOCGPGRP:
-      sc = -ENOTSUP;
+    case TIOCGSID:
+      sc = ioctl_tiocgsid(fd, (pid_t *)arg);
       break;
 
-    case TIOCSPGRP:
-      sc = -ENOTSUP;
+    case TIOCGPGRP:
+      sc = ioctl_tiocgpgrp(fd, (pid_t *)arg);
+      break;
+
+    case TIOCSPGRP:     
+      sc = ioctl_tiocspgrp(fd, (pid_t *)arg);
       break;
 
     case TCXONC:

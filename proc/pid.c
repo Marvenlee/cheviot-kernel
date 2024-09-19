@@ -27,7 +27,7 @@
 
 
 
-/* @brief   Get the process ID of the calling process.
+/* @brief   Get the process ID of the calling thread
  *
  */
 pid_t sys_getpid(void)
@@ -36,7 +36,7 @@ pid_t sys_getpid(void)
 }
 
 
-/* @brief   Get the process ID of the parent of the calling process
+/* @brief   Get the process ID of the parent process of the calling thread's process
  *
  */
 pid_t sys_getppid(void)
@@ -51,7 +51,7 @@ pid_t sys_getppid(void)
 }
 
 
-/*
+/* @brief   Get the thread ID of the calling thread
  *
  */
 pid_t sys_thread_gettid(void)
@@ -59,6 +59,217 @@ pid_t sys_thread_gettid(void)
   return get_current_tid(); 
 }
 
+
+/* @brief   Get the current process's session ID
+ *
+ */
+int sys_getsid(pid_t pid)
+{
+  struct Process *current = get_current_process();
+  struct Process *proc;
+
+  if (pid == 0) {
+    proc = current;
+  } else {
+    proc = get_process(pid);
+  }
+    
+  if (proc == NULL) {
+    return -ESRCH;
+  }
+  
+  if (current->sid != proc->sid) {
+    return -EPERM;
+  }
+    
+  return proc->sid;
+}
+
+
+/* @brief   Create a new session.
+ *
+ * Creates a new session if the calling process is not a process group leader.
+ * 
+ * The calling process becomes the leader of the new session and the process group
+ * leader of a new process group within the session.
+ */
+
+int sys_setsid(void)
+{
+  struct Process *current = get_current_process();
+  struct PidDesc *pd;
+  struct Session *current_session;
+  struct Session *new_session;
+  
+  Info("sys_setsid()");
+
+  if (current->sid == current->pid) {
+    Error("sys_setsid() -EPERM sid = pid");
+    return -EPERM;
+  }
+
+	if (current->pgid == current->pid) {
+    Error("sys_setsid() -EPERM pgid = pid");
+	  return -EPERM;
+  }	  
+	
+	current_session = get_session(current->sid);
+	
+	if (current_session != NULL) {
+	  Info("current session exists, removing from pgrp and session");
+	  remove_from_pgrp(current);
+	  remove_from_session(current);
+  }
+	
+	new_session = alloc_session();
+	
+	if (new_session == NULL) {
+	  // This shouldn't be possible
+    Error("sys_setsid() -ENOMEM");
+	  return -ENOMEM;
+	}
+	
+	new_session->sid = current->pid;
+  LIST_ADD_TAIL(&new_session->process_list, current, session_link);
+  
+	current->sid = new_session->sid;
+  current->pgid = INVALID_PID;
+  
+	pd = pid_to_piddesc(current->sid);
+	
+	pd->session = new_session;
+	pd->pgrp = NULL;
+	
+  return current->sid;
+}
+
+
+/* @brief   Return the process group ID of the process whose process ID is equal to pid.
+ *
+ * If pid is equal to 0 then it returns the process group ID of the calling process.
+ */
+pid_t sys_getpgid(pid_t pid)
+{
+  struct Process *current = get_current_process();
+  struct Process *proc;
+
+  if (pid == 0) {
+    proc = current;
+  } else {
+    proc = get_process(pid);
+  }
+    
+  if (proc == NULL) {
+    return -ESRCH;
+  }
+  
+  if (current->sid != proc->sid) {
+    return -EPERM;
+  }
+
+  return proc->pgid;
+}
+
+
+/* @brief   Set the process group ID of a process whose process ID is equal to pid.
+ *
+ * The process either joins an existing process group or create a new process group
+ * within the session of the calling process.
+ *
+ * If pid is 0, the process ID of the calling process is used. 
+ * If pgid is 0, the process ID of the indicated process is used.
+ */
+int sys_setpgid(pid_t pid, pid_t pgid)
+{
+  struct Process *current = get_current_process();
+  struct Process *proc;
+  struct Pgrp *pgrp;
+  
+  Info("sys_setpgid(pid:%d, pgid:%d)", pid, pgid);
+  
+  if (pid == 0) {
+    proc = current;
+  } else {
+    proc = get_process(pid);
+  }
+    
+  if (proc == NULL) {
+    Info("pgid not found");
+    return -ESRCH;
+  }
+  
+  if (current->sid != proc->sid) {
+    Info("current sid != proc sid");
+    return -EPERM;
+  }
+
+  pgrp = get_pgrp(pgid);
+
+  if (pgrp == NULL) {
+    Info("pgrp not set");
+    return -EPERM;
+  }
+  
+  if (pgrp->sid != current->sid) {
+    Info("current sid != proc sid");
+    return -EPERM;
+  }
+  
+  proc->pgid = pgid;
+  return 0;
+}
+ 
+
+/*
+ *
+ */
+pid_t sys_getpgrp(void)
+{
+  struct Process *current = get_current_process();
+
+  return current->pgid;
+}
+
+
+/*
+ *
+ */
+int sys_setpgrp(void)
+{
+  struct Process *current = get_current_process();
+  struct PidDesc *pd;
+  struct Pgrp *new_pgrp;
+  
+  Info("sys_setpgrp()");
+  
+  if (current->pgid == current->pid) {
+    Error("sys_setpgrp() -EPERM pgid = pid");
+    return -EINVAL;
+  }
+
+  pd = get_piddesc(current);
+  
+  if (current->pgid != INVALID_PID) {
+    Info("remove from existing pgrp");
+    remove_from_pgrp(current);    // this will set current_pgrp_pd->pgrp to NULL
+  }
+  
+  current->pgid = current->pid;
+  
+  new_pgrp = alloc_pgrp();
+  
+  if (new_pgrp == NULL) {
+    // shouldn't happen
+    Error("sys_setpgrp() -ENOMEM");
+    return -ENOMEM;
+  }
+  
+  new_pgrp->sid = current->sid;
+  LIST_ADD_TAIL(&new_pgrp->process_list, current, pgrp_link);
+
+  pd->pgrp = new_pgrp; 
+  return 0;
+}
 
 
 /*
@@ -68,17 +279,7 @@ pid_t get_current_pid(void)
 {
   struct Process *current;
   
-  current = get_current_process();  
-
-  if (current->canary1 != 0xcafef00d || current->canary2 != 0xdeadbeef) {
-    Error("get_current_pid corrupt!");
-    Error("pid = %d, %08x", current->pid, current->pid);
-    Error("canary1 = %08x, should be 0xcafef00d", current->canary1);
-    Error("canary2 = %08x, should be 0xdeadbeef", current->canary2);
-    
-    KernelPanic();
-  }
-
+  current = get_current_process();
   return current->pid;
 }
 
@@ -90,16 +291,7 @@ pid_t get_current_tid(void)
 {
   struct Thread *current;
   
-  current = get_current_thread();  
-
-  if (current->canary1 != 0xcafefaad || current->canary2 != 0xdeadbaaf) {
-    Error("get_current_tid corrupt!");
-    Error("tid = %d, %08x", current->tid, current->tid);
-    Error("canary1 = %08x, should be 0xcafefaad", current->canary1);
-    Error("canary2 = %08x, should be 0xdeadbaaf", current->canary2);
-    KernelPanic();
-  }
-
+  current = get_current_thread();
   return current->tid;
 }
 
@@ -111,22 +303,11 @@ pid_t get_current_tid(void)
  */
 struct Process *get_process(pid_t pid)
 {
-  if (pid < 0 || pid >= max_process ||
-      ((pid_table[pid].flags & (PIDF_PROCESS | PIDF_ACTIVE)) != (PIDF_PROCESS | PIDF_ACTIVE))) {
+  if (pid < 0 || pid >= max_pid) {
     return NULL;
   }
 
-  struct Process *proc = (struct Process *)pid_table[pid].object;
-  
-  if (proc->canary1 != 0xcafef00d || proc->canary2 != 0xdeadbeef || proc->pid != pid) {
-    Error("get_process  corrupt!");
-    Error("pid = %d, proc:%08x, proc->pid %d", pid, proc, proc->pid);
-    Error("canary1 = %08x, should be 0xcafef00d", proc->canary1);
-    Error("canary2 = %08x, should be 0xdeadbeef", proc->canary2);
-    KernelPanic();
-  }
-  
-  return pid_table[pid].object;
+  return pid_table[pid].proc;
 }
 
 
@@ -136,31 +317,17 @@ struct Process *get_process(pid_t pid)
  */
 struct Thread *get_thread(pid_t tid)
 {
-  if (tid < 0 || tid >= max_process ||
-      ((pid_table[tid].flags & (PIDF_THREAD | PIDF_ACTIVE)) != (PIDF_THREAD | PIDF_ACTIVE))) {
+  if (tid < 0 || tid >= max_pid) {  
     return NULL;
   }
 
-  struct Thread *thread = (struct Thread *)pid_table[tid].object;
-  
-  if (thread->canary1 != 0xcafefaad || thread->canary2 != 0xdeadbaaf || thread->tid != tid) {
-    Error("get_thread  corrupt!");
-    Error("tid = %d, thread:%08x, thread->tid %d", tid, thread, thread->tid);
-    Error("canary1 = %08x, should be 0xcafefaad", thread->canary1);
-    Error("canary2 = %08x, should be 0xdeadbaaf", thread->canary2);
-    KernelPanic();
-  }
-  
-  return pid_table[tid].object;
+  return pid_table[tid].thread;
 }
 
 struct Process *get_thread_process(struct Thread *thread)
 {
   return thread->process;
 }
-
-
-// TODO:  Add get_pgrp_desc and get_session_desc, both returning piddesc
 
 
 /* @brief   Get the process ID of a process
@@ -170,14 +337,6 @@ struct Process *get_thread_process(struct Thread *thread)
  */
 pid_t get_process_pid(struct Process *proc)
 {
-  if (proc->canary1 != 0xcafef00d || proc->canary2 != 0xdeadbeef) {
-    Error("get_process_pid  corrupt!");
-    Error("proc = %08x", (uint32_t)proc);
-    Error("canary1 = %08x, should be 0xcafef00d", proc->canary1);
-    Error("canary2 = %08x, should be 0xdeadbeef", proc->canary2);
-    KernelPanic();
-  }
-
   return proc->pid;
 }
 
@@ -188,14 +347,6 @@ pid_t get_process_pid(struct Process *proc)
  */
 pid_t get_thread_tid(struct Thread *thread)
 {
-  if (thread->canary1 != 0xcafefaad || thread->canary2 != 0xdeadbaaf) {
-    Error("get_thread_tid  corrupt!");
-    Error("proc = %08x", (uint32_t)thread);
-    Error("canary1 = %08x, should be 0xcafefaad", thread->canary1);
-    Error("canary2 = %08x, should be 0xdeadbaaf", thread->canary2);
-    KernelPanic();
-  }
-
   return thread->tid;
 }
 
@@ -234,7 +385,7 @@ pid_t piddesc_to_pid(struct PidDesc *pid)
 /*
  *
  */
-pid_t alloc_pid(uint32_t flags, void *object)
+pid_t alloc_pid_proc(struct Process *proc)
 {
   struct PidDesc *pd;
   
@@ -247,34 +398,66 @@ pid_t alloc_pid(uint32_t flags, void *object)
   LIST_REM_HEAD(&free_piddesc_list, free_link);
 
   memset (pd, 0, sizeof *pd);
-  pd->reference_cnt = 1;
-  pd->flags = flags;
-  pd->object = object;
-  
+  pd->proc = proc;
   return piddesc_to_pid(pd);
 }
+
 
 
 /*
  *
  */
+pid_t alloc_pid_thread(struct Thread *thread)
+{
+  struct PidDesc *pd;
+  
+  pd = LIST_HEAD(&free_piddesc_list);
+  
+  if (pd == NULL) {
+    return -ENOMEM;
+  }
+  
+  LIST_REM_HEAD(&free_piddesc_list, free_link);
+
+  memset (pd, 0, sizeof *pd);
+  pd->thread = thread;
+  return piddesc_to_pid(pd);
+}
+
+
+
+/* @brief   Free a PID/TID
+ *
+ * TODO: If a session leader dies, we need to signal the foreground process group to terminate.
+ */
 void free_pid(pid_t pid)
 {
   struct PidDesc *pd = pid_to_piddesc(pid);
-  
-  Info("free_pid(%d)", pid);
-  
+  struct Session *session;
+  struct Pgrp *pgrp;
+
   if (pd == NULL) {
     KernelPanic();
   }
+
+  pd->proc = NULL;
+  pd->thread = NULL;
+    
+  session = pd->session;
+  pgrp = pd->pgrp;
   
-  pd->reference_cnt--;  
-  pd->object = NULL;
+    
+  if (session != NULL && LIST_EMPTY(&session->process_list)) {
+    free_session(session);
+    pd->session = NULL;
+  }
   
-  pd->flags &= ~(PIDF_PROCESS | PIDF_THREAD);
-  
-  if (pd->reference_cnt == 0) {
-    memset(pd, 0, sizeof *pd);    
+  if (pgrp != NULL && LIST_EMPTY(&pgrp->process_list)) {
+    free_pgrp(pgrp);
+    pd->pgrp = NULL;
+  }
+
+  if (pd->session == NULL && pd->pgrp == NULL) {
     LIST_ADD_TAIL(&free_piddesc_list, pd, free_link);    
   }
 }
@@ -283,96 +466,214 @@ void free_pid(pid_t pid)
 /*
  *
  */
-void activate_pid(int pid)
+void init_session_pgrp(struct Process *proc)
 {
-  struct PidDesc *pd = pid_to_piddesc(pid);
-
-  KASSERT(pd != NULL);
-  
-  pd->flags |= PIDF_ACTIVE;
+  proc->pgid = INVALID_PID;
+  proc->sid  = INVALID_PID;
 }
 
 
 /*
  *
  */
-void deactivate_pid(int pid)
+void fork_session_pgrp(struct Process *new_proc, struct Process *old_proc)
 {
-  struct PidDesc *pd = pid_to_piddesc(pid);
+  struct Session *session;
+  struct Pgrp *pgrp;
   
-  KASSERT(pd != NULL);
-    
-  pd->flags &= ~PIDF_ACTIVE;
-}
+  new_proc->sid  = old_proc->sid;          // session this process belongs
+  new_proc->pgid = old_proc->pgid;         // process group to which this process belongs
 
-
-/*
- *
- */
-int pgrp_add_proc(pid_t session_leader, pid_t pgrp, struct Process *proc)
-{
-  struct PidDesc *session_pd;
-  struct PidDesc *pgrp_pd;
-
-  Info("pgrp_add_proc");
-
-  session_pd = pid_to_piddesc(proc->sid);
-  pgrp_pd = pid_to_piddesc(proc->pgrp);
+  session = get_session(new_proc->sid);
+  pgrp = get_pgrp(new_proc->pgid);
   
-  if (session_pd != NULL) {    
-    session_pd->reference_cnt++;
+  if (session != NULL) {
+    LIST_ADD_TAIL(&session->process_list, new_proc, session_link);
   }
   
-  if (pgrp_pd != NULL) { 
-    pgrp_pd->reference_cnt++;
-    LIST_ADD_TAIL(&pgrp_pd->pgrp_list, proc, pgrp_link);
+  if (pgrp != NULL) {
+    LIST_ADD_TAIL(&pgrp->process_list, new_proc, pgrp_link);
+  }
+}
+
+
+/*
+ *
+ */
+void fini_session_pgrp(struct Process *proc)
+{
+  remove_from_pgrp(proc);
+  remove_from_session(proc);
+}
+
+
+/*
+ * TODO: Should map 1-to-1 with piddesc and pids
+ * No need for allocation
+ */
+struct Session *alloc_session(void)
+{
+  struct Session *session;
+  
+  session = LIST_HEAD(&free_session_list);
+  
+  if (session != NULL) {
+    LIST_REM_HEAD(&free_session_list, free_link);
+
+    memset(session, 0, sizeof *session);
+  	session->foreground_pgrp = INVALID_PID;
+  	session->controlling_tty = NULL;
+    LIST_INIT(&session->process_list);
+  }
+  
+  return session;
+}
+
+
+/*
+ *
+ */
+void free_session(struct Session *session)
+{
+  struct VNode *vnode;
+  
+  if (session->controlling_tty != NULL) {
+    session->controlling_tty->tty_sid = INVALID_PID;    
+  }
+  
+  LIST_ADD_TAIL(&free_session_list, session, free_link);
+}
+
+
+/*
+ * TODO: Should map 1-to-1 with piddesc and pids
+ * No need for allocation
+ */
+struct Pgrp *alloc_pgrp(void)
+{
+  struct Pgrp *pgrp;
+  
+  pgrp = LIST_HEAD(&free_pgrp_list);
+  
+  if (pgrp != NULL) {
+    LIST_REM_HEAD(&free_pgrp_list, free_link);
+    
+    memset(pgrp, 0, sizeof *pgrp);
+    LIST_INIT(&pgrp->process_list);
+  }
+
+  
+  return pgrp;
+}
+
+
+/*
+ *
+ */
+void free_pgrp(struct Pgrp *pgrp)
+{
+    LIST_ADD_TAIL(&free_pgrp_list, pgrp, free_link);
+}
+
+
+
+struct Session *get_session(pid_t sid)
+{
+  struct PidDesc *pd = pid_to_piddesc(sid);
+
+  if (pd == NULL) {
+    return NULL;
+  }
+
+  return pd->session;
+}
+
+
+struct Pgrp *get_pgrp(pid_t pgid)
+{
+  struct PidDesc *pd = pid_to_piddesc(pgid);
+
+  if (pd == NULL) {
+    return NULL;
+  }
+
+  return pd->pgrp;
+}
+
+
+
+
+void remove_from_pgrp(struct Process *proc)
+{
+  struct PidDesc *pgrp_pd;
+  struct Pgrp *pgrp;
+  struct Session *session;
+  
+  pgrp_pd = pid_to_piddesc(proc->pgid);
+  
+  if (pgrp_pd == NULL) {
+    return;
+  }
+  
+  pgrp = pgrp_pd->pgrp;
+  
+  if (pgrp == NULL) {
+    return;
+  }
+  
+  LIST_REM_ENTRY(&pgrp->process_list, proc, pgrp_link);
+
+  session = get_session(pgrp->sid);
+
+  if (LIST_EMPTY(&pgrp->process_list)) {
+    free_pgrp(pgrp);
+    pgrp_pd->pgrp = NULL;
+  }
+  
+  if (session != NULL) {
+    if (session->foreground_pgrp == proc->pgid) {
+      session->foreground_pgrp = INVALID_PID;
+    } 
+  }
+
+  free_pid(proc->pgid);
+    
+  proc->pgid = INVALID_PID;
+}
+
+
+void remove_from_session(struct Process *proc)
+{
+  // this will set proc_session_pd->session to NULL
+
+  struct PidDesc *session_pd;
+  struct Pgrp *pgrp;
+  struct Session *session;
+  
+  session_pd = pid_to_piddesc(proc->sid);
+  
+  if (session_pd == NULL) {
+    return;
+  }
+  
+  session = session_pd->session;
+  
+  if (session == NULL) {
+    return;
+  }
+  
+  LIST_REM_ENTRY(&session->process_list, proc, session_link);
+
+  if (LIST_EMPTY(&session->process_list)) {
+    free_session(session);
+    session_pd->session = NULL;
   }
       
-  return 0;
+  free_pid(proc->sid);
+
+  proc->sid = INVALID_PID;
+
 }
-
-
-/*
- *
- */
-int pgrp_rem_proc(struct Process *proc)
-{
-  Info("pgrp_rem_proc");
-
-  struct PidDesc *pgrp_pd;
-  struct PidDesc *session_pd;
-
-  pgrp_pd = pid_to_piddesc(proc->pgrp);
-  
-  if (pgrp_pd != NULL) {
-    pgrp_pd->reference_cnt--;
-    LIST_REM_ENTRY(&pgrp_pd->pgrp_list, proc, pgrp_link);
-    
-    if (pgrp_pd->reference_cnt == 0) {
-      free_pid(proc->pgrp);
-    }
-  }
-
-  proc->pgrp = INVALID_PID;
-
-//  proc->fproc->controlling_tty = NULL;
-//  proc->fproc->tty_pgrp = -1;
-
-  session_pd = pid_to_piddesc(proc->sid);
-
-  if (session_pd != NULL) {    
-    session_pd->reference_cnt--;
-    
-    if (session_pd->reference_cnt == 0) {
-      free_pid(proc->sid);
-    }
-  }
-
-  proc->sid = INVALID_PID;  
-  proc->session_leader = false;
-}
-
-
 
 
 

@@ -21,11 +21,15 @@ struct Process;
 struct Thread;
 struct VNode;
 struct Filp;
-struct Pid;
+struct Session;
+struct Pgrp;
+struct PidDesc;
 struct KQueue;
 
 // Process related list types
 LIST_TYPE(PidDesc, piddesc_list_t, piddesc_link_t);
+LIST_TYPE(Session, session_list_t, session_link_t);
+LIST_TYPE(Pgrp, pgrp_list_t, pgrp_link_t);
 LIST_TYPE(Process, process_list_t, process_link_t);
 LIST_TYPE(Thread, thread_list_t, thread_link_t);
 CIRCLEQ_TYPE(Thread, thread_circleq_t, thread_cqlink_t);
@@ -95,12 +99,9 @@ struct Process
   pid_t pid;                // Process ID
   uint32_t canary2;
 
-  bool session_leader;  
-  pid_t sid;          // session this process belongs
-  pid_t pgrp;         // process group to which this process belongs
-
-
-
+  pid_t sid;
+  pid_t pgid;
+  process_link_t session_link;
   process_link_t pgrp_link;
 
   uint32_t flags;         // Permissions and features of a process
@@ -125,20 +126,22 @@ struct Process
 
   struct Rendez thread_list_rendez;  
   thread_list_t thread_list;
-//  thread_list_t terminated_thread_list;
   
   struct AddressSpace as;
   
-  struct Rendez rendez;             // What is this used for now in a process ? signals?
-
+  struct Rendez rendez;             // What is this used for now in a process ? 
+                                    // signals? process termination?
     
   struct ProcSignalState signal;    // For async external signals from sys_kill()
-
-  int log_level;
+  thread_list_t unmasked_signal_thread_list;
+  
+  struct Timer alarm;               // TODO: Handle per-process alarm() timer
+  
+  int log_level;                    // TODO: Control log level per process in kernel?
 	char basename[PROC_BASENAME_SZ];  // FIXME: Update code to use basename instead of full path
 
   int exit_status;                  // sys_exit() saved error code
-  bool exit_in_progress;
+  bool exit_in_progress;            // A thread has initiated the exit steps
         
   struct FProcess *fproc;           // Process's file descriptor table
                                     // TODO: Keep as struct Process
@@ -178,68 +181,83 @@ struct Thread
   void *context;
   void *stack;                // Kernel stack
   
+  void *user_stack;           // TODO: User-mode stack, unless it's provided upon creation
+  
   uint32_t canary1;
   pid_t tid;
   uint32_t canary2;
-  
+
+  struct Process *process;
+  struct Thread *joiner_thread;     // Thread that is performing a join() on this thread
+  intptr_t exit_status;
+  bool detached;
+    
   thread_link_t free_link;    // TODO: later dynamically allocate thread (remove this field)
-  thread_link_t thread_link;
+  thread_link_t thread_link;  // TODO: should be process_link
   
   uint32_t flags;         // Permissions and features of a thread
   int state;              // thread state
   
-  thread_cqlink_t sched_entry; // real-time run-queue
-
   struct Rendez rendez;      // Is this used for timers, message reply ports, joining threads ?
   
   struct Rendez *blocking_rendez;
   thread_link_t blocked_link;
 
+  thread_cqlink_t sched_entry; // run-queue
   int sched_policy;
   int quanta_used;        // number of ticks the process has run without blocking
   int priority;           // effective priority of process
   int desired_priority;   // default priority of process
 
-  uint32_t intr_flags;
 
+  // TODO: Remove events, use sigsuspend() to temporarilly unmask and wait for signals.
+  uint32_t intr_flags;            // Mask of what sources can interrupt TaskSleepInterruptible
   uint32_t kevent_event_mask;     // Allowed wakeup events in kevent().
   uint32_t pending_events;
   uint32_t event_mask;
 
-  struct ThreadSignalState signal;
-
-  struct Process *process;
-
-  struct Thread *joiner_thread;     // Thread that is performing a join() on this thread
-  
-  struct Timer sleep_timer;   // Merge these 2 timers?
-  struct Timer timeout_timer;
-
-
-  struct Timer alarm;         // TODO: Handle alarm timer
-  struct MsgPort reply_port;
-  
-  isr_handler_list_t isr_handler_list;
-
-  intptr_t exit_status;
-
-  bool timeout_expired;       // Move into struct Timer ?
-  bool detached;
-  bool eintr;                 // Indicate a thread was awakened by a signal or event
-                              // TODO: May want to separate signals and events, maybe a bitmap
-                              
   struct KNote *event_knote;
   struct KQueue *event_kqueue;
   knote_list_t knote_list;
+
+  struct MsgPort reply_port;
+
+  struct ThreadSignalState signal;
+  thread_link_t unmasked_signal_thread_link;
+    
+  struct Timer sleep_timer;         // Merge these 2 timers?
+  struct Timer timeout_timer;
+  
+  isr_handler_list_t isr_handler_list;
 };
 
 
-// pid.flags
-#define PIDF_ACTIVE           (1<<0)
-#define PIDF_PROCESS          (1<<2)
-#define PIDF_THREAD           (1<<3)
-#define PIDF_SESSION_LEADER   (1<<4)    // FIXME: Needed?  Infer from controlling_tty
-#define PIDF_PGRP             (1<<5)    // FIXME: Needed?  Infer from list
+/*
+ *
+ */
+struct Session
+{
+  session_link_t free_link;
+    
+  pid_t sid;
+  struct VNode *controlling_tty;
+  pid_t foreground_pgrp;
+  process_list_t process_list;
+};
+
+
+/*
+ *
+ */
+struct Pgrp
+{
+  pgrp_link_t free_link;
+  
+  pid_t sid;
+  pid_t pgid;
+  
+  process_list_t process_list; 
+};
 
 
 /*
@@ -248,23 +266,13 @@ struct Thread
 struct PidDesc
 {
   piddesc_link_t free_link;
-  
-  int flags;
-  int reference_cnt;
-  
-  void *object;
-  
-  process_list_t pgrp_list;
+
+  struct Process *proc;
+  struct Thread *thread;
+  struct Session *session;
+  struct Pgrp *pgrp;
 };
 
-
-// TaskSleepInterruptible and TaskSleepTimeout interruptible flags
-#define INTRF_SIGNAL  (1<<0)
-#define INTRF_EVENT   (1<<1)
-#define INTRF_CANCEL  (1<<2)
-#define INTRF_TIMER   (1<<3)
-#define INTRF_NONE    0
-#define INTRF_ALL     (INTRF_SIGNAL | INTRF_EVENT | INTRF_CANCEL | INTRF_TIMER)
 
 
 /*
@@ -278,10 +286,6 @@ uid_t sys_geteuid(void);
 gid_t sys_getegid(void);
 int sys_setuid(uid_t uid);
 int sys_setgid(gid_t gid);
-int sys_setsid(void);
-int sys_getsid(pid_t pid);
-int sys_setpgrp(void);
-pid_t sys_getpgrp(void);
 int sys_seteuid(uid_t uid);
 int sys_setegid(gid_t gid);
 int sys_issetugid(void);
@@ -301,6 +305,10 @@ void fork_ids(struct Process *new_proc, struct Process *old_proc);
 pid_t sys_getpid(void);
 pid_t sys_getppid(void);
 pid_t sys_thread_gettid(void);
+int sys_setsid(void);
+int sys_getsid(pid_t pid);
+int sys_setpgrp(void);
+pid_t sys_getpgrp(void);
 pid_t get_current_pid(void);
 pid_t get_current_tid(void);
 struct Process *get_process(pid_t pid);
@@ -311,14 +319,26 @@ pid_t get_thread_tid(struct Thread *thread);
 struct PidDesc *get_piddesc(struct Process *proc);
 struct PidDesc *pid_to_piddesc(pid_t pid);
 pid_t piddesc_to_pid(struct PidDesc *pid);
-pid_t alloc_pid(uint32_t flags, void *object);
+
+pid_t alloc_pid_proc(struct Process *proc);
+pid_t alloc_pid_thread(struct Thread *thread);
 void free_pid(pid_t pid);
-pid_t fork_pid(struct Process *new_proc, struct Process *old_proc);
+
 struct Process *get_current_process(void);
 struct Thread *get_current_thread(void);
-void activate_pid(int pid);
-void deactivate_pid(int pid);
 
+void init_session_pgrp(struct Process *proc);
+void fork_session_pgrp(struct Process *new_proc, struct Process *old_proc);
+void fini_session_pgrp(struct Process *proc);
+
+struct Session *alloc_session(void);
+void free_session(struct Session *session);
+struct Pgrp *alloc_pgrp(void);
+void free_pgrp(struct Pgrp *pgrp);
+struct Session *get_session(pid_t sid);
+struct Pgrp *get_pgrp(pid_t pgid);
+void remove_from_pgrp(struct Process *proc);
+void remove_from_session(struct Process *proc);
 
 // proc/proc.c
 int sys_fork(void);
@@ -361,16 +381,18 @@ void thread_stop(void);
 
 // proc/thread.c
 pid_t sys_thread_create(void (*entry)(void *), void *arg,
-                                  int policy, int priority,
-                                  bits32_t flags, char *basename);
+                        int policy, int priority,
+                        uint32_t flags, char *basename);
 int sys_thread_join(pid_t tid, intptr_t *retval);
 void sys_thread_exit(intptr_t retval);
 struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, struct Thread *old_thread);
 struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy, int priority,
-                               uint32_t flags, struct CPU *cpu);
+                                    uint32_t flags, struct CPU *cpu);
 struct Thread *do_create_thread(struct Process *proc, void (*entry)(void *), void *arg,
-                                int policy, int priority, uint32_t flags, struct CPU *cpu);
-void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack, pid_t tid);
+                                int policy, int priority, uint32_t flags, uint32_t sig_mask,
+                                struct CPU *cpu);
+void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack,
+                 pid_t tid, uint32_t sig_mask);
 int do_kill_thread(struct Thread *thread, int signal);
 void do_kill_other_threads_and_wait(struct Process *current, struct Thread *current_thread);
 int do_exit_thread(intptr_t status);
@@ -387,7 +409,6 @@ uint32_t sys_thread_event_wait(uint32_t event_mask);
 int sys_thread_event_signal(int tid, int event);
 int isr_thread_event_signal(struct Thread *thread, int event);
 
-
 // Architecture-specific
 void GetContext(uint32_t *context);
 int SetContext(uint32_t *context);
@@ -402,7 +423,5 @@ void arch_stop_thread(struct Thread *thread);
 
 int arch_clock_gettime(int clock_id, struct timespec *ts);
 
-// Static assertions
-// STATIC_ASSERT(sizeof(struct Process) < PAGE_SIZE - KERNEL_STACK_MIN_SZ, "struct Process to large");
 
 #endif

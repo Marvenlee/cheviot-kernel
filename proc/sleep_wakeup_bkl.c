@@ -28,7 +28,7 @@
  * See Maurice Bach's "Design of the UNIX Operating System" book
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -87,7 +87,7 @@ void KernelLock(void)
  * We do not have kernel preemption, effectively all processes blocked on the BKL
  * must run before we can return to user space.
  *
- * TODO: We need to be on the caller's kernel stack (not the interrupt or exception stacks).
+ * TODO: We need to be on the caller's kernel stack (not the interrupt or exception stacks ???).
  */
 void KernelUnlock(void)
 {
@@ -262,17 +262,17 @@ int TaskCheckInterruptible(struct Thread *thread, uint32_t intr_flags)
     if((thread->pending_events & thread->event_mask) != 0) {
       return -EINTR;
     }
-
   }
-  
-/*
+
+#if 0  // FIXME: Allow signals to interrupt TaskSleepInterruptible
   if (intr_flags & INTRF_SIGNAL) {  
     if((thread->signal.sig_pending & ~thread->signal.sig_mask) != 0 ) {
       Info("signal interrupt %08x", (thread->signal.sig_pending & ~thread->signal.sig_mask));
       return -EINTR;
     }
   }
-*/
+#endif
+
   return 0;
 }
 
@@ -355,8 +355,6 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
 
   RestoreInterrupts(int_state);
 }
-
-
 
 
 /* @brief   Wakeup all tasks waiting on a condition variable

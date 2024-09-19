@@ -172,9 +172,8 @@ struct VNode
   struct Pipe *pipe;      // FIXME Perhaps a union of different specialist objects?
                           // Will we need something for sockets and socketpair ?
                           // Or will we have a FS handler for those?
-
-//  pid_t session_leader;
-  pid_t tty_pgrp;     // process group of tty
+  // bool isatty;  // FIXME: set isatty in mount()  or set in flags
+  pid_t tty_sid;  // Session of a controlling TTY
   
   ino_t inode_nr; // inode number
   mode_t mode;    // file type, protection, etc
@@ -291,8 +290,6 @@ struct FProcess
   struct VNode *current_dir;
   struct VNode *root_dir;
 
-  struct VNode *controlling_tty;
-  
   fd_set fd_close_on_exec_set;        // Newlib defines size of 
   fd_set fd_in_use_set;
 
@@ -360,8 +357,10 @@ int ioctl_tcsetattr(int fd, struct termios *_termios);
 int ioctl_tcgetattr(int fd, struct termios *_termios);
 int ioctl_tiocsctty(int fd, int arg);
 int ioctl_tiocnotty(int fd);
+int ioctl_tiocgsid(int fd, pid_t *sid);
+int ioctl_tiocgpgrp(int fd, pid_t *_pgrp);
+int ioctl_tiocspgrp(int fd, pid_t *_pgrp);
 int ioctl_setsyslog(int fd);
-
 
 
 /* fs/dir.c */

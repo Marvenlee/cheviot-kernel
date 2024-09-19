@@ -55,37 +55,41 @@ ssize_t read_from_cache(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
     return 0;
   }
 
-	if (*offset >= vnode->size) {
-		return 0;
-	}
+  if (*offset >= vnode->size) {
+    return 0;
+  }
 
-	remaining_in_file = vnode->size - *offset;
-	
-	nbytes_total = 0;
+  remaining_in_file = vnode->size - *offset;
+
+  nbytes_total = 0;
   nbytes_to_read = (remaining_in_file < sz) ? remaining_in_file : sz;
 
   while (nbytes_total < nbytes_to_read) {  
     cluster_base = ALIGN_DOWN(*offset, CLUSTER_SZ);
     cluster_offset = *offset % CLUSTER_SZ;
 
-		remaining_to_xfer = nbytes_to_read - nbytes_total;
-		remaining_in_cluster = CLUSTER_SZ - cluster_offset;
-		nbytes_xfer = (remaining_to_xfer < remaining_in_cluster) ? remaining_to_xfer : remaining_in_cluster;
+    remaining_to_xfer = nbytes_to_read - nbytes_total;
+    remaining_in_cluster = CLUSTER_SZ - cluster_offset;
+    nbytes_xfer = (remaining_to_xfer < remaining_in_cluster) ? remaining_to_xfer : remaining_in_cluster;
 		
     buf = bread(vnode, cluster_base);
 
     if (buf == NULL) {
       Warn("bread buf is NULL");
-    	// TODO: Maybe return an IO error.
-      break;
+      
+      if (nbytes_total > 0) {
+        return nbytes_total;
+      } else {
+        return -EIO;
+      }
     }
 
     if (inkernel == true) {
-        memcpy(dst, buf->data + cluster_offset, nbytes_xfer);
+      memcpy(dst, buf->data + cluster_offset, nbytes_xfer);
     } else {    
-        if (CopyOut(dst, buf->data + cluster_offset, nbytes_xfer) != 0) {
-        	break;
-        }
+      if (CopyOut(dst, buf->data + cluster_offset, nbytes_xfer) != 0) {
+      	return -EFAULT;
+      }
     }
     
     brelse(buf);
@@ -142,12 +146,16 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
     }
     
     if (buf == NULL) {
-      Warn("bread buf is NULL");
-    	// TODO: Maybe return an IO error.
-      break;
+      if (nbytes_total > 0) {
+        return nbytes_total;
+      } else {
+        return -EIO;
+      }
     }
 
-    CopyIn(buf->data + cluster_offset, src, nbytes_xfer);    
+    if (CopyIn(buf->data + cluster_offset, src, nbytes_xfer) != 0) {
+      return -EFAULT;  
+    }
 		 
     src += nbytes_xfer;
     *offset += nbytes_xfer;

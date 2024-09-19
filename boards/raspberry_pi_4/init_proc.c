@@ -48,12 +48,8 @@
 
 void init_processes(void)
 {
-// FIXME: Do we initialize free timer and isr_handler lists here?
-//  struct Timer *timer;
-//  struct ISRHandler *isr_handler;
   struct Process *proc;
   struct Thread *thread;
-  struct PidDesc *pd;
   
   Info("InitProcesses.,");
   
@@ -77,11 +73,24 @@ void init_processes(void)
 
   LIST_INIT(&free_piddesc_list);  
   for (int t = 0; t < max_pid; t++) {
-    pd = &pid_table[t];
-    LIST_ADD_TAIL(&free_piddesc_list, pd, free_link);
+    LIST_ADD_TAIL(&free_piddesc_list, &pid_table[t], free_link);
   }
 
   Info("free piddesc list initialized");
+  
+  LIST_INIT(&free_session_list);  
+  for (int t = 0; t < max_pid; t++) {
+    LIST_ADD_TAIL(&free_session_list, &session_table[t], free_link);
+  }
+
+  Info("free session list initialized");
+
+  LIST_INIT(&free_pgrp_list);  
+  for (int t = 0; t < max_pid; t++) {
+    LIST_ADD_TAIL(&free_pgrp_list, &pgrp_table[t], free_link);
+  }
+
+  Info("free pgrp list initialized");
   
   free_process_cnt = max_process;
   LIST_INIT(&free_process_list);  
@@ -106,7 +115,6 @@ void init_processes(void)
   }
   
   Info("free thread list initialized");
-
     
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
     LIST_INIT(&timing_wheel[t]);
@@ -135,6 +143,7 @@ void init_processes(void)
   thread_reaper_thread = do_create_thread(root_process, thread_reaper_task, NULL, 
                                SCHED_RR, 16, 
                                THREADF_KERNEL,
+                               0,
                                &cpu_table[0]);
                                
   Info("thread reaper thread created, tid:%d", get_thread_tid(thread_reaper_thread));
@@ -148,6 +157,7 @@ void init_processes(void)
   timer_thread = do_create_thread(root_process, timer_bottom_half_task, NULL, 
                                SCHED_RR, 31, 
                                THREADF_KERNEL,
+                               0,
                                &cpu_table[0]);
                                
   Info("timer thread created, tid:%d", get_thread_tid(timer_thread));
@@ -165,6 +175,7 @@ void init_processes(void)
   cpu_table[0].idle_thread = do_create_thread(root_process, idle_task, NULL, 
                                    SCHED_IDLE, 0, 
                                    THREADF_KERNEL,
+                                   0,
                                    &cpu_table[0]);
 
 

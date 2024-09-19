@@ -31,12 +31,12 @@
  * TODO: Avoid in-kernel buffer, readmsg/writemsg needs to be able to write
  * to client process directly.
  */
-ssize_t read_from_block (struct VNode *vnode, void *dst, size_t sz, off64_t *offset)
+ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset)
 {
   uint8_t data[512];
   ssize_t xfered = 0;
   size_t xfer = 0;
-	size_t total_xfered = 0;
+  size_t total_xfered = 0;
 	
   while (total_xfered < sz) {
     xfer = ((sz - total_xfered) < sizeof data) ? (sz - total_xfered) : sizeof data;
@@ -47,8 +47,11 @@ ssize_t read_from_block (struct VNode *vnode, void *dst, size_t sz, off64_t *off
     }
     
     if (xfered < 0) {
-      Error("read_from_block err:%d", xfered);
-      return xfered;
+      if (total_xfered > 0) {
+        return total_xfered;
+      } else {
+        return xfered;
+      }
     }
 
     CopyOut(dst, data, xfered);
@@ -62,7 +65,7 @@ ssize_t read_from_block (struct VNode *vnode, void *dst, size_t sz, off64_t *off
 
 /* @brief   Write to a block device
  */
-ssize_t write_to_block (struct VNode *vnode, void *src, size_t sz, off64_t *offset)
+ssize_t write_to_block(struct VNode *vnode, void *src, size_t sz, off64_t *offset)
 {
   uint8_t data[512];
   ssize_t xfered = 0;
@@ -79,8 +82,11 @@ ssize_t write_to_block (struct VNode *vnode, void *src, size_t sz, off64_t *offs
     }
         
     if (xfered < 0) {
-      Error("write_to_block err:%d", xfered);
-      return xfered;
+      if (total_xfered > 0) {
+        return total_xfered;
+      } else {
+        return xfered;
+      }
     }
 
     src += xfered;

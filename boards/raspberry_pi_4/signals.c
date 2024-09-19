@@ -32,10 +32,10 @@
  */
 void sys_sigreturn(struct sigframe *u_sigframe)
 {
-	struct Process *current;
+	struct Thread *cthread;
 	
-	current = get_current_process();	
-  current->signal.sigreturn_sigframe = u_sigframe;
+	cthread = get_current_thread();	
+  cthread->signal.sigreturn_sigframe = u_sigframe;
 }
 
 
@@ -57,21 +57,15 @@ void check_signals(struct UserContext *uc)
 	sigset_t caught_signals;
 	sigset_t old_mask;
 	int sig;
-	struct Process *current;
+	struct Process *cproc;
+	struct Thread *cthread;
 
+	cproc = get_current_process();
+	cthread = get_current_thread();
 
-
-// FIXME: signals, returning, not processing
-//  return;
-  
-
-
-  
-	current = get_current_process();
-
-  if (current->signal.sigreturn_sigframe != NULL) {
-    u_sigframe = current->signal.sigreturn_sigframe;
-    current->signal.sigreturn_sigframe = NULL;
+  if (cthread->signal.sigreturn_sigframe != NULL) {
+    u_sigframe = cthread->signal.sigreturn_sigframe;
+    cthread->signal.sigreturn_sigframe = NULL;
 
 	  if (CopyIn (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
       Error("Failed to copy in u_sigframe, sig_exit with -SIGSEGV");
@@ -97,26 +91,35 @@ void check_signals(struct UserContext *uc)
     uc->r0 = sigframe.sf_uc.uc_mcontext.r0;
     uc->pc = sigframe.sf_uc.uc_mcontext.pc;        // Should be svc_mode LR register.
 
-	  current->signal.sig_mask = sigframe.sf_uc.uc_sigmask;
+	  cthread->signal.sig_mask = sigframe.sf_uc.uc_sigmask;
   }
 
-	caught_signals = current->signal.sig_pending & ~current->signal.sig_mask;
+  // Check if we have any process directed signals.
+  if (cproc->signal.sig_pending & ~cthread->signal.sig_mask) {
+    cthread->signal.sig_pending |= (cproc->signal.sig_pending & ~cthread->signal.sig_mask);
+    cproc->signal.sig_pending &= ~(cproc->signal.sig_pending & ~cthread->signal.sig_mask);
+
+    // TODO: Clear any siginfo fields of these new signals. Unless we also store
+    // the siginfo fields in the proc and copy those across.
+  }
+
+	caught_signals = cthread->signal.sig_pending & ~cthread->signal.sig_mask;
+	
 	
 	if (caught_signals == 0) {
 	  return;
 	}		
 	
 	Info("caught_signals: %08x", caught_signals);
-	
-	
+		
   if (caught_signals & SIGBIT(SIGKILL)) {
     Info("SIGKILL received");
     sig_exit(SIGKILL);
   }
     
-  if (current->signal.use_sigsuspend_mask == true) {
-    current->signal.sig_mask = current->signal.sigsuspend_oldmask;
-    current->signal.use_sigsuspend_mask = false;
+  if (cthread->signal.use_sigsuspend_mask == true) {
+    cthread->signal.sig_mask = cthread->signal.sigsuspend_oldmask;
+    cthread->signal.use_sigsuspend_mask = false;
   }
   
   sig = pick_signal(caught_signals);
@@ -127,40 +130,40 @@ void check_signals(struct UserContext *uc)
   
   Info ("pick_signal returned: %d", sig);
     
-  current->signal.sig_pending &= ~SIGBIT(sig);
+  cthread->signal.sig_pending &= ~SIGBIT(sig);
 
-  old_mask = current->signal.sig_mask;
+  old_mask = cthread->signal.sig_mask;
 
-  if (current->signal.sig_nodefer & SIGBIT(sig)) {
-    current->signal.sig_mask |= ~current->signal.handler_mask[sig-1];
+  if (cproc->signal.sig_nodefer & SIGBIT(sig)) {
+    cthread->signal.sig_mask |= ~cproc->signal.handler_mask[sig-1];
   } else {
-    current->signal.sig_mask |= SIGBIT(sig) | ~current->signal.handler_mask[sig-1];
+    cthread->signal.sig_mask |= SIGBIT(sig) | ~cproc->signal.handler_mask[sig-1];
   }
 
-  if (current->signal.restorer == NULL) {
+  if (cproc->signal.restorer == NULL) {
     do_signal_default(sig);
     // TODO: if default behaviour is to ignore, then pick another signal
     return;    
 
-  }	else if (current->signal.handler[sig-1] == SIG_DFL) {			
+  }	else if (cproc->signal.handler[sig-1] == SIG_DFL) {			
     do_signal_default(sig);				
-    current->signal.sig_mask = old_mask;
+    cthread->signal.sig_mask = old_mask;
     // TODO: if default behaviour is to ignore, then pick another signal
     return;    
  
-  }	else if (current->signal.handler[sig-1] == SIG_IGN) {
-    current->signal.sig_mask = old_mask;
+  }	else if (cproc->signal.handler[sig-1] == SIG_IGN) {
+    cthread->signal.sig_mask = old_mask;
 
-    if (current->signal.sig_resethand & SIGBIT(sig)) {
-	    current->signal.handler[sig-1] = SIG_DFL;
+    if (cproc->signal.sig_resethand & SIGBIT(sig)) {
+	    cproc->signal.handler[sig-1] = SIG_DFL;
     }
    
     // TODO: if we ignore, then pick another signal
     return;  
   }
   
-  if (current->signal.sig_resethand & SIGBIT(sig)) {
-    current->signal.handler[sig-1] = SIG_DFL;
+  if (cproc->signal.sig_resethand & SIGBIT(sig)) {
+    cproc->signal.handler[sig-1] = SIG_DFL;
   } 
 
   sigframe.sf_uc.uc_mcontext.sp = uc->sp;
@@ -186,21 +189,21 @@ void check_signals(struct UserContext *uc)
  
   sigframe.sf_signum = sig;
   
-  if (current->signal.sig_info & SIGBIT(sig)) {
+  if (cproc->signal.sig_info & SIGBIT(sig)) {
     sigframe.sf_siginfo = &u_sigframe->sf_si;
   } else {
     sigframe.sf_siginfo = NULL;
   }
   
   sigframe.sf_ucontext = &u_sigframe->sf_uc;
-  sigframe.sf_ahu.sf_action = (void (*)(int, siginfo_t *, void *)) current->signal.handler[sig-1];
+  sigframe.sf_ahu.sf_action = (void (*)(int, siginfo_t *, void *)) cproc->signal.handler[sig-1];
 							        
   if (CopyOut (u_sigframe, &sigframe, sizeof (struct sigframe)) != 0) {		
     sig_exit(SIGSEGV);
   }
   
   uc->sp = (uint32_t) u_sigframe;
-  uc->pc = (uint32_t) current->signal.restorer;
+  uc->pc = (uint32_t) cproc->signal.restorer;
 }
 
 

@@ -41,13 +41,19 @@ int max_process;
 struct Process *process_table;
 process_list_t free_process_list;
 
-int max_thread;
-struct Thread *thread_table;
-thread_list_t free_thread_list;
-
 int max_pid;
 struct PidDesc *pid_table;
 piddesc_list_t free_piddesc_list;
+
+struct Session *session_table;
+session_list_t free_session_list;
+
+struct Pgrp *pgrp_table;
+pgrp_list_t free_pgrp_list;
+
+int max_thread;
+struct Thread *thread_table;
+thread_list_t free_thread_list;
 
 struct Process *root_process;
 struct thread *root_thread;

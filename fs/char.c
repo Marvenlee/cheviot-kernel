@@ -35,31 +35,15 @@
  * copy from the character driver to this buffer on a vfs_read and then from this buffer
  * to the client's user-space buffer.
  *
- * Could server-side readmsg/writemsg access the physical memory map (to avoid double copy).
- * Add CopyFromProcess(), CopyToProcess() to do this instead of copyin, copyout.
+ * Need to allow readmsg/writemsg to read/write from the client's address space for certain
+ * commands such as read, write, readdir and sendmsg.
  *
  * Note: There is no use of vnode->busy.  Instead we use vnode->reader_cnt and vnode->writer_cnt
  * All other commands are assumed to be going to the command type queue.
  *
  * This code limits the sending of 1 write, 1 read and 1 command at a time.
  *
- * TODO: Need to handle non-blocking reads and writes
- *
- * TODO: Needs to be signal/event interruptible for character device reads, writes and ioctls
- *
- * How ?
- *
- * Send an ioctl-like third-man message to abort any reads or writes.  There should
- * only be a single reader and/or single writer blocked in char device. The rest
- * are blocked in here and can be aborted.
- *
- * OR
- *
- * Send a signal to the server SIGIOABORT ? to abort ALL current IO operations.
- * or split intio SIGIOABORT_READ, SIGIOABORT_WRITE and SIGIOABORT_IOCTL ?
- *
- * or send SIGIOABORT and have a getmsgportqueueinfo() to return which msgids to abort? 
- *
+ * TODO: Need to handle non-blocking reads and writes.  Add field to fsreq to indicate non-blocking?
  */
 ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 {
@@ -71,7 +55,12 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   Info("read_from_char(dst:%08x, sz:%d", (uint32_t)dst, sz);
   
   current = get_current_process();
-  
+
+//  if (vnode->isatty == true && vnode->tty_pgrp != current-pgrp) {
+    // do_signal_thread(current, SIG);
+//    return -EPERM;
+//  }
+    
   while (vnode->reader_cnt != 0) {
     if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
       Error("read_from_char reader_cnt -EINTR");
@@ -96,7 +85,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   vnode->reader_cnt = 0;
   TaskWakeupAll(&vnode->rendez);
 
-  Info("** read_from_char(sz:%d) xfered = %d", sz, xfered);
+//  Info("** read_from_char(sz:%d) xfered = %d", sz, xfered);
 
   return xfered;
 }
@@ -112,9 +101,14 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   size_t xfer = 0;
   struct Process *current;
 
-  Info("write_to_char(src:%08x, sz:%d)", (uint32_t)src, sz);
+//  Info("write_to_char(src:%08x, sz:%d)", (uint32_t)src, sz);
 
   current = get_current_process();
+
+//  if (vnode->isatty == true && vnode->tty_pgrp != current-pgrp) {
+    // do_signal_thread(current, SIG);
+//    return -EPERM;
+//  }
 
   while (vnode->writer_cnt != 0) {
     if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
@@ -138,7 +132,7 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   vnode->writer_cnt = 0;
   TaskWakeupAll(&vnode->rendez);    
 
-  Info("** write_to_char(sz:%d) xfered = %d", sz, xfered);
+//  Info("** write_to_char(sz:%d) xfered = %d", sz, xfered);
 
   return xfered;
 }
@@ -146,6 +140,7 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
 
 /* @brief   Indicate if a file handle points to a TTY
  *
+ * TODO: Remove CMD_ISATTY. Replace with mount() setting vnode->isatty = true
  */
 int sys_isatty(int fd)
 {
@@ -198,49 +193,173 @@ int ioctl_tcgetattr(int fd, struct termios *_termios)
 }
 
 
-/*
+/* @brief   Make this the controlling terminal of the calling process.
  *
+ * TODO: Check if tty
  */
 int ioctl_tiocsctty(int fd, int arg)
 {
   struct VNode *vnode;
   struct Process *current;
-    
-  Info("ioctl_tiocsctty(fd:%d, arg:%d)", fd, arg);
+  struct Session *session;
+//  pid_t pgid; = (pid_t)arg;   // arg unused
+  
+  Info("ioctl_tiocsctty");
   
   current = get_current_process();
 
-  vnode = get_fd_vnode(current, fd);    // FIXME: does this increment ref count ?
+  vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
-    Info("ioctl_tiocsctty -EINVAL");
+    Info("vnode not found");
     return -EINVAL;
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
+    Info("vnode not a character device");
+    vnode_put(vnode);
     return -EINVAL;
   }
 
-  if (current->fproc->controlling_tty != NULL) {
-    vnode_put(current->fproc->controlling_tty);  
-  }  
-  
-  current->fproc->controlling_tty = vnode;
-  vnode->tty_pgrp = get_current_pid();
+  session = get_session(current->sid);
+
+  if (session == NULL) {
+    Error("ioctl_tiocsctty - no session");
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  if (vnode->tty_sid != INVALID_PID) {
+    Error("ioctl_tiocsctty - tty already has session");
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  KASSERT(session->sid != INVALID_PID);
+
+  vnode->tty_sid = session->sid;
+  session->controlling_tty = vnode;
+  session->foreground_pgrp = current->pgid;
   vnode_inc_ref(vnode);
+  
   vnode_put(vnode);
 
   return 0;
 }
 
 
-/*
+/* @brief   Give up a controlling terminal of the current session.
  *
+ * NOTE: We give up the controlling terminal of the current session. This may be
+ * different to POSIX behaviour which may only give it up for the calling process.
+ *
+ * TODO: Check if tty
  */
 int ioctl_tiocnotty(int fd)
 {
   struct VNode *vnode;
   struct Process *current;
+  struct Session *session;
+
+  Info("ioctl_tiocnotty");
+  
+  current = get_current_process();
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    return -EINVAL;
+  }
+
+  if (S_ISCHR(vnode->mode) == 0) {
+    vnode_put(vnode);
+    return -EINVAL;
+  }
+
+  session = get_session(current->sid);
+
+  if (session == NULL) {
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  if (current->pid == session->sid) {
+    // TODO: replace with kill_foreground_pgrp(session)
+    sys_kill(-session->foreground_pgrp, SIGCONT);
+    sys_kill(-session->foreground_pgrp, SIGHUP);
+  }
+  
+  if (vnode->tty_sid == session->sid) {
+    vnode->tty_sid = INVALID_PID;
+    session->controlling_tty = NULL;
+    // FIXME: Do we need a vnode_dec_ref() ?
+    vnode_put(vnode);          
+  }
+  
+  return 0;
+}
+ 
+
+/* @brief   Get the session ID of the terminal
+ *
+ * TODO: Check if tty
+ */
+int ioctl_tiocgsid(int fd, pid_t *_sid)
+{
+  struct VNode *vnode;
+  struct Process *current;
+  struct Session *session;
+  pid_t sid;
+  
+  Info("ioctl_tiocgsid");
+
+  
+  current = get_current_process();
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    return -EINVAL;
+  }
+
+  if (S_ISCHR(vnode->mode) == 0) {
+    vnode_put(vnode);
+    return -EINVAL;
+  }
+
+  session = get_session(vnode->tty_sid);
+
+  if (session == NULL) {
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  if (current->sid != session->sid) {
+    vnode_put(vnode);
+    return -EPERM;  
+  }
+
+  sid = session->sid;
+  vnode_put(vnode);
+  
+  if (CopyOut(_sid, &sid, sizeof _sid) != 0) {
+    return -EFAULT;
+  }
+  
+  return 0;
+}
+
+
+/* @brief   Get the foreground process group ID of the terminal.
+ *
+ * TODO: Check if tty
+ */
+int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
+{
+  struct VNode *vnode;
+  struct Process *current;
+  struct Session *session;
+  pid_t pgid;
+
+  Info("ioctl_tiocgpgrp");
   
   current = get_current_process();
   vnode = get_fd_vnode(current, fd);
@@ -252,34 +371,84 @@ int ioctl_tiocnotty(int fd)
   if (S_ISCHR(vnode->mode) == 0) {
     return -EINVAL;
   }
-        
-  if (vnode->tty_pgrp != current->pgrp) {
-    return -EPERM;
-  }  
 
-  if (current->session_leader == true) {
-    // Send SIGCONT and SIGHUP to foreground process group
-    sys_kill(-vnode->tty_pgrp, SIGCONT);
-    sys_kill(-vnode->tty_pgrp, SIGHUP);
+  session = get_session(vnode->tty_sid);
+
+  if (session == NULL) {
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  if (current->sid != session->sid) {
+    return -EPERM;
+  }
+
+  pgid = session->foreground_pgrp;
+  vnode_put(vnode);
+          
+  if (CopyOut(_pgid, &pgid, sizeof *_pgid) != 0) {
+    return -EFAULT;
   }
   
-  vnode->tty_pgrp = -1;  
+  return 0;
+}
+
+
+/* @brief   Set the foreground process group ID of the terminal.
+ *
+ * TODO: Check if tty
+ */ 
+int ioctl_tiocspgrp(int fd, pid_t *_pgid)
+{
+  struct VNode *vnode;
+  struct Process *current;
+  struct Session *session;
+  pid_t pgid;
+  
+
+  Info("ioctl_tiocspgrp");
+  
+  current = get_current_process();
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    return -EINVAL;
+  }
+
+  if (S_ISCHR(vnode->mode) == 0) {
+    return -EINVAL;
+  }
+
+  if (CopyIn(&pgid, _pgid, sizeof pgid) != 0) {
+    return -EFAULT;
+  }
+
+  session = get_session(vnode->tty_sid);
+
+  if (session == NULL) {
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  if (current->sid != session->sid) {
+    vnode_put(vnode);
+    return -EPERM;
+  }
+
+  session->foreground_pgrp = pgid;
   vnode_put(vnode);
 
   return 0;
 }
+
  
- 
-/* @brief   Set the file handle to be used to receive kernel debug logs
+/* @brief   Set the target file descriptor where debug logs are sent
  *
  */
 int ioctl_setsyslog(int fd)
 {
-  // TODO:  set syslog file
-  return -ENOSYS;
+  return -ENOTSUP;
 }
-
-
 
 
 

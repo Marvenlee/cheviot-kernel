@@ -46,7 +46,9 @@ int sys_signalnotify(int fd, int ino_nr, int signal)
 {
   struct Process *current;
   struct VNode *target_vnode;
+  struct Session *session;
   struct SuperBlock *sb;
+  
   int sc = 0;
   
   Info("sys_signalnotify(fd:%d, ino:%d, sig:%d)", fd, ino_nr, signal);
@@ -69,11 +71,16 @@ int sys_signalnotify(int fd, int ino_nr, int signal)
 
   // TODO: Need mount() to explicitly set that it is a tty
 
-  if (S_ISCHR(target_vnode->mode)) {    
-    if (target_vnode->tty_pgrp != -1) {
-      sc = sys_kill(-target_vnode->tty_pgrp, signal);
+  if (S_ISCHR(target_vnode->mode)) {        
+    if ((session = get_session(target_vnode->tty_sid)) != NULL) {
+      if (session->foreground_pgrp != INVALID_PID) {
+        sc = do_kill_process_group(session->foreground_pgrp, signal, 0, 0);
+      } else {
+        Error("No foreground pgrp -EBADF");
+        sc = -EBADF;      
+      }
     } else {
-      Error("pgrp does not exist -EBADF");
+      Error("No session -EBADF");
       sc = -EBADF;
     }
     

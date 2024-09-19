@@ -62,16 +62,21 @@ int sys_addinterruptserver(int irq, int event)
   current_thread = get_current_thread();
     
   if (!io_allowed(current_proc)) {
+    Error("* cannot add interrupt, IO not allowed");
     return -EPERM;
   }
 
+  irq += BASE_USER_IRQ;
+
   if (irq < 0 || irq > NIRQ) {
+    Error("* cannot add interrupt, irq range");
     return -EINVAL;
   }
   
   isrhandler = alloc_isrhandler();
   
   if (isrhandler == NULL) {
+    Error("* cannot add interrupt, non free");
     return -ENOMEM;
   }
   
@@ -107,6 +112,8 @@ int sys_reminterruptserver(int isr)
   struct ISRHandler *isrhandler;
   int isrid;
   int_state_t int_state;
+  
+  Info("sys_reminterrupthandler");
   
   current_proc = get_current_process();
   current_thread = get_current_thread();

@@ -4,16 +4,16 @@
 #include <kernel/lists.h>
 #include <kernel/types.h>
 #include <signal.h>
-//#include <ucontext.h>
+
 
 // Forward Declarations
 struct Process;
+struct Thread;
 
 
 /*
  * Bitmap masks of some signal properties
  */
-
 #define SIGBIT(sig)	(1UL<<(sig-1)) 
 
 
@@ -21,8 +21,6 @@ struct Process;
 #define STOPSIGMASK (SIGBIT(SIGSTOP) | SIGBIT(SIGTSTP) | SIGBIT(SIGTTIN) | SIGBIT(SIGTTOU))
 #define CONTSIGMASK (SIGBIT(SIGFCONT))
 #define SYNCSIGMASK (SIGBIT(SIGILL) | SIGBIT(SIGTRAP) | SIGBIT(SIGBUS) | SIGBIT(SIGFPE) | SIGBIT(SIGSEGV))
-
-
 
 
 /*
@@ -39,48 +37,49 @@ struct Process;
 
 
 /*
- * User/nix signal state of a Process.
+ * Signal state of a Process.
  */
-
-struct ProcSignalState {
+struct ProcSignalState
+{
   _sig_func_ptr handler[NSIG]; /* Action for each signal, func, SIG_DFL, SIG_IGN */
   sigset_t handler_mask[NSIG]; /* Mask to add to current sig_mask during handler.*/
  
-  void (*restorer)(void); /* User-mode signal trampoline, takes care of calling sys_sigreturn */ 
-  struct sigframe *sigreturn_sigframe;
+  void (*restorer)(void);   /* User-mode signal trampoline, takes care of calling sys_sigreturn */ 
 
-  sigset_t sig_info; /* bitmap of signals that want SA_SIGINFO args. */
-  sigset_t sig_resethand; /* Unreliable signals */
-  sigset_t sig_nodefer;   /* Don't automatically mask delivered signal */
-  sigset_t sigsuspend_oldmask;
-  bool use_sigsuspend_mask;
+  sigset_t sig_info;        /* bitmap of signals that want SA_SIGINFO args. */
+  sigset_t sig_resethand;   /* Unreliable signals */
+  sigset_t sig_nodefer;     /* Don't automatically mask delivered signal */
 
-  sigset_t sig_mask;        /* Current signal mask */
-  sigset_t sig_pending;     /* bitmap of signals awaiting delivery */
-  int8_t si_code[NSIG];     /* Async pending signal code (user, message etc) */ 
+  sigset_t sig_pending;     /* bitmap of process directed signals awaiting delivery */
 };
 
 
-struct ThreadSignalState {
-  sigset_t sig_mask;    /* Current signal mask */
-  sigset_t sig_pending; /* bitmap of signals awaiting delivery */
+/*
+ *
+ */
+struct ThreadSignalState
+{
+  sigset_t sig_mask;        /* Current signal mask */
+  sigset_t sig_pending;     /* bitmap of signals awaiting delivery */
 
-//  void *sigsegv_ptr;  // Stored upon exception, cleared on delivery
-//  void *sigill_ptr;   // Stored upon exception, cleared on delivery
+  sigset_t sigsuspend_oldmask;
+  bool use_sigsuspend_mask;
+  struct sigframe *sigreturn_sigframe;
+
+  int8_t si_code[NSIG];     /* Async pending signal code (user, message etc) */ 
+  uintptr_t si_value[NSIG]; /* Async pending signal value/address */
 };
 
 
 /*
  * Variables
  */
-
 extern const uint32_t sigprop[NSIG];
+
 
 /*
  * Prototypes
  */
-
-
 int sys_kill(int pid, int signal);
 int sys_sigaction(int how, const struct sigaction *act, struct sigaction *oact);
 int sys_sigsuspend(const sigset_t *mask);
@@ -89,13 +88,12 @@ int sys_sigpending(sigset_t *set);
 void sig_exit(int signal);
 void init_signals(struct Process *dst);
 void fork_signals(struct Process *dst, struct Process *src);
-void exec_signals(struct Process *dst);
+void exec_signals(struct Process *dst, struct Thread *dst_thread);
 void do_signal_default(int sig);
-int do_kill_process(pid_t pid, int signal);
-int do_kill_process_group(pid_t pid, int signal);
+int do_kill_process(pid_t pid, int signal, int code, intptr_t val);
+int do_kill_process_group(pid_t pid, int signal, int code, intptr_t val);
 int pick_signal(uint32_t sigbits);
-
-int do_signal_process(struct Process *proc, int signal);
-int do_signal_thread(struct Thread *thread, int signal);
+void do_signal_process(struct Process *proc, int signal, int code, intptr_t val);
+void do_signal_thread(struct Thread *thread, int signal, int code, intptr_t val);
 
 #endif

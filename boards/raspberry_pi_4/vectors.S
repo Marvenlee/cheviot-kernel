@@ -83,7 +83,7 @@ syscall_table:
     // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
     // Need listen(mount_fd) to create new listener handle (multiple for char device server)
     
-    .long sys_sendrec                   // 23  TODO: Implement
+    .long sys_sendmsg                   // 23
     .long sys_getmsg                    // 24  
     .long sys_replymsg                  // 25
     .long sys_readmsg                   // 26
@@ -187,7 +187,7 @@ syscall_table:
 
 		.long sys_clock_settime							// 98
 
-		.long sys_deprecatedsyscall   			// 99  FIXME: Was sys_bdflush
+		.long sys_rpi_get_gpio         			// 99
 
     .long sys_sigreturn                 // 100
     
@@ -212,6 +212,9 @@ syscall_table:
     
     .long sys_thread_gettid             // 113
     .long sys_thread_self               // 114
+
+    .long sys_setpgid                   // 115
+    .long sys_getpgid                   // 116
 
     /*
     .long sys_thread_cancel

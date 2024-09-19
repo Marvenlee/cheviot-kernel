@@ -64,13 +64,20 @@ extern int max_process;
 extern struct Process *process_table;
 extern process_list_t free_process_list;
 
+extern int max_pid;
+extern struct PidDesc *pid_table;
+extern piddesc_list_t free_piddesc_list;
+
+extern struct Session *session_table;
+extern session_list_t free_session_list;
+
+extern struct Pgrp *pgrp_table;
+extern pgrp_list_t free_pgrp_list;
+
 extern int max_thread;
 extern struct Thread *thread_table;
 extern thread_list_t free_thread_list;
  
-extern int max_pid;
-extern struct PidDesc *pid_table;
-extern piddesc_list_t free_piddesc_list;
 
 extern struct Process *root_process;
 extern struct Thread *root_thread; 
