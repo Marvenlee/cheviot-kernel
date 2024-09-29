@@ -152,9 +152,10 @@ am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
 	fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
 	fs/signal.c fs/stat.c fs/symlink.c fs/sync.c fs/truncate.c \
 	fs/vfs.c fs/vnode.c fs/write.c utility/doprintf.c \
-	utility/string.c vm/as.c vm/globals.c vm/page.c vm/pagefault.c \
-	vm/segment.c vm/vm.c boards/raspberry_pi_1/arm.S \
-	boards/raspberry_pi_1/aux_uart.c boards/raspberry_pi_1/debug.c \
+	utility/string.c vm/as.c vm/globals.c vm/ipcopy.c vm/page.c \
+	vm/pagefault.c vm/segment.c vm/vm.c \
+	boards/raspberry_pi_1/arm.S boards/raspberry_pi_1/aux_uart.c \
+	boards/raspberry_pi_1/debug.c \
 	boards/raspberry_pi_1/exception.c \
 	boards/raspberry_pi_1/globals.c boards/raspberry_pi_1/gpio.c \
 	boards/raspberry_pi_1/idle.c boards/raspberry_pi_1/init_arm.c \
@@ -232,9 +233,9 @@ am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
 	fs/sync.$(OBJEXT) fs/truncate.$(OBJEXT) fs/vfs.$(OBJEXT) \
 	fs/vnode.$(OBJEXT) fs/write.$(OBJEXT) \
 	utility/doprintf.$(OBJEXT) utility/string.$(OBJEXT) \
-	vm/as.$(OBJEXT) vm/globals.$(OBJEXT) vm/page.$(OBJEXT) \
-	vm/pagefault.$(OBJEXT) vm/segment.$(OBJEXT) vm/vm.$(OBJEXT) \
-	$(am__objects_1) $(am__objects_2)
+	vm/as.$(OBJEXT) vm/globals.$(OBJEXT) vm/ipcopy.$(OBJEXT) \
+	vm/page.$(OBJEXT) vm/pagefault.$(OBJEXT) vm/segment.$(OBJEXT) \
+	vm/vm.$(OBJEXT) $(am__objects_1) $(am__objects_2)
 kernel_OBJECTS = $(am_kernel_OBJECTS)
 kernel_DEPENDENCIES =
 kernel_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(kernel_LDFLAGS) \
@@ -313,9 +314,9 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	proc/$(DEPDIR)/thread.Po proc/$(DEPDIR)/thread_events.Po \
 	proc/$(DEPDIR)/timer.Po utility/$(DEPDIR)/doprintf.Po \
 	utility/$(DEPDIR)/string.Po vm/$(DEPDIR)/as.Po \
-	vm/$(DEPDIR)/globals.Po vm/$(DEPDIR)/page.Po \
-	vm/$(DEPDIR)/pagefault.Po vm/$(DEPDIR)/segment.Po \
-	vm/$(DEPDIR)/vm.Po
+	vm/$(DEPDIR)/globals.Po vm/$(DEPDIR)/ipcopy.Po \
+	vm/$(DEPDIR)/page.Po vm/$(DEPDIR)/pagefault.Po \
+	vm/$(DEPDIR)/segment.Po vm/$(DEPDIR)/vm.Po
 am__mv = mv -f
 CPPASCOMPILE = $(CCAS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CCASFLAGS) $(CCASFLAGS)
@@ -486,8 +487,8 @@ kernel_SOURCES = proc/globals.c proc/id.c proc/interrupt.c proc/pid.c \
 	fs/seek.c fs/signal.c fs/stat.c fs/symlink.c fs/sync.c \
 	fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
 	utility/doprintf.c utility/string.c vm/as.c vm/globals.c \
-	vm/page.c vm/pagefault.c vm/segment.c vm/vm.c $(am__append_1) \
-	$(am__append_2)
+	vm/ipcopy.c vm/page.c vm/pagefault.c vm/segment.c vm/vm.c \
+	$(am__append_1) $(am__append_2)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CFLAGS = -O0 -g2 -std=c99 -mcpu=cortex-a72 -mfpu=vfpv3-d16
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CFLAGS = -O0 -g2 -std=c99
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CPPFLAGS = -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
@@ -670,6 +671,7 @@ vm/$(DEPDIR)/$(am__dirstamp):
 	@: > vm/$(DEPDIR)/$(am__dirstamp)
 vm/as.$(OBJEXT): vm/$(am__dirstamp) vm/$(DEPDIR)/$(am__dirstamp)
 vm/globals.$(OBJEXT): vm/$(am__dirstamp) vm/$(DEPDIR)/$(am__dirstamp)
+vm/ipcopy.$(OBJEXT): vm/$(am__dirstamp) vm/$(DEPDIR)/$(am__dirstamp)
 vm/page.$(OBJEXT): vm/$(am__dirstamp) vm/$(DEPDIR)/$(am__dirstamp)
 vm/pagefault.$(OBJEXT): vm/$(am__dirstamp) \
 	vm/$(DEPDIR)/$(am__dirstamp)
@@ -899,6 +901,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@utility/$(DEPDIR)/string.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/as.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/ipcopy.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/page.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/pagefault.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/segment.Po@am__quote@ # am--include-marker
@@ -1311,6 +1314,7 @@ distclean: distclean-am
 	-rm -f utility/$(DEPDIR)/string.Po
 	-rm -f vm/$(DEPDIR)/as.Po
 	-rm -f vm/$(DEPDIR)/globals.Po
+	-rm -f vm/$(DEPDIR)/ipcopy.Po
 	-rm -f vm/$(DEPDIR)/page.Po
 	-rm -f vm/$(DEPDIR)/pagefault.Po
 	-rm -f vm/$(DEPDIR)/segment.Po
@@ -1446,6 +1450,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f utility/$(DEPDIR)/string.Po
 	-rm -f vm/$(DEPDIR)/as.Po
 	-rm -f vm/$(DEPDIR)/globals.Po
+	-rm -f vm/$(DEPDIR)/ipcopy.Po
 	-rm -f vm/$(DEPDIR)/page.Po
 	-rm -f vm/$(DEPDIR)/pagefault.Po
 	-rm -f vm/$(DEPDIR)/segment.Po

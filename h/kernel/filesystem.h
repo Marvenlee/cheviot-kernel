@@ -21,7 +21,7 @@
 #include <poll.h>
 #include <sys/syslimits.h>
 #include <sys/select.h>
-
+#include <sys/syscalls.h>
 
 // Forward declarations
 struct VNode;
@@ -486,8 +486,11 @@ int sys_sync(void);
 int sys_fsync(int fd);
 
 /* fs/vfs.c */
-ssize_t vfs_read(struct VNode *vnode, void *buf, size_t nbytes, off64_t *offset);
-ssize_t vfs_write(struct VNode *vnode, void *buf, size_t nbytes, off64_t *offset);
+int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov, 
+                    int riov_cnt, msgiov_t *riov, size_t sbuf_total_sz, size_t rbuf_total_sz);
+ssize_t vfs_read(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
+ssize_t vfs_write(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
+
 int vfs_readdir(struct VNode *vnode, void *buf, size_t bytes, off64_t *cookie);
 int vfs_lookup(struct VNode *dir, char *name, struct VNode **result);
 int vfs_create(struct VNode *dvnode, char *name, int oflags, struct stat *stat, struct VNode **result);                             

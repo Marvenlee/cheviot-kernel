@@ -45,26 +45,18 @@ int page_fault(vm_addr addr, bits32_t access)
   vm_addr real_addr;
 
   Info("page_fault(addr:%08x, access:%08x)", addr, access);
-	if (access & PROT_WRITE) {
-		Info("access = WRITE");
-	} else {
-		Info("access = READ");
-	}
-	
-
+  	
   current = get_current_process();
  
-  Info("pf: current proc:%08x, pid:%d", (uint32_t)current, current->pid);
+//  Info("pf: current proc:%08x, pid:%d", (uint32_t)current, current->pid);
  
   real_addr = addr;
   addr = ALIGN_DOWN(addr, PAGE_SIZE);
   
-#if 1
-  pmap_is_page_present(&current->as, addr);
-#endif    
-    
   if (pmap_extract(&current->as, addr, &paddr, &page_flags) != 0) {
     // Page is not present
+    
+    // FIXME: For map_lazy we need to find segment, determine attributes and map page in
     return -1;
   }
 	

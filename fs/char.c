@@ -47,9 +47,7 @@
  */
 ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 {
-  uint8_t buf[512];
   ssize_t xfered = 0;
-  size_t xfer = 0;
   struct Process *current;
   
   Info("read_from_char(dst:%08x, sz:%d", (uint32_t)dst, sz);
@@ -70,16 +68,8 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 
   vnode->reader_cnt = 1;
     
-  xfer = (sz < sizeof buf) ? sz : sizeof buf;
-
-  if (xfer > 0) {
-    xfered = vfs_read(vnode, buf, xfer, NULL);
-   
-    if (xfered > 0) {  
-      CopyOut (dst, buf, xfered);
-    } else if (xfered == -EINTR) {
-      Info("char vfs_read returned -EINTR");
-    }
+  if (sz > 0) {
+    xfered = vfs_read(vnode, IPCOPY, dst, sz, NULL);     
   }
   
   vnode->reader_cnt = 0;
@@ -96,9 +86,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
  */
 ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
 {
-  uint8_t buf[512];
   ssize_t xfered = 0;
-  size_t xfer = 0;
   struct Process *current;
 
 //  Info("write_to_char(src:%08x, sz:%d)", (uint32_t)src, sz);
@@ -118,15 +106,9 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   }
 
   vnode->writer_cnt = 1;
-  xfer = (sz < sizeof buf) ? sz : sizeof buf;
-
-  if (xfer > 0) {      
-    CopyIn (buf, src, xfer);
-    xfered = vfs_write(vnode, buf, xfer, NULL);
-    
-    if (xfered == -EINTR) {
-      Info("char vfs_write returned -EINTR");
-    }
+  
+  if (sz > 0) {      
+    xfered = vfs_write(vnode, IPCOPY, src, sz, NULL);    
   }
     
   vnode->writer_cnt = 0;

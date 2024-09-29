@@ -33,6 +33,10 @@ struct Msg
                               // Set to reply_port on reply, so any msgid_to_msg fails after replymsg
                               
   struct MsgPort *reply_port; // The reply port to reply to
+  
+  int ipc;
+  struct AddressSpace *src_as;
+  
   int reply_status;  
   int siov_cnt;
   msgiov_t *siov;
@@ -68,8 +72,14 @@ struct MsgPort
 
 
 
+// ksendmsg options
+#define KUCOPY    0     // Message is from kernel to user or user to kernel
+#define IPCOPY    1     // Message is from user to user (except for fsreq header which is from kernel)     
+
+
 // Macros
 #define NELEM(a) (sizeof(a) / sizeof(*a))   // Calculate number of elements in an array
+
 
 /*
  * Prototypes
@@ -81,7 +91,8 @@ int sys_readmsg(int server_fd, msgid_t msgid, void *buf, size_t buf_sz, off_t of
 int sys_writemsg(int server_fd, msgid_t msgid, void *buf, size_t buf_sz, off_t offset);
 
 int kabortmsg(struct MsgPort *msgport, struct Msg *msg);
-int ksendmsg(struct MsgPort *msgport, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
+int ksendmsg(struct MsgPort *msgport, int ipc, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
+
 int kputmsg(struct MsgPort *msgport, struct Msg *msg);
 int kreplymsg(struct Msg *msg);
 struct Msg *kgetmsg(struct MsgPort *port);

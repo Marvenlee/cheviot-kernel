@@ -291,11 +291,14 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
+  Info("pmap_extract(as:%08x, va:%08x", (uint32_t)as, (uint32_t)va);
+
   pmap = &as->pmap;
   pde_idx = (va & L1_ADDR_BITS) >> L1_IDX_SHIFT;
 
   if ((pmap->l1_table[pde_idx] & L1_TYPE_MASK) == L1_TYPE_INV) {
-    return -1;
+    Info("extract failed, no page table");
+    return -1;    
   }
 
   phys_pt = (uint32_t *)(pmap->l1_table[pde_idx] & L1_C_ADDR_MASK);
@@ -307,6 +310,7 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
   current_paddr = pt[pte_idx] & L2_ADDR_MASK;
 
   if ((pt[pte_idx] & L2_TYPE_MASK) == L2_TYPE_INV) {
+    Info("extract failed, no page table entry");
     return -1;
   }
 
@@ -666,6 +670,8 @@ int pmap_cache_remove(vm_addr va)
  * @param   va,
  * @param   pa,
  * @return  0 on success, negative errno on failure
+ *
+ * NOTE: This assumes the page is present, no checks are performed.
  */
 int pmap_cache_extract(vm_addr va, vm_addr *pa)
 {
@@ -683,21 +689,55 @@ int pmap_cache_extract(vm_addr va, vm_addr *pa)
 }
 
 
-/* @brief   Copy memory between two processes
+/*
  *
- * @param   dst_as, destination address space to copy to
- * @param   dst, base address in destination to copy to
- * @param   src_as, source address space to copy from
- * @param   src, base address in source to copy from
- * @param   sz, number of bytes to copy
- * @return  0 on success, negative errno if all bytes could not be copied.
  */
-int pmap_interprocess_copy(struct AddressSpace *dst_as, void *dst, 
-                           struct AddressSpace *src_as, void *src,
-                           size_t sz)
+int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, void **rkaddr)
 {
-  // TODO: Copy between processes, handle unmapped pages.
-  return -ENOTSUP;
-}
+  vm_addr bvaddr;
+  vm_addr bpaddr;
+  uint32_t flags;
+  bool fault = false;
+  uint32_t page_offset;
+  
+  Info("pmap_pagetable_walk(as:%08x, access:%08x, va:%08x", (uint32_t)as, access, (uint32_t)vaddr);
+  
+  bvaddr = (vm_addr)vaddr & ~(PAGE_SIZE - 1);
+  page_offset = (vm_addr)vaddr & (PAGE_SIZE -1);
+      
+  if (pmap_extract(as, bvaddr, &bpaddr, &flags) != 0) {
+    Info("Cannot extract pte (note:we don't lazy alloc pages)");
+    
+    return -EFAULT;
+  } else {    
+    if (access & PROT_WRITE) {
+      if (flags & PROT_WRITE) {
+        if (flags & MAP_COW) {
+          fault = true;
+        }
+      } else {      
+        Info("pmap_pagetable_walk -EFAULT write on non-write page");
+        return -EFAULT;
+      }
+    }
+  }
+    
+  if (fault) {
+    if (page_fault(bvaddr, access) != 0) {
+      Info("pmap_pagetable_walk -EFAULT 2");
+      return -EFAULT;
+    }
+    
+    if (pmap_extract(as, (vm_addr)bvaddr, &bpaddr, &flags) != 0) {
+        Info("pmap_pagetable_walk -EFAULT 3");
+      return -EFAULT;
+    }
+  }    
 
+  *rkaddr = (void *)pmap_pa_to_va(bpaddr + page_offset);
+
+  Info("0 = pmap_pagetable_walk() rkaddr:%08x", (uint32_t)*rkaddr);
+
+  return 0;
+}
 

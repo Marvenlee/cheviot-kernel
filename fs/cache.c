@@ -33,6 +33,7 @@
  * @param   vnode, file to read from
  * @param   dst, destination address to copy file data to (kernel or user)
  * @param   sz, number of bytes to read
+ * @param   offset, pointer to filp's offset which will be updated
  * @param   inkernel, set to true if the destination address is in the kernel (for kread)
  * @return  number of bytes read or negative errno on failure  
  */
@@ -108,6 +109,7 @@ ssize_t read_from_cache(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
  * @param   vnode, file to write to
  * @param   src, user-space source address of the data to be written to the file
  * @param   sz, number of bytes to write
+ * @param   offset, pointer to filp's offset which will be updated
  * @return  number of bytes written or negative errno on failure  
  *
  * If we are writing a full block, can we avoid reading it in?
@@ -355,7 +357,7 @@ struct Buf *bread(struct VNode *vnode, uint64_t cluster_base)
 
   buf->flags = (buf->flags | B_READ) & ~(B_WRITE | B_ASYNC);
 
-  xfered = vfs_read(vnode, buf->data, CLUSTER_SZ, &cluster_base);
+  xfered = vfs_read(vnode, KUCOPY, buf->data, CLUSTER_SZ, &cluster_base);
 
   if (xfered > CLUSTER_SZ) {
     Error("bread > CLUSTER_SZ: %d", xfered);
@@ -424,7 +426,7 @@ int bwrite(struct Buf *buf)
   cluster_offset = buf->cluster_offset;
 
   // FIXME: Only write a partial cluster if this is last cluster
-  xfered = vfs_write(vnode, buf->data, CLUSTER_SZ, &cluster_offset);
+  xfered = vfs_write(vnode, KUCOPY, buf->data, CLUSTER_SZ, &cluster_offset);
 
   if (xfered != CLUSTER_SZ) {
     buf->flags |= B_ERROR;
@@ -631,7 +633,7 @@ void bdflush_task(void *arg)
     while ((buf = get_pending_write_buf(sb)) != NULL) {      
       if (buf) {
             
-        vfs_write(buf->vnode, buf->data, CLUSTER_SZ, NULL);
+        vfs_write(buf->vnode, KUCOPY, buf->data, CLUSTER_SZ, NULL);
         brelse(buf);      
       }
     }

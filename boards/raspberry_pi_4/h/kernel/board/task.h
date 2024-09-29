@@ -114,7 +114,7 @@ extern struct CPU cpu_table[MAX_CPU];
  */
 struct CPU *get_cpu();
 struct CPU *arch_pick_cpu(void);
-
+void idle_cpu(void);
 
 //void StartProcess(void);
 

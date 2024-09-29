@@ -37,6 +37,7 @@
 .global get_current_process
 .global get_current_thread
 .global get_cpu
+.global idle_cpu
 .global DisableInterrupts
 .global RestoreInterrupts
 .global EnableInterrupts
@@ -162,6 +163,12 @@ get_cpu:
     bx lr
 
 
+/* @brief   Put the CPU into an idle mode and wait for an interrupt
+ */
+idle_cpu:
+  wfi
+  bx lr
+ 
 /* @brief Disable interrupts on current CPU and return previous interrupt state
  * 
  * @return  int_state, interrupt flags prior to disabling interrupts
@@ -223,13 +230,15 @@ SpinUnlockIRQRestore:
     bx lr
 
 
-
 /* @brief   Copy data from a user-space buffer into a kernel buffer
  *
  * @param   dst, destination pointer in kernel space
  * @param   src, source pointer in user space
  * @param   sz, size of buffer to copy
  * @return  0 on success, -1 on error
+ *
+ * TODO: Currently doing byte-at-a-time copy, do word-at-a-time and multiple registers
+ * for larger transfers
  */ 
 CopyIn:
     push {r0-r1}
@@ -300,6 +309,9 @@ CopyInStringCatch:
  * @param   src, source pointer in kernel space
  * @param   sz, size of buffer to copy
  * @return  0 on success, -1 on error
+ *
+ * TODO: Currently doing byte-at-a-time copy, do word-at-a-time and multiple registers
+ * for larger transfers
  */ 
 CopyOut:
     push {r0-r1}

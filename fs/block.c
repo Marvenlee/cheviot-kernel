@@ -26,23 +26,29 @@
 #include <sys/mount.h>
 
 
+// FIXME: Unsure why but transfers of 1024 (2 blocks) is dramatically slower
+// A larger transfer size should be faster with less context switches and system calls.
+#define MAX_BLOCK_TRANSFER 512
+
+
 /* @brief   Read from a block device
  * 
- * TODO: Avoid in-kernel buffer, readmsg/writemsg needs to be able to write
- * to client process directly.
+ * @param   vnode, vnode of block device
+ * @param   dst, buffer to read to
+ * @param   sz, buffer size
+ * @param   offset, pointer to the filp's offset, this is updated.
  */
 ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset)
 {
-  uint8_t data[512];
   ssize_t xfered = 0;
   size_t xfer = 0;
   size_t total_xfered = 0;
-	
+
   while (total_xfered < sz) {
-    xfer = ((sz - total_xfered) < sizeof data) ? (sz - total_xfered) : sizeof data;
-    xfered = vfs_read(vnode, data, xfer, offset);      
+    xfer = ((sz - total_xfered) < MAX_BLOCK_TRANSFER) ? (sz - total_xfered) : MAX_BLOCK_TRANSFER;
+    xfered = vfs_read(vnode, IPCOPY, dst, xfer, offset);
     
-    if (xfer == 0) {
+    if (xfered == 0) {
       return total_xfered;
     }
     
@@ -54,7 +60,6 @@ ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
       }
     }
 
-    CopyOut(dst, data, xfered);
     dst += xfered;  
     total_xfered += xfered;
   }
@@ -67,17 +72,15 @@ ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
  */
 ssize_t write_to_block(struct VNode *vnode, void *src, size_t sz, off64_t *offset)
 {
-  uint8_t data[512];
   ssize_t xfered = 0;
   size_t xfer = 0;
 	size_t total_xfered = 0;
-  
-  while (total_xfered < sz) {
-    xfer = ((sz - total_xfered) < sizeof data) ? (sz - total_xfered) : sizeof data;
-    CopyIn(data, src, xfer);
-    xfered = vfs_write(vnode, data, xfer, offset);      
 
-    if (xfer == 0) {
+  while (total_xfered < sz) {
+    xfer = ((sz - total_xfered) < MAX_BLOCK_TRANSFER) ? (sz - total_xfered) : MAX_BLOCK_TRANSFER;
+    xfered = vfs_write(vnode, IPCOPY, src, xfer, offset);      
+  
+    if (xfered == 0) {
       return total_xfered;
     }
         

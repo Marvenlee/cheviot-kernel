@@ -42,7 +42,7 @@ void idle_task(void *arg)
   EnableInterrupts();
   
   while(1) {
-  // TODO: Need WFI wait for interrupt instruction
+    idle_cpu();
   }
 }
 

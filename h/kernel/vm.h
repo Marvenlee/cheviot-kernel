@@ -90,12 +90,48 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
 void cleanup_address_space(struct AddressSpace *as);
 void free_address_space(struct AddressSpace *as);
 
+// vm/ipcopy.c
+
+ssize_t ipcopy(struct AddressSpace *dst_as, struct AddressSpace *src_as,
+               void *dvaddr, void *svaddr, size_t sz);
+
+// vm/page.c
+void *kmalloc_page(void);
+void kfree_page(void *vaddr);
+struct Pageframe *alloc_pageframe(vm_size);
+void free_pageframe(struct Pageframe *pf);
+void coalesce_slab(struct Pageframe *pf);
+
+
+// vm/pagefault.c
+int page_fault(vm_addr addr, bits32_t access);
+
+// vm/vm.c
+void *sys_virtualalloc(void *addr, size_t len, bits32_t flags);
+void *sys_virtualallocphys(void *addr, size_t len, bits32_t flags, void *paddr);
+int sys_virtualfree(void *addr, size_t size);
+int sys_virtualprotect(void *addr, size_t size, bits32_t flags);
+
+// vm/segment.c
+vm_addr segment_create(struct AddressSpace *as, vm_offset addr, vm_size size,
+                      int type, bits32_t flags);
+void segment_free(struct AddressSpace *as, vm_addr base, vm_size size);
+void segment_insert(struct AddressSpace *as, int index, int cnt);
+vm_addr *segment_find(struct AddressSpace *as, vm_addr addr);
+void segment_coalesce(struct AddressSpace *as);
+vm_addr *segment_alloc(struct AddressSpace *as, vm_size size, uint32_t flags,
+                      vm_addr *ret_addr);
+int segment_splice(struct AddressSpace *as, vm_addr addr);
+
+// boards/
+int CopyIn(void *dst, const void *src, size_t sz);
+int CopyOut(void *dst, const void *src, size_t sz);
+int CopyInString(void *dst, const void *src, size_t max_sz);
+
 // boards/.../pmap.c
 int pmap_create(struct AddressSpace *as);
 void pmap_destroy(struct AddressSpace *as);
-
 int pmap_supports_cache_policy(bits32_t flags);
-
 int pmap_enter(struct AddressSpace *as, vm_addr addr, vm_addr paddr, bits32_t flags);
 int pmap_remove(struct AddressSpace *as, vm_addr addr);
 int pmap_protect(struct AddressSpace *as, vm_addr addr, bits32_t flags);
@@ -125,41 +161,8 @@ struct Pageframe *pmap_va_to_pf(vm_addr va);
 int pmap_cache_enter(vm_addr addr, vm_addr paddr);
 int pmap_cache_remove(vm_addr va);
 int pmap_cache_extract(vm_addr va, vm_addr *pa);
+int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, void **rkaddr);
 
-int pmap_interprocess_copy(struct AddressSpace *dst_as, void *dst, 
-                           struct AddressSpace *src_as, void *src,
-                           size_t sz);
-
-// vm/pagefault.c
-int page_fault(vm_addr addr, bits32_t access);
-
-// vm/vm.c
-void *sys_virtualalloc(void *addr, size_t len, bits32_t flags);
-void *sys_virtualallocphys(void *addr, size_t len, bits32_t flags, void *paddr);
-int sys_virtualfree(void *addr, size_t size);
-int sys_virtualprotect(void *addr, size_t size, bits32_t flags);
-
-vm_addr segment_create(struct AddressSpace *as, vm_offset addr, vm_size size,
-                      int type, bits32_t flags);
-void segment_free(struct AddressSpace *as, vm_addr base, vm_size size);
-void segment_insert(struct AddressSpace *as, int index, int cnt);
-vm_addr *segment_find(struct AddressSpace *as, vm_addr addr);
-void segment_coalesce(struct AddressSpace *as);
-vm_addr *segment_alloc(struct AddressSpace *as, vm_size size, uint32_t flags,
-                      vm_addr *ret_addr);
-int segment_splice(struct AddressSpace *as, vm_addr addr);
-
-// arch/memcpy.s
-int CopyIn(void *dst, const void *src, size_t sz);
-int CopyOut(void *dst, const void *src, size_t sz);
-int CopyInString(void *dst, const void *src, size_t max_sz);
-
-// vm/page.c
-void *kmalloc_page(void);
-void kfree_page(void *vaddr);
-struct Pageframe *alloc_pageframe(vm_size);
-void free_pageframe(struct Pageframe *pf);
-void coalesce_slab(struct Pageframe *pf);
 
 
 /*
