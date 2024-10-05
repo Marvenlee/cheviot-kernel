@@ -113,14 +113,12 @@ sbin_PROGRAMS = kernel$(EXEEXT)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/debug.c         \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/exception.c     \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/globals.c       \
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/gpio.c          \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/idle.c          \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/init_arm.c      \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/init_proc.c     \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/init_root.c     \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/init_vm.c       \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/interrupt.c     \
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/mailbox.c       \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/main.c          \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/pmap.c          \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/proc.c          \
@@ -168,13 +166,12 @@ am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
 	boards/raspberry_pi_1/vectors.S boards/raspberry_pi_4/arm.S \
 	boards/raspberry_pi_4/aux_uart.c boards/raspberry_pi_4/debug.c \
 	boards/raspberry_pi_4/exception.c \
-	boards/raspberry_pi_4/globals.c boards/raspberry_pi_4/gpio.c \
-	boards/raspberry_pi_4/idle.c boards/raspberry_pi_4/init_arm.c \
+	boards/raspberry_pi_4/globals.c boards/raspberry_pi_4/idle.c \
+	boards/raspberry_pi_4/init_arm.c \
 	boards/raspberry_pi_4/init_proc.c \
 	boards/raspberry_pi_4/init_root.c \
 	boards/raspberry_pi_4/init_vm.c \
-	boards/raspberry_pi_4/interrupt.c \
-	boards/raspberry_pi_4/mailbox.c boards/raspberry_pi_4/main.c \
+	boards/raspberry_pi_4/interrupt.c boards/raspberry_pi_4/main.c \
 	boards/raspberry_pi_4/pmap.c boards/raspberry_pi_4/proc.c \
 	boards/raspberry_pi_4/signals.c boards/raspberry_pi_4/timer.c \
 	boards/raspberry_pi_4/vectors.S
@@ -202,14 +199,12 @@ am__dirstamp = $(am__leading_dot)dirstamp
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/debug.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/exception.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/globals.$(OBJEXT) \
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/gpio.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/idle.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/init_arm.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/init_proc.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/init_root.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/init_vm.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/interrupt.$(OBJEXT) \
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/mailbox.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/main.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/pmap.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/proc.$(OBJEXT) \
@@ -278,14 +273,12 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/debug.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/exception.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/globals.Po \
-	boards/raspberry_pi_4/$(DEPDIR)/gpio.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/idle.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/init_arm.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/init_proc.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/init_root.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/init_vm.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/interrupt.Po \
-	boards/raspberry_pi_4/$(DEPDIR)/mailbox.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/main.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/pmap.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/proc.Po \
@@ -758,9 +751,6 @@ boards/raspberry_pi_4/exception.$(OBJEXT):  \
 boards/raspberry_pi_4/globals.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
-boards/raspberry_pi_4/gpio.$(OBJEXT):  \
-	boards/raspberry_pi_4/$(am__dirstamp) \
-	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/idle.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
@@ -777,9 +767,6 @@ boards/raspberry_pi_4/init_vm.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/interrupt.$(OBJEXT):  \
-	boards/raspberry_pi_4/$(am__dirstamp) \
-	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
-boards/raspberry_pi_4/mailbox.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/main.$(OBJEXT):  \
@@ -840,14 +827,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/debug.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/exception.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/gpio.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/idle.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/init_arm.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/init_proc.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/init_root.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/init_vm.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/interrupt.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/mailbox.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/pmap.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/proc.Po@am__quote@ # am--include-marker
@@ -1253,14 +1238,12 @@ distclean: distclean-am
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/debug.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/exception.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/globals.Po
-	-rm -f boards/raspberry_pi_4/$(DEPDIR)/gpio.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/idle.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_arm.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_proc.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_root.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_vm.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/interrupt.Po
-	-rm -f boards/raspberry_pi_4/$(DEPDIR)/mailbox.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/main.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/pmap.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/proc.Po
@@ -1389,14 +1372,12 @@ maintainer-clean: maintainer-clean-am
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/debug.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/exception.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/globals.Po
-	-rm -f boards/raspberry_pi_4/$(DEPDIR)/gpio.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/idle.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_arm.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_proc.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_root.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/init_vm.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/interrupt.Po
-	-rm -f boards/raspberry_pi_4/$(DEPDIR)/mailbox.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/main.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/pmap.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/proc.Po

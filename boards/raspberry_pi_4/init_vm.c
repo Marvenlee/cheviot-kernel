@@ -23,7 +23,6 @@
 #include <kernel/board/init.h>
 #include <kernel/board/aux_uart.h>
 #include <kernel/board/interrupt.h>
-#include <kernel/board/gpio.h>
 #include <kernel/board/timer.h>
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -36,17 +35,15 @@
 #include <machine/cheviot_hal.h>
 
 
-/*
+/* @brief   Set pointers to RPI4 peripherals
  *
+ * The following RPI4 peripherals are mapped along with the kernel into the root_pagedir
+ * page tables.  See bootstrap.c in the bootloader.
  */
 void init_io_addresses(void)
 {
   timer_regs = (struct bcm2711_timer_registers *)bootinfo->timer_base;
-  gpio_regs  = (struct bcm2711_gpio_registers *)bootinfo->gpio_base;
-  aux_regs   = (struct bcm2711_aux_registers *)bootinfo->aux_base;  
-
-	hal_set_mbox_base((void *)bootinfo->mailbox_base);  
-	
+  aux_regs   = (struct bcm2711_aux_registers *)bootinfo->aux_base;  	
   gic_dist_regs      = (struct bcm2711_gic_dist_registers *) bootinfo->gicd_base;
   gic_cpu_iface_regs = (struct bcm2711_gic_cpu_iface_registers *) bootinfo->gicc_base[0];
 }
@@ -54,8 +51,9 @@ void init_io_addresses(void)
 
 /* @brief   Initialize the virual memory management system.
  *
- * Note that all of physical memory is mapped into the kernel along with areas
- * for peripheral registers for timers and GPIOs. for LEDs.
+ * Note that all of physical memory is mapped into the kernel.  Areas for the
+ * timer, aux uart and interrupt controller are already mapped into the kernel by the
+ * bootloader.
  */
 void init_vm(void)
 {

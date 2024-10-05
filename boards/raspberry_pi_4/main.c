@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -71,7 +71,7 @@ void Main(void)
 
   mem_size = (vm_addr)bootinfo->mem_size;
 
-  init_io_addresses();     // Rename to init_early_vm()
+  init_io_addresses();
 
   max_pid = NPROCESS + NTHREAD;
   max_process = NPROCESS;
@@ -88,8 +88,6 @@ void Main(void)
   
   init_bootstrap_allocator();
 
-  io_pagetable      = bootstrap_alloc(4096);
-  mailbuffer        = bootstrap_alloc(4096);
   cache_pagetable   = bootstrap_alloc(256 * 1024);  
   vector_table      = bootstrap_alloc(PAGE_SIZE);
   pageframe_table   = bootstrap_alloc(max_pageframe * sizeof(struct Pageframe));
@@ -106,8 +104,6 @@ void Main(void)
   kqueue_table      = bootstrap_alloc(max_kqueue * sizeof(struct KQueue));
   knote_table       = bootstrap_alloc(max_knote * sizeof(struct KNote));
   isr_handler_table = bootstrap_alloc(max_isr_handler * sizeof(struct ISRHandler));
-
-	mailbuffer_pa = (uint32_t *)pmap_va_to_pa((vm_addr)mailbuffer);
 	
   Info("calling init_io_pagetables (updates pagedir)"); 
 

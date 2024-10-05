@@ -24,8 +24,7 @@
 #define AUX_UART_BAUD           115200
 
 // Constants and macros
-//#define AUX_UART_IRQ            29
-#define AUX_UART_GPIO_ALT_FN    FN5         // Use alternate function FN5 for GPIO 14 and 15
+//#define AUX_UART_IRQ            29  // should be 90 something.
 #define AUX_UART_CLOCK          500000000
 #define AUX_MU_BAUD(baud)       ((AUX_UART_CLOCK/(baud*8))-1)
 

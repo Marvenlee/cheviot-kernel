@@ -27,14 +27,6 @@
 #include <kernel/vm.h>
 #include <kernel/interrupt.h>
 
-/*
- * Debugger
- */
-
-extern uint32_t screen_width;
-extern uint32_t screen_height;
-extern void *screen_buf;
-extern uint32_t screen_pitch;
 
 /*
  * Boot args
@@ -61,7 +53,6 @@ extern bits32_t pending_interrupts[3];
 extern uint32_t *vector_table;
 
 extern struct bcm2711_timer_registers *timer_regs;
-extern struct bcm2711_gpio_registers *gpio_regs;
 extern struct bcm2711_aux_registers *aux_regs;
 
 extern struct bcm2711_gic_dist_registers *gic_dist_regs;
@@ -77,11 +68,7 @@ extern vm_addr boot_base;
 extern vm_addr boot_ceiling;
 
 extern uint32_t *root_pagedir;
-extern uint32_t *io_pagetable;
 extern uint32_t *cache_pagetable;
-
-extern uint32_t *mailbuffer;
-extern uint32_t *mailbuffer_pa;
 
 
 #endif

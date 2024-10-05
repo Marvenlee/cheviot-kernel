@@ -158,7 +158,7 @@ syscall_table:
     .long sys_sigsuspend                // 78
     
     .long sys_mknod                     // 79
-    .long sys_renamemsgport             // 80       // TODO: Change to renamemount()
+    .long sys_renamemsgport             // 80       // TODO: Change to renameport()
     
     .long sys_chroot                    // 81
 
@@ -181,13 +181,13 @@ syscall_table:
     // TODO: Move into pi_mailbox server initially, use sendrec API
     // then move into device manager ring/ref monitor,
 
-		.long sys_rpi_mailbox								// 95   // Architecture-specific syscalls, to be
-		.long sys_rpi_configure_gpio				// 96   // moved out of kernel into "ring 1" "device manager"
-		.long sys_rpi_set_gpio							// 97   // once we support multiple protection rings
+		.long sys_deprecatedsyscall					// 95   // FIXME: Architecture-specific syscalls, to be
+		.long sys_deprecatedsyscall				  // 96   // moved out of kernel.
+		.long sys_deprecatedsyscall		  		// 97   // for gpio and mailbox access.
 
 		.long sys_clock_settime							// 98
 
-		.long sys_rpi_get_gpio         			// 99
+		.long sys_deprecatedsyscall         // 99   // FIXME: was rpi_get_gpio
 
     .long sys_sigreturn                 // 100
     
@@ -219,7 +219,7 @@ syscall_table:
     /*
     .long sys_thread_cancel
     .long sys_thread_setprio
-    .long sys_thread_setschedparam    
+    .long sys_thread_setschedparam    // Not needed?
     
     .long sys_thread_mutex_lock
     .long sys_thread_mutex_unlock
@@ -235,7 +235,7 @@ syscall_table:
     */
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 114
+#define MAX_SYSCALL                 116     // FIXME: Check newlib
 
 
 /* @brief   System call entry point

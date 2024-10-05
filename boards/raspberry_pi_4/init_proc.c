@@ -18,7 +18,7 @@
  * Kernel initialization.
  */
 
-#define KDEBUG  1
+//#define KDEBUG  1
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>

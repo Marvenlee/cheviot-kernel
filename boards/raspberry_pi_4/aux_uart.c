@@ -22,7 +22,6 @@
 
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>
-#include <kernel/board/gpio.h>
 #include <kernel/board/aux_uart.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -39,22 +38,6 @@
 void aux_uart_init(void)
 {
   int baud = AUX_UART_BAUD;
- /* 
-  hal_mmio_write(&aux_regs->enables, 1);
-  hal_mmio_write(&aux_regs->mu_ier_reg, 0);
-  hal_mmio_write(&aux_regs->mu_cntl_reg, 0);
-  hal_mmio_write(&aux_regs->mu_lcr_reg, 3);
-  hal_mmio_write(&aux_regs->mu_mcr_reg, 0);
-  hal_mmio_write(&aux_regs->mu_ier_reg, 0);
-  hal_mmio_write(&aux_regs->mu_iir_reg, 0xC6);
-  hal_mmio_write(&aux_regs->mu_baud_reg, AUX_MU_BAUD(baud)); 
-
-  // GPIO pins 14 and 15 must be configured as alternate function FN5 for Aux UART 
-  configure_gpio(14, AUX_UART_GPIO_ALT_FN, PULL_NONE);
-  configure_gpio(15, AUX_UART_GPIO_ALT_FN, PULL_NONE);
-
-  hal_mmio_write(&aux_regs->mu_cntl_reg, 3);   //enable RX/TX
-  */
 }
 
 

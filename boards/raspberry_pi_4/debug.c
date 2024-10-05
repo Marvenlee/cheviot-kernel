@@ -23,7 +23,6 @@
 #include <kernel/board/peripheral_base.h>
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>
-#include <kernel/board/gpio.h>
 #include <kernel/board/aux_uart.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>

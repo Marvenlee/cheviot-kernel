@@ -57,7 +57,6 @@ uint32_t *vector_table;
  * Peripheral addresses
  */
 struct bcm2711_timer_registers *timer_regs;
-struct bcm2711_gpio_registers *gpio_regs;
 struct bcm2711_aux_registers *aux_regs;
 struct bcm2711_gic_dist_registers *gic_dist_regs;
 struct bcm2711_gic_cpu_iface_registers *gic_cpu_iface_regs;
@@ -76,10 +75,7 @@ vm_addr boot_base;
 vm_addr boot_ceiling;
 
 uint32_t *root_pagedir;
-uint32_t *io_pagetable;
 uint32_t *cache_pagetable;
 
-uint32_t *mailbuffer;
-uint32_t *mailbuffer_pa;
 
 

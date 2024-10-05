@@ -165,7 +165,7 @@ int sys_replymsg(int fd, msgid_t msgid, int status, void *addr, size_t buf_sz)
   int i;
   int sc;
   
-  Info("sys_replymsg(status:%d)", status);
+//  Info("sys_replymsg(status:%d)", status);
   
   current_proc = get_current_process();  
   sb = get_superblock(current_proc, fd);
@@ -182,9 +182,7 @@ int sys_replymsg(int fd, msgid_t msgid, int status, void *addr, size_t buf_sz)
 
   msg->reply_status = status;
 
-	// FIXME: We may not have an riov (riov) can be null
-
-  if (msg->riov_cnt > 0) {
+  if (msg->riov_cnt > 0 && msg->riov != NULL) {
     iov_remaining = msg->riov[0].size;
     i = 0;
     nbytes_written = 0;
@@ -262,7 +260,7 @@ int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   
   nbytes_read = 0;
   
-  if (msg->siov_cnt > 0) {
+  if (msg->siov_cnt > 0 && msg->siov_cnt < IOV_MAX+1) {
     if (seekiov(msg->siov_cnt, msg->siov, offset, &i, &iov_remaining) != 0) {
       return -EINVAL;
     }
@@ -271,9 +269,7 @@ int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
       buf_remaining = buf_sz - nbytes_read;
       nbytes_to_read = (buf_remaining < iov_remaining) ? buf_remaining : iov_remaining;
 
-
       if (msg->ipc == IPCOPY && i > 0) {
-        Info("sys_readmsgmsg(ipcopy, i:%d)", i);
 
         ipcopy(&current_proc->as, msg->src_as,
                addr + nbytes_read,
@@ -319,8 +315,6 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   int iov_remaining;
   int i;
   int sc;
-
-  Info("sys_writemsg(addr:%08x, buf_sz: %u, offset:%u", (uint32_t)addr, (uint32_t)buf_sz, (uint32_t)offset);
   
   current_proc = get_current_process();  
   sb = get_superblock(current_proc, fd);
@@ -335,10 +329,9 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
     return -EINVAL;
   }
   
-	// FIXME: Check we have a valid riov (it can be null or zero length
   nbytes_written = 0;
 
-  if (msg->riov_cnt > 0) {
+  if (msg->riov != NULL && msg->riov_cnt > 0 && msg->riov_cnt < IOV_MAX) {
     if (seekiov(msg->riov_cnt, msg->riov, offset, &i, &iov_remaining) != 0) {
       return -EINVAL;
     }
@@ -352,9 +345,7 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
                msg->riov[i].addr + msg->riov[i].size - iov_remaining,
                addr + nbytes_written,
                nbytes_to_write);
-      } else {
-      
-        Info(".. copyin (addr:%08x, sz:%u)", (uint32_t)addr+nbytes_written, nbytes_to_write);
+      } else {      
         sc = CopyIn(msg->riov[i].addr + msg->riov[i].size - iov_remaining,
              addr + nbytes_written, nbytes_to_write);
       }
@@ -400,20 +391,23 @@ int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cn
   struct VNode *vnode;
   msgiov_t siov[IOV_MAX + 1];
   msgiov_t riov[IOV_MAX];
-  size_t sbuf_total_sz;
-  size_t rbuf_total_sz;
+  size_t sbuf_total_sz = 0;
+  size_t rbuf_total_sz = 0;
   int sc;
-  
+    
   if (siov_cnt < 1 || siov_cnt > IOV_MAX || riov_cnt < 0 || riov_cnt > IOV_MAX) {
+    Error("sys_sendmsg iov cnt out of range");
     return -EINVAL;
   }
 
   if (CopyIn(&siov[1], _siov, sizeof(msgiov_t) * siov_cnt) != 0) {
+    Error("sys_sendmsg _siov -EFAULT");
     return -EFAULT;
   }
 
   if (riov_cnt > 0) {
     if (CopyIn(riov, _riov, sizeof(msgiov_t) * riov_cnt) != 0) {
+      Error("sys_sendmsg _riov -EFAULT");
       return -EFAULT;
     }
   }
@@ -430,6 +424,7 @@ int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cn
   vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
+    Error("sys_sendmsg no vnode -EBADF");
     return -EBADF;
   }
 
@@ -438,8 +433,11 @@ int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cn
     return -EACCES;
   }
 #endif
+  vnode_lock(vnode);
 
   sc = vfs_sendmsg(vnode, subclass, siov_cnt, siov, riov_cnt, riov, sbuf_total_sz, rbuf_total_sz);
+
+  Error("sys_sendmsg sc = %d", sc);
 
   vnode_unlock(vnode);
   return sc;
