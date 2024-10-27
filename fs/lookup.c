@@ -366,31 +366,57 @@ int walk_component(struct lookupdata *ld)
   
   KASSERT(ld->parent != NULL);
 
-#if 0
-  if (sb->flags & MNTF_DEVFS_TTY_SPECIAL) {
-    if (StrCmp(ld->last_component, "tty") == 0) {
-      // TODO: Get controlling_tty of this process
-    }
-    
-  } else if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
-    return rc;
-  }  
-#else
   if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
     return rc;
   }
-#endif
 
   vnode_mounted_here = ld->vnode->vnode_mounted_here;
 
   // TODO: Check permissions/access here
-    
+
   if (vnode_mounted_here != NULL) {
-    vnode_put(ld->vnode);
-    ld->vnode = vnode_mounted_here;
-    vnode_inc_ref(ld->vnode);
-    vnode_lock(ld->vnode);
-  }
+      Info("lookup vnode mounted here");
+    if (is_last_component(ld) == true && (ld->flags & LOOKUP_NOFOLLOW) == 0) {
+      // Special-case handling of /dev/tty
+      
+      struct SuperBlock *sb = vnode_mounted_here->superblock;
+
+      Info("lookup is last component and follow");
+      Info("lookup sb->dev = %08x", sb->dev);
+      Info("lookup vnode here->mode = %o", vnode_mounted_here->mode);
+      Info("ld->vnode->mode = %o", ld->vnode->mode);
+
+      if (sb->dev == DEV_T_DEV_TTY && S_ISCHR(vnode_mounted_here->mode)) {        
+        Info("special case lookup for /dev/tty");
+        
+        struct Process *current = get_current_process();
+      	struct Session *current_session = get_session(current->sid);
+
+      	if (current_session != NULL) {
+          vnode_mounted_here = current_session->controlling_tty;
+        } else {
+          vnode_mounted_here = NULL;
+        }
+
+        if (vnode_mounted_here == NULL) {
+          vnode_put(ld->vnode);
+          ld->vnode = NULL;
+          return -EPERM;
+        }
+      }
+
+      vnode_put(ld->vnode);
+      ld->vnode = vnode_mounted_here;            
+      vnode_inc_ref(ld->vnode);
+      vnode_lock(ld->vnode);
+      
+    } else {
+      vnode_put(ld->vnode);
+      ld->vnode = vnode_mounted_here;            
+      vnode_inc_ref(ld->vnode);
+      vnode_lock(ld->vnode);
+    }    
+  }  
 
   return 0;
 }

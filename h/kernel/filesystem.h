@@ -212,8 +212,8 @@ struct SuperBlock
   struct Rendez rendez;
   bool busy;
 
-  int dev;            // FIXME: Unique major/minor id?
-
+  dev_t dev;
+  
   struct MsgPort msgport;
   struct MsgBacklog msgbacklog;
 
@@ -237,6 +237,9 @@ struct SuperBlock
 // SuperBlock.flags
 #define S_ABORT     (1 << 0)
 #define S_READONLY  (1 << 1)
+
+// Sepcial-case SuperBlock.dev major/minor numbers
+#define DEV_T_DEV_TTY   0x0500
 
 
 /* @brief   Entry in the Directory Name Lookup Cache (DNLC)

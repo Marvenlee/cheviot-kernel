@@ -40,8 +40,6 @@ int sys_stat(char *_path, struct stat *_stat) {
     return sc;
   }
   
-  Info("mode = %o", ld.vnode->inode_nr);
-
   stat.st_dev = ld.vnode->superblock->dev;
   stat.st_ino = ld.vnode->inode_nr;
   stat.st_mode = ld.vnode->mode;

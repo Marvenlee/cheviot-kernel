@@ -38,6 +38,8 @@ int sys_mknod(char *_path, uint32_t flags, struct stat *_stat)
   int sc;  
   struct VNode *vnode = NULL;
 
+  Info("sys_mknod");
+
   if (CopyIn(&stat, _stat, sizeof stat) != 0) {
     return -EFAULT;
   }
@@ -70,7 +72,10 @@ int sys_ismount(char *_path)
   int sc;  
   struct VNode *vnode = NULL;
 
-  if ((sc = lookup(_path, 0, &ld)) != 0) {
+  Info("sys_ismount");
+
+
+  if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
     Error("sys_ismount lookup failed: %d", sc);
     return sc;
   }
@@ -83,8 +88,10 @@ int sys_ismount(char *_path)
   vnode = ld.vnode;
   
   if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {
+    Info("is mount");
     sc = 1;
   } else {
+    Info("not mount");
     sc = 0;
   }
 
@@ -122,6 +129,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   int fd = -1;
   int error = -ENOTSUP;
   
+  Info("sys_createmsgport");
+
   current = get_current_process();
 
   if (CopyIn(&stat, _stat, sizeof stat) != 0) {
@@ -130,7 +139,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   }
 
   if (root_vnode != NULL) {
-    if ((error = lookup(_path, 0, &ld)) != 0) {
+    if ((error = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
       Error("createmsgport lookup failed");
       return error;
     }
@@ -199,14 +208,20 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   sb->reference_cnt = 1;
   sb->busy = false;
 
+  // TODO: dev_ stat.st_dev (major and minor numbers)
+  // Check major/minor numbers, are allocated by current process.
+
+  sb->dev = stat.st_dev;
+
+  Info("mount() stat.st_dev = %08x", stat.st_dev);  
+  Info("mount() sb->dev = %08x", sb->dev);
+  
   mount_root_vnode->flags = V_VALID | V_ROOT;
   mount_root_vnode->reference_cnt = 1;
   mount_root_vnode->uid = stat.st_uid;
   mount_root_vnode->gid = stat.st_gid;
   mount_root_vnode->mode = stat.st_mode;
   
-  // TODO: dev_ stat.st_dev (major and minor numbers)
-  // Check major/minor numbers, are allocated by current process.
   
   // TODO: Read-only filesystems don't need delayed writes
   if (S_ISDIR(mount_root_vnode->mode)) {
@@ -522,7 +537,7 @@ struct SuperBlock *alloc_superblock(void)
   memset(sb, 0, sizeof *sb);
   InitRendez (&sb->rendez);
   
-  sb->dev = sb - superblock_table;  		// FIXME: Needs to be major+minor device
+  sb->dev = 0xdead;
   return sb;
 }
 
