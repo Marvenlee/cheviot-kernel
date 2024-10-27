@@ -80,6 +80,7 @@ int sys_kevent(int kq, const struct kevent	*changelist, int nchanges,
 int sys_knotei(int fd, int ino_nr, long hint);
 
 int knote(knote_list_t *note_list, int hint);
+int knote_dequeue(knote_list_t *knote_list, int filter);
 
 void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread);
 

@@ -22,6 +22,7 @@
 #include <kernel/board/boot.h>
 #include <kernel/board/interrupt.h>
 #include <kernel/board/timer.h>
+#include <kernel/board/pmap.h>
 #include <kernel/filesystem.h>
 #include <kernel/lists.h>
 #include <kernel/proc.h>
@@ -76,6 +77,15 @@ vm_addr boot_ceiling;
 
 uint32_t *root_pagedir;
 uint32_t *cache_pagetable;
+
+uint32_t *root_pagedir_bu;
+
+uint32_t *pagedir_table;
+
+struct PmapPagedir *pmappagedir_table;
+
+pmappagedir_list_t free_pmappagedir_list;
+
 
 
 

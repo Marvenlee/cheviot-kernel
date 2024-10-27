@@ -27,6 +27,9 @@
 #include <sys/mount.h>
 
 /* @brief   Create a node on a file system that can be mounted onto
+ *
+ * TODO: Move this out into mknod.c.  Allow creation of named pipes/sockets.
+ * Change flags to mode, change _stat to dev_t
  */ 
 int sys_mknod(char *_path, uint32_t flags, struct stat *_stat)
 {
@@ -103,6 +106,8 @@ int sys_ismount(char *_path)
  * system. The sys_kevent, sys_getmsg, sys_replymsg, sys_readmsg and
  * sys_writemsg system calls are available to servers to process file
  * system requests.
+ *
+ * TODO: Rename back to mount()
  */ 
 int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backlog_sz)
 {

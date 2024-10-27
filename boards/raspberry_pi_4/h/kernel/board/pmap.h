@@ -21,6 +21,21 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+// Forward declarations
+struct PmapPagedir;
+
+// Pmap pagetable list
+LIST_TYPE(PmapPagedir, pmappagedir_list_t, pmappagedir_link_t);
+
+
+/* @brief   Metadata for allocating page directories.
+ */
+struct PmapPagedir
+{
+  uint32_t *pagedir;
+  pmappagedir_link_t free_link;
+};
+
 
 
 #endif

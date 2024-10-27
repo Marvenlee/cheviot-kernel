@@ -21,6 +21,7 @@
 #include <kernel/board/arm.i>
 #include <kernel/board/task.i>
 #include <kernel/board/macros.i>
+#include <machine/board/hal_arm.i>
 
 // Stacks : TODO:  Some will become per-processor
 .global svc_stack_top

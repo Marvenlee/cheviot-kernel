@@ -43,8 +43,7 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   struct VNode *vnode;
   struct fsreq req = {0};
   struct fsreply reply = {0};
-  msgiov_t siov[2];
-  msgiov_t riov[1];
+  msgiov_t siov[1];
   size_t name_sz;
   int sc;
 
@@ -59,15 +58,10 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   req.args.lookup.dir_inode_nr = dvnode->inode_nr;
   req.args.lookup.name_sz = name_sz;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[1].addr = name;
-  siov[1].size = name_sz;
-  
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-  
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  siov[0].addr = name;
+  siov[0].size = name_sz;
+    
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
 
   if (sc != 0) {
     Error("vfs_lookup failed, sc:%d", sc);
@@ -115,8 +109,7 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   struct VNode *vnode;
   struct fsreq req = {0};
   struct fsreply reply = {0};
-  msgiov_t siov[2];
-  msgiov_t riov[1];
+  msgiov_t siov[1];
   size_t name_sz;
   int sc;
 
@@ -135,15 +128,10 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   req.args.create.uid = stat->st_uid;
   req.args.create.gid = stat->st_gid;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[1].addr = name;
-  siov[1].size = name_sz;
-  
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-  
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  siov[0].addr = name;
+  siov[0].size = name_sz;
+    
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
 
   if (sc != 0) {
     Error("vfs_create failed, sc:%d", sc);
@@ -188,11 +176,8 @@ int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov,
   req.args.sendmsg.subclass = subclass;
   req.args.sendmsg.ssize = sbuf_total_sz;
   req.args.sendmsg.rsize = rbuf_total_sz;
-
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
   
-  nbytes_response = ksendmsg(&sb->msgport, IPCOPY, siov_cnt+1, siov, riov_cnt, riov);
+  nbytes_response = ksendmsg(&sb->msgport, IPCOPY, &req, NULL, siov_cnt, siov, riov_cnt, riov);
   return nbytes_response;
 }
 
@@ -204,7 +189,6 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
 {
   struct SuperBlock *sb;
   struct fsreq req = {0};
-  msgiov_t siov[1];
   msgiov_t riov[1];
   int nbytes_read;
 
@@ -224,16 +208,14 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
 
   req.args.read.sz = nbytes;
   
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
   riov[0].addr = dst;
   riov[0].size = nbytes;
 
-  nbytes_read = ksendmsg(&sb->msgport, ipc, NELEM(siov), siov, NELEM(riov), riov);
+  nbytes_read = ksendmsg(&sb->msgport, ipc, &req, NULL, 0, NULL, NELEM(riov), riov);
 
   if (nbytes_read < 0) {
     Error("vfs_read failed :%d", nbytes_read);
-    return nbytes_read;    
+    return nbytes_read;
   }
 
   if (offset != NULL) {
@@ -250,7 +232,7 @@ ssize_t vfs_write(struct VNode *vnode, int ipc, void *src, size_t nbytes, off64_
 {
   struct SuperBlock *sb;
   struct fsreq req = {0};
-  msgiov_t siov[2];
+  msgiov_t siov[1];
   int nbytes_written;
 
   sb = vnode->superblock;
@@ -266,12 +248,10 @@ ssize_t vfs_write(struct VNode *vnode, int ipc, void *src, size_t nbytes, off64_
 
   req.args.write.sz = nbytes;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[1].addr = src;
-  siov[1].size = nbytes;
+  siov[0].addr = src;
+  siov[0].size = nbytes;
 
-  nbytes_written = ksendmsg(&sb->msgport, ipc, NELEM(siov), siov, 0, NULL);
+  nbytes_written = ksendmsg(&sb->msgport, ipc, &req, NULL, NELEM(siov), siov, 0, NULL);
   
   if (nbytes_written < 0) {
     return nbytes_written;  
@@ -293,8 +273,7 @@ int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
   struct fsreq req = {0};
   struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[1];
-  msgiov_t riov[2];
+  msgiov_t riov[1];
   int nbytes_read;
 
   sb = vnode->superblock;
@@ -303,16 +282,11 @@ int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
   req.args.readdir.inode_nr = vnode->inode_nr;
   req.args.readdir.offset = *cookie;
   req.args.readdir.sz = nbytes;
-
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
   
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-  riov[1].addr = dst;
-  riov[1].size = nbytes;
+  riov[0].addr = dst;
+  riov[0].size = nbytes;
 
-  nbytes_read = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  nbytes_read = ksendmsg(&sb->msgport, IPCOPY, &req, &reply, 0, NULL, NELEM(riov), riov);
   
   if (nbytes_read < 0) {
     return nbytes_read;
@@ -332,8 +306,7 @@ int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
   struct fsreq req = {0};
   struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[2];
-  msgiov_t riov[1];
+  msgiov_t siov[1];
   struct VNode *vnode = NULL;
   int sc;
 
@@ -349,15 +322,10 @@ int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
   
   // TODO: Copy stat fields to req
   
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[1].addr = name;
-  siov[1].size = req.args.mknod.name_sz;
+  siov[0].addr = name;
+  siov[0].size = req.args.mknod.name_sz;
   
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
   
   if (sc < 0) {
     return sc;
@@ -390,8 +358,7 @@ int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
   struct fsreq req = {0};
   struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[2];
-  msgiov_t riov[1];
+  msgiov_t siov[1];
   struct VNode *vnode = NULL;
   int sc;
 
@@ -407,15 +374,10 @@ int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
   
   // TODO: Copy stat fields to req
   
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[1].addr = name;
-  siov[1].size = req.args.mkdir.name_sz;
+  siov[0].addr = name;
+  siov[0].size = req.args.mkdir.name_sz;
   
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
   
   if (sc < 0) {
     return sc;
@@ -446,10 +408,8 @@ int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
 int vfs_rmdir(struct VNode *dvnode, char *name)
 {
   struct fsreq req = {0};
-  struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[2];
-  msgiov_t riov[1];
+  msgiov_t siov[1];
   int sc;
   
   sb = dvnode->superblock;
@@ -458,15 +418,10 @@ int vfs_rmdir(struct VNode *dvnode, char *name)
   req.args.rmdir.dir_inode_nr = dvnode->inode_nr;
   req.args.rmdir.name_sz = StrLen(name) + 1;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[2].addr = name;
-  siov[2].size = req.args.rmdir.name_sz;
+  siov[0].addr = name;
+  siov[0].size = req.args.rmdir.name_sz;
 
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);  
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
   return sc;
 }
 
@@ -477,10 +432,7 @@ int vfs_rmdir(struct VNode *dvnode, char *name)
 int vfs_truncate(struct VNode *vnode, size_t size)
 {
   struct fsreq req = {0};
-  struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[1];
-  msgiov_t riov[1];  
   int sc;
   int sz;
 
@@ -491,13 +443,7 @@ int vfs_truncate(struct VNode *vnode, size_t size)
   req.args.truncate.inode_nr = vnode->inode_nr;
   req.args.truncate.size = size;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req,  NULL, 0, NULL, 0, NULL);
   return sc;
 }
 
@@ -518,10 +464,7 @@ int vfs_rename(struct VNode *src_dvnode, char *src_name,
 int vfs_chmod(struct VNode *vnode, mode_t mode)
 {
   struct fsreq req = {0};
-  struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[1];
-  msgiov_t riov[1];
   int sc;
   
   sb = vnode->superblock;
@@ -530,13 +473,7 @@ int vfs_chmod(struct VNode *vnode, mode_t mode)
   req.args.chmod.inode_nr = vnode->inode_nr;
   req.args.chmod.mode = mode;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
   return sc;
 }
 
@@ -547,10 +484,7 @@ int vfs_chmod(struct VNode *vnode, mode_t mode)
 int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid)
 {
   struct fsreq req = {0};
-  struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[1];
-  msgiov_t riov[1];
   int sc;
   
   sb = vnode->superblock;
@@ -560,13 +494,7 @@ int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid)
   req.args.chown.uid = uid;
   req.args.chown.gid = gid;
   
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-  
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
   return sc;
 }
 
@@ -579,10 +507,8 @@ int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid)
 int vfs_unlink(struct VNode *dvnode, char *name)
 {
   struct fsreq req = {0};
-  struct fsreply reply = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[2];
-  msgiov_t riov[1];
+  msgiov_t siov[1];
   int sc;
   
   sb = dvnode->superblock;
@@ -591,15 +517,10 @@ int vfs_unlink(struct VNode *dvnode, char *name)
   req.args.unlink.dir_inode_nr = dvnode->inode_nr;
   req.args.unlink.name_sz = StrLen(name) + 1;
 
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
-  siov[2].addr = name;
-  siov[2].size = req.args.unlink.name_sz;
+  siov[0].addr = name;
+  siov[0].size = req.args.unlink.name_sz;
 
-  riov[0].addr = &reply;
-  riov[0].size = sizeof reply;
-  
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, NELEM(riov), riov);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);
   return sc;
 }
 
@@ -641,18 +562,89 @@ int vfs_isatty(struct VNode *vnode)
 {
   struct fsreq req = {0};
   struct SuperBlock *sb;
-  msgiov_t siov[1];
   int sc;
   
   sb = vnode->superblock;
 
   req.cmd = CMD_ISATTY;
   req.args.isatty.inode_nr = vnode->inode_nr;
-
-  siov[0].addr = &req;
-  siov[0].size = sizeof req;
   
-  sc = ksendmsg(&sb->msgport, KUCOPY, NELEM(siov), siov, 0, NULL);
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
   return sc;
+}
+
+
+/* @brief   Read from a file or a device
+ */
+ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset)
+{
+  struct SuperBlock *sb;
+  struct fsreq req = {0};
+  int nbytes_read;
+
+  KASSERT(vnode != NULL);
+        
+  sb = vnode->superblock;
+
+  req.cmd = CMD_READ;
+  req.args.read.inode_nr = vnode->inode_nr;
+  
+  if (offset != NULL) {
+    req.args.read.offset = *offset;
+  } else {
+    req.args.read.offset = 0;
+  }
+
+  req.args.read.sz = nbytes;
+  
+  nbytes_read = ksendmsg(&sb->msgport, ipc, &req, NULL, 0, NULL, riov_cnt, riov);
+
+  if (nbytes_read < 0) {
+    Error("vfs_read failed :%d", nbytes_read);
+    return nbytes_read;
+  }
+
+  if (offset != NULL) {
+    *offset += nbytes_read;
+  }
+
+  return nbytes_read;
+}
+
+
+/* @brief   Synchronous write to a file or device
+ */
+ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset)
+{
+  struct SuperBlock *sb;
+  struct fsreq req = {0};
+  int nbytes_written;
+
+  KASSERT(vnode != NULL);
+
+  sb = vnode->superblock;
+
+  req.cmd = CMD_WRITE;
+  req.args.write.inode_nr = vnode->inode_nr;
+
+  if (offset != NULL) {
+    req.args.write.offset = *offset;
+  } else {
+    req.args.write.offset = 0;
+  }
+
+  req.args.write.sz = nbytes;
+
+  nbytes_written = ksendmsg(&sb->msgport, ipc, &req, NULL, siov_cnt, siov, 0, NULL);
+  
+  if (nbytes_written < 0) {
+    return nbytes_written;  
+  }
+      
+  if (offset != NULL) {
+    *offset += nbytes_written;
+  }
+
+  return nbytes_written;
 }
 

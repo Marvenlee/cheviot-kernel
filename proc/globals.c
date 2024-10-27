@@ -103,6 +103,8 @@ volatile spinlock_t timer_slock;
 volatile long hardclock_time;
 volatile long softclock_time;
 
+uint64_t usage_start_usec = 0;
+
 // timer_list_t free_timer_list;
 // int max_timer;
 // struct Timer *timer_table;

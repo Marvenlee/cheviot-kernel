@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -57,8 +57,12 @@
  * IFS process is the root process, it forks to create the process that handles
  * the IFS mount.
  *
- * TODO: Remove fixdd area of kernel memory used for file cache, allocate dynamically with
+ * TODO: Remove fixed area of kernel memory used for file cache, allocate dynamically with
  *       alloc_page().
+ *
+ * TODO: Handle framebuffer memory region (map as write combine?).
+ *
+ * TODO: Replace pmappage_dir table and pagedir_table, just have separate pool for 64k and 16k allocations.
  *
  * TODO: Remove fixed process table, replace with PID table?  Dynamically allocate process
  *       structs and thread structs with alloc_page
@@ -90,6 +94,12 @@ void Main(void)
 
   cache_pagetable   = bootstrap_alloc(256 * 1024);  
   vector_table      = bootstrap_alloc(PAGE_SIZE);
+
+  root_pagedir_bu   = bootstrap_alloc(PAGE_SIZE * 4);
+
+  pagedir_table     = bootstrap_alloc(max_process * PAGE_SIZE * 4);
+  pmappagedir_table = bootstrap_alloc(max_process * sizeof(struct PmapPagedir));
+
   pageframe_table   = bootstrap_alloc(max_pageframe * sizeof(struct Pageframe));
   buf_table         = bootstrap_alloc(max_buf * sizeof(struct Buf));
   pipe_table        = bootstrap_alloc(max_pipe * sizeof (struct Pipe));
@@ -105,59 +115,30 @@ void Main(void)
   knote_table       = bootstrap_alloc(max_knote * sizeof(struct KNote));
   isr_handler_table = bootstrap_alloc(max_isr_handler * sizeof(struct ISRHandler));
 	
-  Info("calling init_io_pagetables (updates pagedir)"); 
-
+	
   Info ("bootloader_base     : %08x", bootinfo->bootloader_base);
   Info ("bootloader_ceiliing : %08x", bootinfo->bootloader_ceiling);
-
   Info ("kernel_base         : %08x", bootinfo->kernel_base);
   Info ("kernel_ceiliing     : %08x", bootinfo->kernel_ceiling);
-
-  Info ("For bootstrap pagedir and tables....");  
+  Info ("For bootstrap pagedir and kernel pagetables....");  
   Info ("pagetable_base      : %08x", bootinfo->pagetable_base);
   Info ("pagetable_ceiliing  : %08x", bootinfo->pagetable_ceiling);
-
   Info ("kernel heap base : %08x", _heap_base);
   Info ("kernel heap top : %08x", _heap_current);
   
-
-  Info("calling InitDebug"); 
+  Info("Initializing kernel..."); 
 
   InitDebug();
-
-  Info("calling init_buffer_cache_pagetables"); 
-
   init_buffer_cache_pagetables();
-  
-  Info("calling init_arm"); 
-  
   init_arm();
-  
-  Info("calling init_vm"); 
-
   init_vm();
-
-  Info("calling init_interrupt_controller"); 
-
   init_interrupt_controller();
-
-  Info("calling init_timer_registers"); 
-
   init_timer_registers();
-  
-  Info("calling init_vfs"); 
-
   init_vfs();
-
-  Info("calling init_processes"); 
-
-  init_processes();  
-
-  Info("processes initialized");
-  Info("calling start_scheduler");
-  
+  init_processes();    
   start_scheduler();
 
+  // Catch fence, will not get here
   while (1) {
   }
 }
@@ -185,8 +166,11 @@ void *bootstrap_alloc(vm_size sz)
 {
   vm_addr va = _heap_current;
 
-  sz = ALIGN_UP(sz, PAGE_SIZE);
-  _heap_current += ALIGN_UP(sz, PAGE_SIZE);
+  sz = ALIGN_UP(sz, PAGE_SIZE * 4);
+
+  memset((void *)va, 0, sz);
+
+  _heap_current += ALIGN_UP(sz, PAGE_SIZE * 4);
   return (void *)va;
 }
 

@@ -24,7 +24,7 @@
 #include <kernel/vm.h>
 #include <sys/fsreq.h>
 #include <sys/mount.h>
-
+#include <sys/syslimits.h>
 
 /* @brief   Write the contents of a buffer to a file
  *
@@ -39,13 +39,17 @@ ssize_t sys_write(int fd, void *src, size_t sz)
   struct VNode *vnode;
   ssize_t xfered;
   struct Process *current;
+  int sc;
+  
+  if ((sc = bounds_check(src, sz)) != 0) {
+    return sc;
+  }  
   
   current = get_current_process();
   filp = get_filp(current, fd);
   vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
-    Error("sys_write fd:%d vnode null -EINVAL", fd);
     return -EINVAL;
   }
 
@@ -57,12 +61,10 @@ ssize_t sys_write(int fd, void *src, size_t sz)
   if (filp->flags & O_WRITE) == 0) {
     return -EACCES;
   } 
-  #endif  
-
+  #endif
   
   vnode_lock(vnode);
   
-  // TODO: Add write to cache path
   if (S_ISCHR(vnode->mode)) {
     xfered = write_to_char(vnode, src, sz);  
   } else if (S_ISREG(vnode->mode)) {
@@ -76,9 +78,9 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     xfered = -EINVAL;
   }  
 
-  // TODO: Update accesss timestamps
-  vnode_unlock(vnode);
+  // Update accesss timestamps
   
+  vnode_unlock(vnode);  
   return xfered;
 }
 

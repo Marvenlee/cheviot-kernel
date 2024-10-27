@@ -17,6 +17,8 @@
 #include <kernel/board/arm.i>
 #include <kernel/board/task.i>
 #include <kernel/board/macros.i>
+#include <machine/board/hal_arm.i>
+
 
 .global swi_vector
 .global prefetch_abort_vector
@@ -172,7 +174,7 @@ syscall_table:
 		.long sys_getgroups									// 88
 		.long sys_getpriority	  						// 89
 		.long sys_setpriority								// 90
-		.long sys_deprecatedsyscall					// 91  FIXME: Was sys_sysconf
+		.long sys_sysconf         					// 91
 		.long sys_fchmod										// 92
 		.long sys_fchown										// 93
 
@@ -197,7 +199,7 @@ syscall_table:
 
     .long sys_ismount                   // 104
     
-    .long sys_getmsginfo                // 105 TODO: Deprecate, move into fsreq, remove fsreq from iov[0]
+    .long sys_deprecatedsyscall         // 105  // FIXME: was sys_getmsginfo
     
     .long sys_setsid                    // 106
     .long sys_getsid                    // 107
@@ -216,6 +218,13 @@ syscall_table:
     .long sys_setpgid                   // 115
     .long sys_getpgid                   // 116
 
+    .long sys_readmsgiov                // 117
+    .long sys_writemsgiov               // 118
+
+    .long sys_blkreadv                  // 119
+    
+    .long sys_get_cpu_usage             // 120
+    
     /*
     .long sys_thread_cancel
     .long sys_thread_setprio
@@ -235,7 +244,7 @@ syscall_table:
     */
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 116     // FIXME: Check newlib
+#define MAX_SYSCALL                 120
 
 
 /* @brief   System call entry point

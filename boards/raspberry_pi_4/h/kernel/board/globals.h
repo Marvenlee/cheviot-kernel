@@ -20,6 +20,7 @@
 #include <kernel/board/arm.h>
 #include <kernel/board/boot.h>
 #include <kernel/board/task.h>
+#include <kernel/board/pmap.h>
 #include <kernel/filesystem.h>
 #include <kernel/lists.h>
 #include <kernel/proc.h>
@@ -70,5 +71,12 @@ extern vm_addr boot_ceiling;
 extern uint32_t *root_pagedir;
 extern uint32_t *cache_pagetable;
 
+extern uint32_t *root_pagedir_bu;
+
+extern uint32_t *pagedir_table;
+
+extern struct PmapPagedir *pmappagedir_table;
+
+extern pmappagedir_list_t free_pmappagedir_list;
 
 #endif

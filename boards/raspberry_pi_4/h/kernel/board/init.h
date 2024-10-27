@@ -66,6 +66,7 @@ void init_vm(void);
 void init_io_pagetables(void);
 void init_buffer_cache_pagetables(void);
 void init_memory_map(void);
+void init_pmappagedir_table(void);
 void init_pageframe_flags(vm_addr base, vm_addr ceiling, bits32_t flags);
 void coalesce_free_pageframes(void);
 void *io_map(vm_addr pa, size_t sz, bool bufferable);

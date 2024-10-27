@@ -31,12 +31,10 @@
 #include <sys/execargs.h>
 
 
-
 // TODO: Move to filesystem/exec_root.c (or exec.c)
 
 /* Forward declarations */
 static int LoadRootElf(void *file_base, void **entry_point);
-static void *MapIFS(void *vaddr, vm_size sz, void *paddr, bits32_t flags);
 static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void *ifs_base, size_t ifs_size);
 ssize_t ReadIFS (void *base, off_t offset, void *vaddr, size_t sz);
 

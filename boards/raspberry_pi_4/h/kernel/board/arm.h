@@ -120,7 +120,7 @@ void interrupt_top_half(void);
 void interrupt_top_half_timer(void);
 void save_pending_interrupts(void);
 bool check_pending_interrupt(int irq);
-void clear_pending_interrupt(uint32_t irq_ack);
+void eoi_interrupt(uint32_t irq_ack);
 uint32_t get_pending_interrupt_word(int irq);
 
 void PrintUserContext(struct UserContext *uc);

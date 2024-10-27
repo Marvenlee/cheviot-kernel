@@ -61,6 +61,8 @@ void init_vm(void)
 
   init_memory_map();
 
+  init_pmappagedir_table();
+
   boot_base = BOOT_BASE_ADDR;
   boot_ceiling = BOOT_CEILING_ADDR;
   core_pagetable_base = bootinfo->pagetable_base;
@@ -128,6 +130,20 @@ void init_memory_map(void)
     pmap_pageframe_init(&pageframe_table[t].pmap_pageframe);
   }
 }
+
+
+/*
+ *
+ */ 
+void init_pmappagedir_table(void)
+{
+  LIST_INIT(&free_pmappagedir_list);
+  
+  for (int t=0; t<max_process; t++) {
+    LIST_ADD_TAIL(&free_pmappagedir_list, &pmappagedir_table[t], free_link);
+    pmappagedir_table[t].pagedir = &pagedir_table[t * 4096];
+  }
+} 
 
 
 /*

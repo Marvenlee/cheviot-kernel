@@ -67,11 +67,10 @@
 .equ CPU_CURRENT_PROCESS,       0
 .equ CPU_CURRENT_THREAD,        4
 .equ CPU_IDLE_PROCESS,          8
-.equ CPU_RESCHEDULE_REQUEST,    12
-.equ CPU_SVC_STACK,             16
-.equ CPU_INTERRUPT_STACK,       20
-.equ CPU_EXCEPTION_STACK,       24
-.equ SIZEOF_CPU,                28
+.equ CPU_SVC_STACK,             12
+.equ CPU_INTERRUPT_STACK,       16
+.equ CPU_EXCEPTION_STACK,       20
+.equ SIZEOF_CPU,                24
 
 
 // cpu_table

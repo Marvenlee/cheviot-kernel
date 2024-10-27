@@ -24,11 +24,7 @@
 #include <kernel/vm.h>
 #include <sys/fsreq.h>
 #include <sys/mount.h>
-
-
-// FIXME: Unsure why but transfers of 1024 (2 blocks) is dramatically slower
-// A larger transfer size should be faster with less context switches and system calls.
-#define MAX_BLOCK_TRANSFER 512
+#include <limits.h>
 
 
 /* @brief   Read from a block device
@@ -40,13 +36,11 @@
  */
 ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset)
 {
-  ssize_t xfered = 0;
-  size_t xfer = 0;
   size_t total_xfered = 0;
 
   while (total_xfered < sz) {
-    xfer = ((sz - total_xfered) < MAX_BLOCK_TRANSFER) ? (sz - total_xfered) : MAX_BLOCK_TRANSFER;
-    xfered = vfs_read(vnode, IPCOPY, dst, xfer, offset);
+    size_t remaining = sz - total_xfered;
+    ssize_t xfered = vfs_read(vnode, IPCOPY, dst, remaining, offset);
     
     if (xfered == 0) {
       return total_xfered;
@@ -60,7 +54,7 @@ ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
       }
     }
 
-    dst += xfered;  
+    dst += xfered;
     total_xfered += xfered;
   }
 
@@ -72,13 +66,11 @@ ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
  */
 ssize_t write_to_block(struct VNode *vnode, void *src, size_t sz, off64_t *offset)
 {
-  ssize_t xfered = 0;
-  size_t xfer = 0;
 	size_t total_xfered = 0;
 
   while (total_xfered < sz) {
-    xfer = ((sz - total_xfered) < MAX_BLOCK_TRANSFER) ? (sz - total_xfered) : MAX_BLOCK_TRANSFER;
-    xfered = vfs_write(vnode, IPCOPY, src, xfer, offset);      
+    size_t remaining = sz - total_xfered;
+    ssize_t xfered = vfs_write(vnode, IPCOPY, src, remaining, offset);      
   
     if (xfered == 0) {
       return total_xfered;
@@ -97,5 +89,41 @@ ssize_t write_to_block(struct VNode *vnode, void *src, size_t sz, off64_t *offse
   }
 
   return total_xfered;
+}
+
+
+/*
+ *
+ */
+ssize_t read_from_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset)
+{
+  ssize_t xfer = 0;
+  ssize_t xfered;
+  
+  for (int t=0; t<iov_cnt; t++) {
+    xfer += iov->size;
+  }
+
+  xfered = vfs_readv(vnode, IPCOPY, iov, iov_cnt, xfer, offset);
+    
+  return xfered;
+}
+
+
+/*
+ *
+ */
+ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset)
+{
+  ssize_t xfer = 0;
+  ssize_t xfered;
+  
+  for (int t=0; t<iov_cnt; t++) {
+    xfer += iov->size;
+  }
+
+  xfered = vfs_writev(vnode, IPCOPY, iov, iov_cnt, xfer, offset);
+    
+  return xfered;
 }
 

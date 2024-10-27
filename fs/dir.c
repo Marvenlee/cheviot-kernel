@@ -109,27 +109,27 @@ int sys_opendir(char *_path)
 {
   struct Process *current;
   struct lookupdata ld;
-  int fd;
   struct Filp *filp = NULL;
-  int err;
-
+  int fd;
+  int sc;
 
   current = get_current_process();
 
-  if ((err = lookup(_path, 0, &ld)) != 0) {
-    return err;
+  if ((sc = lookup(_path, 0, &ld)) != 0) {
+    return sc;
   }
 
   if (!S_ISDIR(ld.vnode->mode)) {
-    err = -EINVAL;
-    goto exit;
+    vnode_put(ld.vnode);
+    return -EINVAL;
   }
 
   fd = alloc_fd_filp(current);
 
   if (fd < 0) {
-    err = -ENOMEM;
-    goto exit;
+    free_fd_filp(current, fd);
+    vnode_put(ld.vnode);
+    return -ENOMEM;
   }
 
   filp = get_filp(current,fd);
@@ -139,16 +139,11 @@ int sys_opendir(char *_path)
   vnode_unlock(filp->u.vnode);
 
   return fd;
-
-exit:
-    free_fd_filp(current, fd);
-    vnode_put(ld.vnode);
-    return -ENOMEM;
 }
 
 
 /*
- *
+ * TODO: Remove
  */
 void invalidate_dir(struct VNode *dvnode)
 {
@@ -163,12 +158,6 @@ void invalidate_dir(struct VNode *dvnode)
  * @param   dst, pointer to user-mode buffer to read directory entries into
  * @param   sz, size of user-mode buffer
  * @return  number of bytes read, 0 indicates end of directory, negative errno values on failure
- *
- * TODO: Add 4K dir cache in kernel if entire directory is less than 4K. Otherwise readthru
- * to the FS handler.  rmdir, rm etc should invalidate dir cache.
- * 
- * TODO: Need direct copy/page remap from fs handler server to client user-space without the
- * need for a buffer in the kernel, allows for bigger buffers.
  */
 ssize_t sys_readdir(int fd, void *dst, size_t sz)
 {
@@ -176,8 +165,11 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   struct VNode *vnode = NULL;
   ssize_t dirents_sz;
   off64_t cookie;
-  uint8_t dirbuf[512];    // FIXME: Replace with inter-address-space direct copy
   struct Process *current;
+
+  if (sz < 512) {     // TODO: Ensure size is big enough for name_max + 1 + sizeof struct dirent.
+    return -EINVAL;
+  }
 
   current = get_current_process();
   filp = get_filp(current, fd);
@@ -194,18 +186,12 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   cookie = filp->offset;
 
   vnode_lock(vnode);
-  dirents_sz = vfs_readdir(vnode, dirbuf, sizeof dirbuf, &cookie);
-
-  if (dirents_sz > 0) {
-    CopyOut(dst, dirbuf, dirents_sz);
-  }
+  dirents_sz = vfs_readdir(vnode, dst, sz, &cookie);
   
   filp->offset = cookie;
   
-  Info("sys_readdir, calling vnode_unlock");
   vnode_unlock(vnode);
   
-  Info("sys_readdir, ret %d", dirents_sz);  
   return dirents_sz;
 }
 

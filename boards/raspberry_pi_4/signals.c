@@ -110,7 +110,7 @@ void check_signals(struct UserContext *uc)
 	  return;
 	}		
 	
-	Info("caught_signals: %08x", caught_signals);
+//	Info("caught_signals: %08x", caught_signals);
 		
   if (caught_signals & SIGBIT(SIGKILL)) {
     Info("SIGKILL received");

@@ -152,8 +152,9 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   nevents_returned = 0;
 
   if (nevents > 0 && eventlist != NULL) {
-
-    current_thread->event_mask = current_thread->kevent_event_mask;
+    uint32_t saved_event_mask = current_thread->event_mask;
+    
+    current_thread->event_mask |= current_thread->kevent_event_mask;
     sc = 0;
     
     // Prioritize events    
@@ -165,10 +166,10 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
       }        
     }
 
-    current_thread->event_mask = 0;
-
     process_event_knotes(kqueue, current_thread);
-    
+
+    current_thread->event_mask = saved_event_mask;
+        
     if (sc == 0) {
       while (nevents_returned < nevents) {        
         knote = LIST_HEAD(&kqueue->pending_list);
@@ -178,7 +179,7 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
         }
 
         memset(&ev, 0, sizeof ev);
-        ev.ident = knote->ident;  
+        ev.ident = knote->ident;
         ev.filter = knote->filter;          
         ev.flags  = knote->flags;
         ev.fflags = knote->fflags;
@@ -199,13 +200,17 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   }
 
   kqueue->busy = false;
-  TaskWakeup(&kqueue->busy_rendez);  
-
+  
+  if (LIST_HEAD(&kqueue->pending_list) != NULL) {
+    TaskWakeup(&kqueue->busy_rendez);  
+  }
+  
   if (sc != 0) {
     Info("kqueue A sc:%d", sc);  
     return sc;
   }
   
+  Info("kevent: events:%d", nevents_returned);
   return nevents_returned;
 
 exit:
@@ -229,12 +234,13 @@ void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
     return;
   }
   
-  if (current_thread->kevent_event_mask == 0 || current_thread->event_knote == NULL) {
+  if (current_thread->event_mask == 0 || current_thread->event_knote == NULL) {
     return;
   }
   
   int_state = DisableInterrupts();
-  caught_events = (current_thread->pending_events & current_thread->kevent_event_mask);
+  uint32_t pending_old = current_thread->pending_events;
+  caught_events = (current_thread->pending_events & current_thread->event_mask);
   current_thread->pending_events &= ~caught_events;
   RestoreInterrupts(int_state);
 
@@ -242,6 +248,7 @@ void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
     return;
   }
 
+  Info("caught:%08x, pend:%08x", caught_events, pending_old);
   current_thread->event_knote->fflags = caught_events;
   knote(&current_thread->knote_list, 0);
 }
@@ -256,7 +263,7 @@ void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
  *
  * Perhaps change it to sys_setvnodeattrs(fd, ino_nr, flags);
  */
-int sys_knotei(int fd, int ino_nr, long hint)
+int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, add filter argument
 {
   struct SuperBlock *sb;
   struct VNode *vnode;
@@ -299,15 +306,17 @@ int close_kqueue(struct Process *proc, int fd)
 /* @brief   Add an event note to a kqueue's pending list
  *
  * @param   knote_list, list of knotes attached to an object
- * @param   hint, a hint as to why the knote was added
+ * @param   hint, a hint as to why the knote was added   TODO: Should be filter
  * @return  0 on success, negative errno on error
  */
-int knote(knote_list_t *knote_list, int hint)
+int knote(knote_list_t *knote_list, int hint)    // hint should be bitfield, add filter argument
 {
   struct KNote *knote;
   struct KQueue *kqueue;
 
   knote = LIST_HEAD(knote_list);
+ 
+  Info("knote(list:%08x, hint:%d) knote:%08x", (uint32_t)knote_list, hint, (uint32_t)knote);
   
   while(knote != NULL) {
     knote->pending = true;
@@ -326,6 +335,40 @@ int knote(knote_list_t *knote_list, int hint)
     
   return 0;
 }
+
+
+/* @brief   Remove event notes to a kqueue's pending list
+ *
+ * @param   knote_list, list of knotes attached to an object
+ * @param   hint, a hint as to why the knote was added
+ * @return  0 on success, negative errno on error
+ */
+int knote_dequeue(knote_list_t *knote_list, int filter)    // add hint, should be bitfield
+{
+  struct KNote *knote;
+  struct KQueue *kqueue;
+
+  knote = LIST_HEAD(knote_list);
+  
+  Info("knote_dequeue(list:%08x, filter:%d) knote:%08x", (uint32_t)knote_list, filter, (uint32_t)knote);
+  
+  while(knote != NULL) {
+    if (knote->filter == filter) {
+      if (knote->enabled == true && knote->on_pending_list == true) {        
+        kqueue = knote->kqueue;
+        LIST_REM_ENTRY(&kqueue->pending_list, knote, pending_link);
+        knote->pending = false;
+        knote->hint = 0;
+        knote->on_pending_list = false;
+      }
+    }
+        
+    knote = LIST_NEXT(knote, object_link);
+  }
+    
+  return 0;
+}
+
 
 
 /*

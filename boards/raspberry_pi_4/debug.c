@@ -110,6 +110,13 @@ void DoLog(const char *format, ...)
 	
   if (processes_initialized) {
   	current = get_current_process();
+
+#if 1  	
+  	if (strstr(current->basename, "aux") != NULL) {
+  	  goto exit;
+  	}
+#endif
+  	
     Snprintf(&klog_entry[0], KLOG_WIDTH, "%4d: %s:", get_current_tid(), current->basename);
 	  KPrintString(&klog_entry[0]);
   } else {
@@ -119,7 +126,8 @@ void DoLog(const char *format, ...)
   Vsnprintf(&klog_entry[0], KLOG_WIDTH, format, ap);
   KPrintString(&klog_entry[0]);    
   KPrintString("\n");
-  
+
+exit:  
   va_end(ap);
 }
 

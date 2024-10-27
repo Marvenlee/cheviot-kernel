@@ -58,28 +58,28 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
 
   if ((flags & MEM_MASK) == MEM_ALLOC) {
     if ((flags & CACHE_MASK) == CACHE_DEFAULT)
-      pa_bits |= L2_C; // FIXME: | L2_S | L2_B;  
+      pa_bits |= L2_C | L2_B; // FIXME: | L2_S | L2_B;  
     else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
-      pa_bits |= 0; // L2_B | L2_C;
+      pa_bits |= L2_B | L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
-      pa_bits |= 0; // L2_C;
+      pa_bits |= L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITECOMBINE)
-      pa_bits |= 0; // L2_B;
+      pa_bits |= L2_B;
     else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
-      pa_bits |= L2_C; // | L2_S;// | L2_B;
+      pa_bits |= 0;
   }
 
   if ((flags & MEM_MASK) == MEM_PHYS) {
     if ((flags & CACHE_MASK) == CACHE_DEFAULT)
       pa_bits |= 0;
     else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
-      pa_bits |= 0; // L2_B | L2_C;
+      pa_bits |= L2_B | L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
-      pa_bits |= 0; // L2_C;
+      pa_bits |= L2_C;
     else if ((flags & CACHE_MASK) == CACHE_WRITECOMBINE)
-      pa_bits |= 0; // L2_B;
+      pa_bits |= L2_B;
     else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
@@ -90,17 +90,41 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
 }
 
 
-void pmap_write(uint32_t *addr, uint32_t data)
+void pmap_write_l1(uint32_t *pd, int i, uint32_t data)
 {
-  hal_mmio_write(addr, data);
-  hal_flush_dcache(addr, addr + 1);
+  uint32_t *pde;
+  
+  pde = &pd[i];
+
   hal_dsb();
+  *(volatile uint32_t *)pde = data;
+  hal_dsb();
+  hal_dmb();
+  
+  hal_flush_dcache((uint32_t *)pde, (uint8_t *)pde + sizeof(uint32_t));
+
   hal_invalidate_tlb();
-//  hal_invalidate_tlb_va(data & 0xFFFFF000);  // This should still work for L1
   hal_invalidate_icache();
   hal_invalidate_branch();
+}
+
+
+void pmap_write_l2(uint32_t *pt, int i, uint32_t data)
+{
+  uint32_t *pte;
+  
+  pte = &pt[i];
+
   hal_dsb();
-  hal_isb();
+  *(volatile uint32_t *)pte = data;
+  hal_dsb();
+  hal_dmb();
+
+  hal_flush_dcache((uint32_t *)pte, (uint8_t *)pte + sizeof(uint32_t));
+
+  hal_invalidate_tlb();
+  hal_invalidate_icache();
+  hal_invalidate_branch();
 }
 
 
@@ -134,9 +158,7 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
     }
 
     phys_pt = (uint32_t *)pmap_va_to_pa((vm_addr)pt);
-    
-    // pmap->l1_table[pde_idx] = (uint32_t)phys_pt | L1_TYPE_C;    
-    pmap_write(&pmap->l1_table[pde_idx], (uint32_t)phys_pt | L1_TYPE_C);
+    pmap_write_l1(pmap->l1_table, pde_idx, (uint32_t)phys_pt | L1_TYPE_C);
   } else {
     phys_pt = (uint32_t *)(pmap->l1_table[pde_idx] & L1_C_ADDR_MASK);
     pt = (uint32_t *)pmap_pa_to_va((vm_addr)phys_pt);
@@ -148,8 +170,8 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
 
   // FIXME: Doesn't this delete pagetable if single PTE entry is not already free?
   if ((pt[pte_idx] & L2_TYPE_MASK) != L2_TYPE_INV) {
+  	pmap_write_l1(pmap->l1_table, pde_idx, L1_TYPE_INV);
     pmap_free_pagetable(pt);
-    pmap->l1_table[pde_idx] = L1_TYPE_INV;
     return -EINVAL;
   }
 
@@ -160,10 +182,12 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
   
   vpte->flags = flags;
   
-	pmap_write(&pt[pte_idx], pa | pa_bits);
 
   ptpf = pmap_va_to_pf((vm_addr)pt);
   ptpf->reference_cnt++;
+
+	pmap_write_l2(pt, pte_idx, pa | pa_bits);
+  hal_invalidate_tlb_va(va);
 
   return 0;
 }
@@ -217,16 +241,18 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
 
   vpte->flags = 0;
   
-  pmap_write(&pt[pte_idx], L2_TYPE_INV);
+  pmap_write_l2(pt, pte_idx, L2_TYPE_INV);
+  hal_invalidate_tlb_va(va);
 
   ptpf = pmap_va_to_pf((vm_addr)pt);
   ptpf->reference_cnt--;
 
   if (ptpf->reference_cnt == 0) {
+    pmap_write_l1(pmap->l1_table, pde_idx, L1_TYPE_INV);
     pmap_free_pagetable(pt);    
-    pmap_write(&pmap->l1_table[pde_idx], L1_TYPE_INV);
   }
 
+  
   return 0;
 }
 
@@ -273,8 +299,9 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, bits32_t flags)
   vpte->flags = flags;
   pa_bits = pmap_calc_pa_bits(vpte->flags);
 
-	pmap_write(&pt[pte_idx], pa | pa_bits);
-
+	pmap_write_l2(pt, pte_idx, pa | pa_bits);
+  hal_invalidate_tlb_va(va);
+  
   return 0;
 }
 
@@ -301,6 +328,8 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
     return -1;    
   }
 
+  Info("pde_idx %d: pde:%08x", pde_idx, pmap->l1_table[pde_idx]);
+
   phys_pt = (uint32_t *)(pmap->l1_table[pde_idx] & L1_C_ADDR_MASK);
   pt = (uint32_t *)pmap_pa_to_va((vm_addr)phys_pt);
 
@@ -313,6 +342,8 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
     Info("extract failed, no page table entry");
     return -1;
   }
+
+  Info("pmap_extract: va:%08x, pte:%08x", (uint32_t)va, (uint32_t)pt[pte_idx]);
 
   *pa = current_paddr;
   *flags = vpte->flags;
@@ -392,13 +423,15 @@ uint32_t *pmap_alloc_pagetable(void)
   vpte_base = (struct PmapVPTE *)((uint8_t *)pt + VPTE_TABLE_OFFS);
 
   for (t = 0; t < 256; t++) {
-    *(pt + t) = L2_TYPE_INV;
+    pmap_write_l2 (pt, t, L2_TYPE_INV);
 
     vpte = vpte_base + t;
     vpte->link.next = NULL;
     vpte->link.prev = NULL;
     vpte->flags = 0;
   }
+
+  hal_flush_dcache((void *)pt, (void *)pt + PAGE_SIZE);
 
   return pt;
 }
@@ -431,24 +464,30 @@ void pmap_free_pagetable(uint32_t *pt)
  */
 int pmap_create(struct AddressSpace *as)
 {
-  uint32_t *pd;
+  struct PmapPagedir *ppd;
+  uint32_t *pd = NULL;
   int t;
-  struct Pageframe *pf;
 
+  Info("pmap_create: as:%08x", (uint32_t)as);
 	
-  if ((pf = alloc_pageframe(PAGEDIR_SZ)) == NULL) {
-    Error("PmapCreate failed to alloc pageframe");
-    return -1;
-  }
+	ppd = LIST_HEAD(&free_pmappagedir_list);
+	
+	if (ppd == NULL) {
+	  return -1;
+	}
 
-  pd = (uint32_t *)pmap_pf_to_va(pf);
+  LIST_REM_HEAD(&free_pmappagedir_list, free_link);
+  
+  pd = ppd->pagedir;
+
+  Info(".. pagedir:%08x", (uint32_t)pd);
 
   for (t = 0; t < 2048; t++) {
-    *(pd + t) = L1_TYPE_INV;
+    pmap_write_l1(pd, t, L1_TYPE_INV);
   }
 
   for (t = 2048; t < 4096; t++) {
-    *(pd + t) = root_pagedir[t];
+    pmap_write_l1(pd, t, root_pagedir[t]);
   }
 
   as->pmap.l1_table = pd;
@@ -463,11 +502,13 @@ int pmap_create(struct AddressSpace *as)
 void pmap_destroy(struct AddressSpace *as)
 {
   uint32_t *pd;
-  struct Pageframe *pf;
-
+  int index;
+  
   pd = as->pmap.l1_table;
-  pf = pmap_va_to_pf((vm_addr)pd);
-  free_pageframe(pf);
+
+  index = (pd - pagedir_table) / 4096; 
+  
+  LIST_ADD_TAIL(&free_pmappagedir_list, &pmappagedir_table[index], free_link);
 }
 
 
@@ -554,21 +595,19 @@ void pmap_flush_tlbs(void)
  */
 void pmap_switch(struct Process *next, struct Process *current)
 {
-  /* Assign new user's page dir to TTBR0 register */
-  uint32_t va, pa, flags;
-
+  uint32_t pagedir = (uint32_t)(next->as.pmap.l1_table);
+  
   hal_dsb();
   hal_isb();
 
-  hal_set_ttbr0((pmap_va_to_pa((vm_addr)next->as.pmap.l1_table)));
+  hal_set_ttbr0(pmap_va_to_pa(pagedir));
 
   hal_isb();
   hal_invalidate_tlb();
+  
   hal_invalidate_branch();
   hal_invalidate_icache();  
 
-  hal_dsb();
-  hal_isb();
 }
 
 
@@ -580,8 +619,12 @@ void pmap_switch(struct Process *next, struct Process *current)
  *
  * 4k page tables,  1k real PTEs,  3k virtual-page linked list and flags (packed
  * 12 bytes)
+ *
+ * TODO: Do away with this.  Makes no sense now all of physical memory is mapped in kernel.
+ * Either reserve fixed number of bufs/pages or use all of free memory as cache.
+ * Limit cache to 20% dirty. have 10% of available ram as anonymous, cleared mem.
  */
-int pmap_cache_enter(vm_addr addr, vm_addr paddr)
+int pmap_cache_enter(vm_addr va, vm_addr paddr)
 {
   uint32_t *pt, *phys_pt;
   int pde_idx, pte_idx;
@@ -593,15 +636,15 @@ int pmap_cache_enter(vm_addr addr, vm_addr paddr)
   pa_bits = L2_TYPE_S;
   pa_bits |= L2_AP_RWK;   // read/write kernel-only
   // pa_bits |= L2_NX;
-  pa_bits |= L2_C;  // FIXME: Add  L2_B to pa_bits
+  pa_bits |= L2_C | L2_B;  // FIXME: Add  L2_B to pa_bits
 
-  pde_idx = (addr & L1_ADDR_BITS) >> L1_IDX_SHIFT;
+  pde_idx = (va & L1_ADDR_BITS) >> L1_IDX_SHIFT;
 
   phys_pt = (uint32_t *)(root_pagedir[pde_idx] & L1_C_ADDR_MASK);
 
   pt = (uint32_t *)pmap_pa_to_va((vm_addr)phys_pt);
 
-  pte_idx = (addr & L2_ADDR_BITS) >> L2_IDX_SHIFT;
+  pte_idx = (va & L2_ADDR_BITS) >> L2_IDX_SHIFT;
 
   vpte_base = (struct PmapVPTE *)((uint8_t *)pt + VPTE_TABLE_OFFS);
   vpte = vpte_base + pte_idx;
@@ -610,15 +653,8 @@ int pmap_cache_enter(vm_addr addr, vm_addr paddr)
   LIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
   // TODO: Increment/Decrement pf reference cnt or not?
 
-  pt[pte_idx] = paddr | pa_bits;
-
-	hal_dsb();
-	hal_invalidate_tlb_va(addr & 0xFFFFF000);
-  hal_invalidate_branch();
-  hal_invalidate_icache();
-  hal_dsb();
-  hal_isb();
-
+  pmap_write_l2(pt, pte_idx, paddr | pa_bits);
+	hal_invalidate_tlb_va(va);
   return 0;
 }
 
@@ -626,6 +662,8 @@ int pmap_cache_enter(vm_addr addr, vm_addr paddr)
 /* @brief   Unmaps a segment from the address space pointed to by pmap.
  * @param   va,
  * @return  0 on success, negative errno on failure
+ *
+ * TODO: Do away with this.
  */
 int pmap_cache_remove(vm_addr va)
 {
@@ -651,15 +689,9 @@ int pmap_cache_remove(vm_addr va)
   LIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
 
   vpte->flags = 0;
-  pt[pte_idx] = L2_TYPE_INV;
+  pmap_write_l2(pt, pte_idx, L2_TYPE_INV);
 
-  // TODO: Increment/Decrement pf reference cnt or not?
-	hal_dsb();
-	hal_invalidate_tlb_va(va & 0xFFFFF000);
-  hal_invalidate_branch();
-  hal_invalidate_icache();
-  hal_dsb();
-  hal_isb();
+	hal_invalidate_tlb_va(va);
 
   return 0;
 }
@@ -700,44 +732,38 @@ int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, v
   bool fault = false;
   uint32_t page_offset;
   
-  Info("pmap_pagetable_walk(as:%08x, access:%08x, va:%08x", (uint32_t)as, access, (uint32_t)vaddr);
+  bvaddr = ALIGN_DOWN((vm_addr)vaddr, PAGE_SIZE);
+  page_offset = (vm_addr)vaddr % PAGE_SIZE;
   
-  bvaddr = (vm_addr)vaddr & ~(PAGE_SIZE - 1);
-  page_offset = (vm_addr)vaddr & (PAGE_SIZE -1);
-      
-  if (pmap_extract(as, bvaddr, &bpaddr, &flags) != 0) {
-    Info("Cannot extract pte (note:we don't lazy alloc pages)");
-    
-    return -EFAULT;
-  } else {    
+  if (pmap_extract(as, bvaddr, &bpaddr, &flags) == 0) {
     if (access & PROT_WRITE) {
       if (flags & PROT_WRITE) {
         if (flags & MAP_COW) {
           fault = true;
         }
       } else {      
-        Info("pmap_pagetable_walk -EFAULT write on non-write page");
+        Warn("pmap_pagetable_walk -EFAULT write on non-write page");
         return -EFAULT;
       }
     }
+  } else {
+    Warn("Cannot extract pte (note:we don't lazy alloc pages)");    
+    return -EFAULT;
   }
     
   if (fault) {
     if (page_fault(bvaddr, access) != 0) {
-      Info("pmap_pagetable_walk -EFAULT 2");
+      Warn("pmap_pagetable_walk -EFAULT 2");
       return -EFAULT;
     }
     
     if (pmap_extract(as, (vm_addr)bvaddr, &bpaddr, &flags) != 0) {
-        Info("pmap_pagetable_walk -EFAULT 3");
+        Warn("pmap_pagetable_walk -EFAULT 3");
       return -EFAULT;
     }
   }    
 
   *rkaddr = (void *)pmap_pa_to_va(bpaddr + page_offset);
-
-  Info("0 = pmap_pagetable_walk() rkaddr:%08x", (uint32_t)*rkaddr);
-
   return 0;
 }
 

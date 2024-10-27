@@ -18,7 +18,7 @@
  * Scheduling related functions
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -71,7 +71,7 @@
 void Reschedule(void)
 {
   context_word_t context[N_CONTEXT_WORD];
-  struct Thread *current, *next, *thread;
+  struct Thread *current, *next;
   struct Process *current_proc, *next_proc;
   struct CPU *cpu;
   int q;
@@ -126,11 +126,23 @@ void Reschedule(void)
     pmap_switch(next_proc, current_proc);
   }
 
-  if (next != current) {
-    current->context = &context;
+  uint64_t now_usec = arch_get_monotonic_usec();
+
+  if (current != NULL) {
+    current->usage_usec += (now_usec - current->last_resched_time_usec);
+    current->last_resched_time_usec = now_usec;
+  }
+
+  if (next != current) {      
+    if (current != NULL) {
+      current->context = &context;
+    }
+    
+    next->last_resched_time_usec = now_usec;
+
     cpu->current_thread = next;
     cpu->current_process = next->process;
-    
+            
     if (SetContext(&context[0]) == 0) {
       GetContext(next->context);
     }
@@ -161,7 +173,6 @@ void SchedReady(struct Thread *thread)
   }
 
   thread->quanta_used = 0;
-  cpu->reschedule_request = true;
 }
 
 
@@ -195,8 +206,6 @@ void SchedUnready(struct Thread *thread)
     Error("Unready: Unknown sched policy *****");
     KernelPanic();
   }
-
-  cpu->reschedule_request = true;
 }
 
 
@@ -207,6 +216,8 @@ int sys_setschedparams(int policy, int priority)
   struct Process *current_proc;
   struct Thread *current;
   int_state_t int_state;
+  
+  Info("sys_setschedparams(policy:%d, priority:%d", policy, priority);
   
   current_proc = get_current_process();
   current = get_current_thread();
@@ -276,8 +287,13 @@ int sys_setpriority(void)
  */
 void thread_start(struct Thread *thread)
 {
-  int_state_t int_state;
+  int_state_t int_state;  
+  uint64_t now_usec = arch_get_monotonic_usec();
   
+  thread->usage_usec = 0;
+  thread->last_resched_time_usec = now_usec;
+  thread->creation_usec = now_usec;
+
   int_state = DisableInterrupts();
   thread->state = THREAD_STATE_READY;
   SchedReady(thread);

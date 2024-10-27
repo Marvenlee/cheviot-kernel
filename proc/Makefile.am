@@ -11,5 +11,6 @@ kernel_SOURCES +=         \
   proc/sysconf.c          \
   proc/thread.c           \
   proc/thread_events.c    \
-  proc/timer.c
+  proc/timer.c            \
+  proc/usage.c
 

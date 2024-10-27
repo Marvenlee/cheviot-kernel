@@ -202,9 +202,12 @@ void data_abort_handler(struct UserContext *context)
   uint32_t mode;
   uint32_t status;  
   struct Thread *cthread;
+  struct Process *cproc;
+  
 
   cthread = get_current_thread();
-
+  cproc = get_current_process();
+  
   dfsr = hal_get_dfsr();
   fault_addr = hal_get_far();
 
@@ -259,8 +262,10 @@ void data_abort_handler(struct UserContext *context)
         KernelPanic();  // FIXME: Remove
 
       } else {
+        Error("Unhandled fault, mode = %08x", mode);
         PrintUserContext(context);
         Error("fault addr = %08x", fault_addr);
+        pmap_switch(cproc, NULL);
         KernelPanic();
       }
     }

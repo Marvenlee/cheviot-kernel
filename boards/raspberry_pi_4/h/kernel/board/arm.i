@@ -29,13 +29,6 @@
 .equ I_BIT,     (1<<7)
 .equ F_BIT,     (1<<6)
 
-// @brief   VM and page table definitions 
-.equ PAGE_SIZE,                 4096
-
-// @brief   Kernel - User VM Boundaries
-.equ VM_KERNEL_BASE,              0x80000000
-.equ VM_USER_BASE,                0x00400000
-.equ VM_USER_CEILING,             0x7F000000
 
 // @brief   Per CPU structure
 .equ MAX_CPU,               8

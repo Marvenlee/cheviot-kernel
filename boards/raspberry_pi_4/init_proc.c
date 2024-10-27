@@ -18,7 +18,7 @@
  * Kernel initialization.
  */
 
-//#define KDEBUG  1
+#define KDEBUG  1
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -71,7 +71,9 @@ void init_processes(void)
 
   Info("isr_handler and sched queue initialized");
 
-  LIST_INIT(&free_piddesc_list);  
+  memset (pid_table, 0, max_pid * sizeof (struct PidDesc));
+
+  LIST_INIT(&free_piddesc_list);
   for (int t = 0; t < max_pid; t++) {
     LIST_ADD_TAIL(&free_piddesc_list, &pid_table[t], free_link);
   }
@@ -193,12 +195,17 @@ void start_scheduler(void)
 {
   struct CPU *cpu = &cpu_table[0];
   struct Thread *next;
-  struct Process *next_proc;
   int q;
   
+  Info("start_scheduler()");
   
-  Info("start_scheduler - radio blackout start");
-  
+#if 1
+  // Make a back of the root page directory (for debugging purposes)
+  for (int t=0; t< 4096; t++) {
+    root_pagedir_bu[t] = root_pagedir[t];
+  }
+#endif
+      
   for (q = 31; q >= 0; q--) {
     if ((sched_queue_bitmap & (1 << q)) != 0) {
       break;
@@ -214,19 +221,13 @@ void start_scheduler(void)
   KASSERT(next != NULL);
   
   next->state = THREAD_STATE_RUNNING;    
-  next_proc = get_thread_process(next);
-  pmap_switch(next_proc, NULL);
+
+  pmap_switch(next->process, NULL);
 
   cpu->current_thread = next;
   cpu->current_process = next->process;
 
   NotifyLoggerProcessesInitialized();
-
-  Info("start_scheduler - radio blackout over");
-  
-  Info("first scheduled thread:%08x, proc:%08x", (uint32_t)next, next->process);
-  
-  Info("Calling GetContext in start_scheduler");
   
   GetContext(next->context);
 }
@@ -241,7 +242,6 @@ void init_cpu_tables(void)
   max_cpu = 1;
   cpu_cnt = max_cpu;
   cpu = &cpu_table[0];
-  cpu->reschedule_request = 0;
   cpu->svc_stack = (vm_addr)&svc_stack_top;
   cpu->interrupt_stack = (vm_addr)&interrupt_stack_top;
   cpu->exception_stack = (vm_addr)&exception_stack_top;

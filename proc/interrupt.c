@@ -53,7 +53,6 @@ int sys_addinterruptserver(int irq, int event)
   struct Process *current_proc;
   struct Thread *current_thread;
   struct ISRHandler *isrhandler;
-  int isrid;
   int_state_t int_state;
     
   Info("sys_addinterruptserver(irq:%d, event:%d", irq, event);
@@ -85,6 +84,7 @@ int sys_addinterruptserver(int irq, int event)
   isrhandler->event = event;
 
   LIST_ADD_TAIL(&current_thread->isr_handler_list, isrhandler, thread_isr_handler_link);
+
   int_state = DisableInterrupts();
 
   LIST_ADD_TAIL(&isr_handler_list[irq], isrhandler, isr_handler_entry);
@@ -105,15 +105,11 @@ int sys_addinterruptserver(int irq, int event)
 /*
  * TODO: We should automatically remove interrupt servers when terminating a thread
  */
-int sys_reminterruptserver(int isr)
+int sys_reminterruptserver(int isrid)
 {
   struct Process *current_proc;
   struct Thread *current_thread;
   struct ISRHandler *isrhandler;
-  int isrid;
-  int_state_t int_state;
-  
-  Info("sys_reminterrupthandler");
   
   current_proc = get_current_process();
   current_thread = get_current_thread();
@@ -213,9 +209,11 @@ int sys_maskinterrupt(int irq)
     return -EPERM;
   }
 
-  if (irq < 0 || irq >= NIRQ) {
+  if (irq < 0 || irq >= NIRQ-BASE_USER_IRQ) {
     return -EINVAL;
   }
+
+  irq += BASE_USER_IRQ;
 
   int_state = DisableInterrupts();
 
@@ -244,9 +242,11 @@ int sys_unmaskinterrupt(int irq)
     return -EPERM;
   }
 
-  if (irq < 0 || irq >= NIRQ) {
+  if (irq < 0 || irq >= NIRQ - BASE_USER_IRQ) {
     return -EINVAL;
   }
+
+  irq += BASE_USER_IRQ;
 
   int_state = DisableInterrupts();
 

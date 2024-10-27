@@ -273,7 +273,7 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
 
   if (sig_mask != 0xFFFFFFFF) {
     LIST_ADD_TAIL(&proc->unmasked_signal_thread_list, thread, unmasked_signal_thread_link);
-  }    
+  }  
 }
 
 

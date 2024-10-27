@@ -97,7 +97,6 @@ struct CPU
   struct Process *current_process;
   struct Thread  *current_thread;
   struct Thread *idle_thread;
-  int reschedule_request;
   vm_addr svc_stack;
   vm_addr interrupt_stack;
   vm_addr exception_stack;

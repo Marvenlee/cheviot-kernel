@@ -54,5 +54,6 @@ void timer_bottom_half_task(void *arg);
 // Architecture-specific busy-wait sleep
 int arch_spin_nanosleep(struct timespec *reg);
 
+uint64_t arch_get_monotonic_usec(void);
 
 #endif

@@ -326,6 +326,8 @@ bool match_supplementary_group(struct Process *proc, gid_t gid);
 // fs/block.c
 ssize_t read_from_block (struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
 ssize_t write_to_block (struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
+ssize_t read_from_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
+ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
 
 /* fs/cache.c */
 ssize_t read_from_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
@@ -468,6 +470,7 @@ int sys_truncate(int fd, size_t sz);
 /* fs/read.c */
 ssize_t sys_read(int fd, void *buf, size_t count);
 ssize_t kread(int fd, void *dst, size_t sz);
+ssize_t sys_blkreadv(int fd, msgiov_t *iov, int iov_cnt);
 
 /* fs/rename.c */
 int sys_rename(char *oldpath, char *newpath);
@@ -506,6 +509,8 @@ int vfs_chmod(struct VNode *vnode, mode_t mode);
 int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid);
 int vfs_fsync(struct VNode *vnode);
 int vfs_isatty(struct VNode *vnode);
+ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset);
+ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset);
 
 /* fs/vnode.c */
 struct VNode *get_fd_vnode(struct Process *proc, int fd);

@@ -172,8 +172,8 @@ int setreuid(uid_t ruid, uid_t euid)
 
 
   if (current->euid == SUPERUSER ||
-      (ruid == current->uid || ruid == current->euid) &&
-      (euid == current->uid || euid == current->euid)) {
+      ((ruid == current->uid || ruid == current->euid) &&
+      (euid == current->uid || euid == current->euid))) {
 
     if (ruid != -1) {
       current->uid = ruid;
@@ -198,8 +198,8 @@ int setregid(gid_t rgid, uid_t egid)
   struct Process *current = get_current_process();
 
   if (current->euid == SUPERUSER || 
-      (rgid == current->gid || rgid == current->egid) &&
-      (egid == current->gid || egid == current->egid)) {
+      ((rgid == current->gid || rgid == current->egid) &&
+      (egid == current->gid || egid == current->egid))) {
 
     if (rgid != -1) {
       current->gid = rgid;
@@ -224,9 +224,9 @@ int setresuid(uid_t ruid, uid_t euid, uid_t suid)
   struct Process *current = get_current_process();
 
   if (current->euid == SUPERUSER ||
-      (ruid == current->uid || ruid == current->euid || ruid == current->suid) &&
-      (euid == current->uid || euid == current->euid || euid == current->suid) &&
-      (suid == current->uid || suid == current->euid || suid == current->suid)) {
+      ((ruid == current->uid || ruid == current->euid || ruid == current->suid) &&
+       (euid == current->uid || euid == current->euid || euid == current->suid) &&
+       (suid == current->uid || suid == current->euid || suid == current->suid))) {
 
     if (ruid != -1) {
       current->uid = ruid;
@@ -255,9 +255,9 @@ int setresgid(gid_t rgid, gid_t egid, gid_t sgid)
   struct Process *current = get_current_process();
 
   if (current->euid == SUPERUSER || 
-      (rgid == current->gid || rgid == current->egid || rgid == current->sgid) &&
-      (egid == current->gid || egid == current->egid || egid == current->sgid) &&
-      (sgid == current->gid || sgid == current->egid || sgid == current->sgid)) {      
+      ((rgid == current->gid || rgid == current->egid || rgid == current->sgid) &&
+       (egid == current->gid || egid == current->egid || egid == current->sgid) &&
+       (sgid == current->gid || sgid == current->egid || sgid == current->sgid))) {
 
     if (rgid != -1) {
       current->gid = rgid;

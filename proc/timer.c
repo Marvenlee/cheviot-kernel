@@ -44,7 +44,7 @@
  *    Efficient Implementation of a Timer Facility" by G Varghese & T,Lauck
  */
 
-//#define KDEBUG 1
+#define KDEBUG 1
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
@@ -86,6 +86,11 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
 	volatile struct timespec ts;
   int_state_t int_state;
 
+  if (_ts == NULL) {
+    Error("clock_gettime ts == NULL");
+    return -EINVAL;
+  }
+
 	switch(clock_id)
 	{
 		case CLOCK_REALTIME:
@@ -110,16 +115,17 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
 			break;
 		
 		default:
-		  Info("clock_gettime undefined clock_id: %d", clock_id);
+		  Error("clock_gettime undefined clock_id: %d", clock_id);
 			sc = -EINVAL;
 	}
 
-  if (sc != 0) {  
+  if (sc != 0) {
+    Error("clock_gettime failed, sc:%d", sc);
   	return sc;
   }
 
   if (CopyOut(_ts, (const void *)&ts, sizeof(struct timespec)) != 0) {
-  	Error("clock_gettime fault");
+  	Error("clock_gettime -efault");
   	return -EFAULT;
   }
 	
@@ -242,7 +248,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   }
 
   // TODO: if interrupted, work out remaining time and store in _rem
-  Info ("sys_nanosleep awakened");
+//  Info ("sys_nanosleep awakened");
   
   return 0;
 }
@@ -352,7 +358,7 @@ void timer_bottom_half_task(void *arg)
   struct Timer *timer, *next_timer;
 
   
-  Info("timer_bottom_half_task");
+//  Info("timer_bottom_half_task");
 
   while (1) {
     KASSERT(bkl_locked == true);
@@ -361,7 +367,7 @@ void timer_bottom_half_task(void *arg)
     timer_log_count++;
     
     if ((timer_log_count) % 30 == 0) {
-      Info("timer tick %d", timer_log_count);
+//      Info("timer tick %d", timer_log_count);
     }
     
     TaskSleep(&timer_rendez);

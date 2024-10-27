@@ -187,18 +187,19 @@ void interrupt_top_half(void)
   uint32_t irq = irq_ack_reg & 0x3FF;
 
   if (irq == IRQ_SPURIOUS) {
-    clear_pending_interrupt(irq_ack_reg);
+    eoi_interrupt(irq_ack_reg);
     return;
   }
   
   if (irq == IRQ_TIMER3) {
-    clear_pending_interrupt(irq_ack_reg);
+    eoi_interrupt(irq_ack_reg);
     interrupt_top_half_timer();
   } else {
     irq_mask_cnt[irq]++;
     disable_irq(irq);
 
-    clear_pending_interrupt(irq_ack_reg);
+    eoi_interrupt(irq_ack_reg);
+
     interrupt_server_broadcast_event(irq);
   }
 }
@@ -207,7 +208,7 @@ void interrupt_top_half(void)
 /*
  *
  */
-void clear_pending_interrupt(uint32_t irq_ack_reg)
+void eoi_interrupt(uint32_t irq_ack_reg)
 {
  	 hal_mmio_write(&gic_cpu_iface_regs->eoi, irq_ack_reg);
 }
@@ -220,6 +221,8 @@ void enable_irq(int irq)
 {
   uint32_t n = irq / 32;
   uint32_t offset = irq % 32;
+
+  hal_mmio_write(&gic_dist_regs->pending_clr[n], (1 << offset));
   hal_mmio_write(&gic_dist_regs->enable_set[n], (1 << offset));
 }
 
@@ -233,6 +236,7 @@ void disable_irq(int irq)
   uint32_t offset = irq % 32;
 
   hal_mmio_write(&gic_dist_regs->enable_clr[n], (1 << offset));
+  hal_mmio_write(&gic_dist_regs->pending_clr[n], (1 << offset));
 }
 
 

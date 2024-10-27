@@ -37,8 +37,8 @@ extern struct Rendez timer_rendez;
 extern volatile spinlock_t timer_slock;
 extern volatile long hardclock_time;
 extern volatile long softclock_time;
-extern superblock_list_t free_superblock_list;
 
+extern uint64_t usage_start_usec;
 
 /*
  * Interrupt
@@ -120,6 +120,8 @@ extern struct Socket *socket_table;
 /*
  * Filesystem
  */
+
+extern superblock_list_t free_superblock_list;
 
 extern int max_superblock;
 extern struct SuperBlock *superblock_table;

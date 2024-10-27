@@ -101,21 +101,18 @@ uint64_t timer_read(void)
  */
 int arch_clock_gettime(int clock_id, struct timespec *ts)
 {
-	int sc = 0;
+	int sc = -EINVAL;
 	uint64_t clock;
-	
-	Info("arch_clock_gettime");
 	
 	switch (clock_id) {
 		case CLOCK_MONOTONIC_RAW:
 			clock = timer_read();
 			ts->tv_sec = clock / 1000000ULL;
 			ts->tv_nsec = (clock * 1000) % 1000000000ULL;
-						
+      sc = 0;						
 			break;
 		default:
-			Error("arch_clock_gettime() -EINVAL");
-			sc = -EINVAL;
+		  break;
 	}
 	
 	return sc;
@@ -145,6 +142,13 @@ int arch_spin_nanosleep(struct timespec *req)
 	}	while (current_clock - start_clock < timeout);
 		
 	return 0;
+}
+
+
+
+uint64_t arch_get_monotonic_usec(void)
+{
+  return timer_read();
 }
 
 

@@ -163,8 +163,8 @@ int pmap_cache_remove(vm_addr va);
 int pmap_cache_extract(vm_addr va, vm_addr *pa);
 int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, void **rkaddr);
 
-
-
+int bounds_check(void *addr, size_t sz);
+int bounds_check_kernel(void *addr, size_t sz);
 /*
  * VM Macros
  * TODO: Replace ALIGN_UP and ALIGN_DOWN macros with roundup and rounddown

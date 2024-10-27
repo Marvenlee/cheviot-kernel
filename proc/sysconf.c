@@ -29,11 +29,28 @@
 #include <kernel/arch.h>
 #include <unistd.h>
 
+
 /*
  *
  */
-int sys_sysconf(void)
+int sys_sysconf(int name)
 {
-	return -ENOSYS;
+  int ret;
+  
+  switch(name) {
+    case _SC_PAGE_SIZE:
+      ret = PAGE_SIZE;
+      break;
+   
+    case _SC_PROCESS_MAX:
+      ret = max_process;
+      break;
+      
+    default:
+      ret = -ENOSYS;
+      break;
+  }
+  
+  return ret;
 }
 

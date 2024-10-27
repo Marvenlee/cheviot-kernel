@@ -142,7 +142,7 @@ struct Process
 
   int exit_status;                  // sys_exit() saved error code
   bool exit_in_progress;            // A thread has initiated the exit steps
-        
+          
   struct FProcess *fproc;           // Process's file descriptor table
                                     // TODO: Keep as struct Process
 };
@@ -229,6 +229,10 @@ struct Thread
   struct Timer timeout_timer;
   
   isr_handler_list_t isr_handler_list;
+
+  uint64_t usage_usec;
+  uint64_t last_resched_time_usec;
+  uint64_t creation_usec;
 };
 
 
@@ -408,6 +412,9 @@ uint32_t sys_thread_event_check(uint32_t event_mask);
 uint32_t sys_thread_event_wait(uint32_t event_mask);
 int sys_thread_event_signal(int tid, int event);
 int isr_thread_event_signal(struct Thread *thread, int event);
+
+// proc/usage.c
+int sys_get_cpu_usage(void *buf, size_t sz);
 
 // Architecture-specific
 void GetContext(uint32_t *context);

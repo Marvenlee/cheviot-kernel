@@ -24,7 +24,7 @@
 #include <kernel/vm.h>
 #include <sys/fsreq.h>
 #include <sys/mount.h>
-
+#include <sys/syslimits.h>
 
 /* @brief   Read the contents of a file to a buffer
  *
@@ -32,6 +32,11 @@
  * @param   dst, user-mode buffer to read data from file into
  * @param   sz, size in bytes of buffer pointed to by dst
  * @return  number of bytes read or negative errno on failure
+ *
+ * TODO:
+ * Can VNode lock fail?  Can we do multiple readers/single writer ?
+ * Can we update access timestamps lazily?
+ * Can is_allowed take the filp pointer, to merge open oflags test?
  */
 ssize_t sys_read(int fd, void *dst, size_t sz)
 {
@@ -39,15 +44,17 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
   struct VNode *vnode;
   ssize_t xfered;
   struct Process *current;
+  int sc;
   
-  Info("\n\nsys_read");
-  
+  if ((sc = bounds_check(dst, sz)) != 0) {
+    return sc;
+  }  
+    
   current = get_current_process();
   filp = get_filp(current, fd);
   vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
-    Error("sys_read fd:%d vnode null -EINVAL", fd);
     return -EBADF;
   }
 
@@ -55,16 +62,13 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
     return -EACCES;
   }
 
-#if 0   // FIXME: Check if reader permission  
+#if 0
   if (filp->flags & O_READ) == 0) {
     return -EACCES;
   } 
 #endif  
 
-  // Can VNode lock fail?  Can we do multiple readers/single writer ?
   vnode_lock(vnode);
-
-  // Separate into vnode_ops structure for each device type
 
   if (S_ISCHR(vnode->mode)) {
     xfered = read_from_char (vnode, dst, sz);
@@ -75,22 +79,16 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
   } else if (S_ISBLK(vnode->mode)) {
     xfered = read_from_block (vnode, dst, sz, &filp->offset);
   } else if (S_ISDIR(vnode->mode)) {
-    Error("sys_read fd:%d is a dir -EINVAL", fd);
     xfered = -EBADF;
   } else if (S_ISSOCK(vnode->mode)) {
-    Error("sys_read fd:%d is a sock -EINVAL", fd);
     xfered = -EBADF;
   } else {
-    Error("sys_read fd:%d is unknown -EINVAL", fd);
     xfered = -EBADF;
   }
   
   // Update accesss timestamps
   
   vnode_unlock(vnode);
-
-  Info("sys_read done: %d\n", xfered);
-  
   return xfered;
 }
 
@@ -98,11 +96,17 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
 /* @brief   Read from a file to a kernel buffer
  *
  */
-ssize_t kread(int fd, void *dst, size_t sz) {
+ssize_t kread(int fd, void *dst, size_t sz)
+{
   struct Filp *filp;
   struct VNode *vnode;
   ssize_t xfered;
   struct Process *current;
+  int sc;
+  
+  if ((sc = bounds_check_kernel(dst, sz)) != 0) {
+    return sc;
+  }  
     
   current = get_current_process();
   filp = get_filp(current, fd);
@@ -116,6 +120,12 @@ ssize_t kread(int fd, void *dst, size_t sz) {
     return -EACCES;
   }
 
+#if 0
+  if (filp->flags & O_READ) == 0) {
+    return -EACCES;
+  } 
+#endif  
+
   vnode_lock(vnode);
   
   if (S_ISREG(vnode->mode)) {
@@ -123,10 +133,64 @@ ssize_t kread(int fd, void *dst, size_t sz) {
   } else {
     xfered = -EBADF;
   }
-  
+
+  // Update accesss timestamps
+    
   vnode_unlock(vnode);
-  
   return xfered;
 }
+
+
+/*
+ * TODO: Check bounds of each IOV
+ */
+ssize_t sys_blkreadv(int fd, msgiov_t *_iov, int iov_cnt)
+{
+  struct Filp *filp;
+  struct VNode *vnode;
+  ssize_t xfered;
+  struct Process *current;
+  msgiov_t iov[IOV_MAX];
+    
+  if (iov_cnt < 1 || iov_cnt > IOV_MAX) {
+    return -EINVAL;
+  }
+  
+  if (CopyIn(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
+    return -EFAULT;
+  } 
+    
+  current = get_current_process();
+  filp = get_filp(current, fd);
+  vnode = get_fd_vnode(current, fd);
+
+  if (vnode == NULL) {
+    return -EBADF;
+  }
+
+  if (is_allowed(vnode, R_OK) != 0) {
+    return -EACCES;
+  }
+
+#if 0 
+  if (filp->flags & O_READ) == 0) {
+    return -EACCES;
+  } 
+#endif  
+
+  vnode_lock(vnode);
+
+  if (S_ISBLK(vnode->mode)) {
+    xfered = read_from_blockv (vnode, iov, iov_cnt, &filp->offset);
+  } else {
+    xfered = -EBADF;
+  }
+  
+  // Update accesss timestamps
+  
+  vnode_unlock(vnode);  
+  return xfered;
+}
+
 
 

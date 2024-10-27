@@ -42,26 +42,20 @@ int page_fault(vm_addr addr, bits32_t access)
   vm_addr src_kva;
   vm_addr dst_kva;
   struct Pageframe *pf;
-  vm_addr real_addr;
 
   Info("page_fault(addr:%08x, access:%08x)", addr, access);
   	
   current = get_current_process();
  
-//  Info("pf: current proc:%08x, pid:%d", (uint32_t)current, current->pid);
- 
-  real_addr = addr;
   addr = ALIGN_DOWN(addr, PAGE_SIZE);
   
   if (pmap_extract(&current->as, addr, &paddr, &page_flags) != 0) {
-    // Page is not present
-    
+    // Page is not present    
     // FIXME: For map_lazy we need to find segment, determine attributes and map page in
     return -1;
   }
 	
 	Info("extract paddr:%08x, page_flags:%08x", paddr, page_flags);
-
 
   if ((page_flags & MEM_MASK) == MEM_PHYS) {
   	Info("fault page flags MEM_PHYS");
