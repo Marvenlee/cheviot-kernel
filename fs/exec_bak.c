@@ -189,6 +189,9 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   char *src;
   char *dst;
   int sz;
+	struct Process *current;
+	
+	current = get_current_process();
 
   if (_args == NULL) {
     args->argv = NULL;
@@ -237,21 +240,18 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
 
     argv[t] = dst;
 
-    sz = StrLen(dst) + 1;
-    
 		if (t == 0) {			
-			size_t basename_sz = (sz < PROC_BASENAME_SZ) ? sz : PROC_BASENAME_SZ;
-			struct Process *current;
-			
-			current = get_current_process();
-	
-			current->basename[0] = '\0';
-						
-			for(int c=0; c<basename_sz; c++) {
-				current->basename[c] = dst[c];
-			}			
+      sz = StrLen(dst) + 1;
 
-			current->basename[PROC_BASENAME_SZ-1] = '\0';
+      int last_component_start = 0;
+      
+      for (int c=0; c<sz; c++) {
+        if (dst[c] == '/') {
+          last_component_start = c;
+        }
+      }
+            	
+			StrLCpy(current->basename, &dst[last_component_start], sizeof current->basename);
 		}    
         
     dst += sz;
