@@ -144,8 +144,9 @@ ssize_t kread(int fd, void *dst, size_t sz)
 /*
  * TODO: Check bounds of each IOV
  */
-ssize_t sys_blkreadv(int fd, msgiov_t *_iov, int iov_cnt)
+ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 {
+  off64_t offset;
   struct Filp *filp;
   struct VNode *vnode;
   ssize_t xfered;
@@ -159,7 +160,13 @@ ssize_t sys_blkreadv(int fd, msgiov_t *_iov, int iov_cnt)
   if (CopyIn(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
     return -EFAULT;
   } 
-    
+  
+  if (_offset != NULL) {
+    if (CopyIn(&offset, _offset, sizeof(off64_t)) != 0) {
+      return -EFAULT;
+    } 
+  }
+  
   current = get_current_process();
   filp = get_filp(current, fd);
   vnode = get_fd_vnode(current, fd);
@@ -181,7 +188,11 @@ ssize_t sys_blkreadv(int fd, msgiov_t *_iov, int iov_cnt)
   vnode_lock(vnode);
 
   if (S_ISBLK(vnode->mode)) {
-    xfered = read_from_blockv (vnode, iov, iov_cnt, &filp->offset);
+    if (_offset == NULL) {
+      xfered = read_from_blockv (vnode, iov, iov_cnt, &filp->offset);
+    } else {
+      xfered = read_from_blockv (vnode, iov, iov_cnt, &offset);
+    }   
   } else {
     xfered = -EBADF;
   }

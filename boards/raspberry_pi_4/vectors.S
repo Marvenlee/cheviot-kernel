@@ -57,7 +57,7 @@ syscall_table:
     .long sys_exit                      // 3
     .long sys_waitpid                   // 4
     .long sys_kill                      // 5
-    .long sys_setschedparams            // 6 
+    .long sys_thread_setschedparams     // 6
 
     .long sys_sleep                     // 7   
     .long sys_alarm                     // 8
@@ -74,13 +74,12 @@ syscall_table:
     .long sys_maskinterrupt             // 17
     .long sys_unmaskinterrupt           // 18
 
-    .long sys_deprecatedsyscall         // 19   TODO: Was set_syslog_file, replaced with ioctl
-                                                // TODO: Add open_syslog() to get syslog handle for writing.
+    .long sys_deprecatedsyscall         // 19   // TODO: Was set_syslog_file, replaced with ioctl
+
     .long sys_exec                      // 20   
 
-    // Add sys_mountport,  sys_createport can be an atomic/combined mknod2() and mountport();     
     .long sys_createmsgport             // 21   TODO: Rename to createport(). 
-    .long sys_deprecatedsyscall         // 22   TODO: Was unmount, add back again, unmount(path, force)
+    .long sys_unmount                   // 22   TODO: Was unmount, add back again, unmount(path, force)
 
     // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
     // Need listen(mount_fd) to create new listener handle (multiple for char device server)
@@ -112,9 +111,9 @@ syscall_table:
 
     .long sys_rename                    // 43
 
-    .long sys_pipe                      // 44 Pipe
-    .long sys_deprecatedsyscall         // 45 TODO: SocketPair (or generic socket creation call)
-
+    .long sys_pipe                      // 44
+    .long sys_socketpair                // 45
+    
     .long sys_chdir                     // 46
     .long sys_fchdir                    // 47       
 
@@ -160,7 +159,7 @@ syscall_table:
     .long sys_sigsuspend                // 78
     
     .long sys_mknod                     // 79
-    .long sys_renamemsgport             // 80       // TODO: Change to renameport()
+    .long sys_renamemsgport             // 80
     
     .long sys_chroot                    // 81
 
@@ -172,24 +171,22 @@ syscall_table:
 		.long sys_issetugid									// 86
 		.long sys_setgroups									// 87
 		.long sys_getgroups									// 88
-		.long sys_getpriority	  						// 89
-		.long sys_setpriority								// 90
+		.long sys_thread_getpriority	  	  // 89
+		.long sys_thread_setpriority				// 90
 		.long sys_sysconf         					// 91
 		.long sys_fchmod										// 92
 		.long sys_fchown										// 93
 
 		.long sys_clock_gettime							// 94
 
-    // TODO: Move into pi_mailbox server initially, use sendrec API
-    // then move into device manager ring/ref monitor,
+		.long sys_preadv        					  // 95
+		.long sys_pwritev         			    // 96
 
-		.long sys_deprecatedsyscall					// 95   // FIXME: Architecture-specific syscalls, to be
-		.long sys_deprecatedsyscall				  // 96   // moved out of kernel.
-		.long sys_deprecatedsyscall		  		// 97   // for gpio and mailbox access.
+		.long sys_deprecatedsyscall		  		// 97
 
 		.long sys_clock_settime							// 98
 
-		.long sys_deprecatedsyscall         // 99   // FIXME: was rpi_get_gpio
+		.long sys_deprecatedsyscall         // 99
 
     .long sys_sigreturn                 // 100
     
@@ -199,7 +196,7 @@ syscall_table:
 
     .long sys_ismount                   // 104
     
-    .long sys_deprecatedsyscall         // 105  // FIXME: was sys_getmsginfo
+    .long sys_sync2                     // 105
     
     .long sys_setsid                    // 106
     .long sys_getsid                    // 107
@@ -221,30 +218,44 @@ syscall_table:
     .long sys_readmsgiov                // 117
     .long sys_writemsgiov               // 118
 
-    .long sys_blkreadv                  // 119
+    .long sys_thread_getschedparams     // 119    // TODO: Update library
     
-    .long sys_get_cpu_usage             // 120
+    .long sys_get_cpu_usage             // 120    // FIXME: Convert to general profiling API
+    .long sys_set_privileges            // 121
     
-    /*
-    .long sys_thread_cancel
-    .long sys_thread_setprio
-    .long sys_thread_setschedparam    // Not needed?
+    .long sys_thread_cancel             // 122
+    .long sys_thread_kill               // 123
     
-    .long sys_thread_mutex_lock
-    .long sys_thread_mutex_unlock
+    .long sys_thread_mutex_lock         // 124
+    .long sys_thread_mutex_unlock       // 125
 
-    .long sys_thread_cond_wait
-    .long sys_thread_cond_timedwait
-    .long sys_thread_cond_signal
-    .long sys_thread_cond_broadcast
+    .long sys_thread_cond_wait          // 126
+    .long sys_thread_cond_timedwait     // 127
+    .long sys_thread_cond_signal        // 128
+    .long sys_thread_cond_broadcast     // 129
 
-    .long sys_thread_rwlock_rdlock
-    .long sys_thread_rwlock_unlock
-    .long sys_thread_rwlock_wrlock
-    */
+    .long sys_thread_rwlock_rdlock      // 130
+    .long sys_thread_rwlock_unlock      // 131
+    .long sys_thread_rwlock_wrlock      // 132
+
+    .long sys_socket                    // 133
+    .long sys_bind                      // 134
+    .long sys_listen                    // 135
+    .long sys_connect                   // 136
+    .long sys_accept                    // 137
+    .long sys_gethostbyname             // 138
+    .long sys_gethostbyaddr             // 139
+    .long sys_getsockopt                // 140
+    .long sys_setsockopt                // 141
+    .long sys_send                      // 142
+    .long sys_recv                      // 143
+
+    .long sys_select                    // 144
+
+    .long sys_reboot                    // 145    
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 120
+#define MAX_SYSCALL                 145
 
 
 /* @brief   System call entry point

@@ -105,6 +105,15 @@ void sys_thread_exit(intptr_t exit_status)
 /*
  *
  */
+int sys_thread_cancel(pid_t tid)
+{
+  return -ENOSYS;
+}
+
+
+/*
+ *
+ */
 void *sys_thread_self(void)
 {
   // TODO: Return pointer set for user-mode thread structure
@@ -274,15 +283,6 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
   if (sig_mask != 0xFFFFFFFF) {
     LIST_ADD_TAIL(&proc->unmasked_signal_thread_list, thread, unmasked_signal_thread_link);
   }  
-}
-
-
-/*
- * TODO: Move into signal.c
- */
-int do_kill_thread(struct Thread *thread, int signal)
-{
-  return 0;
 }
 
 

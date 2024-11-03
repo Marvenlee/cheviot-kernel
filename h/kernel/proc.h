@@ -145,6 +145,10 @@ struct Process
           
   struct FProcess *fproc;           // Process's file descriptor table
                                     // TODO: Keep as struct Process
+  uint64_t privileges;
+  uint64_t privileges_after_fork;
+  uint64_t privileges_after_exec;
+  
 };
 
 
@@ -343,6 +347,9 @@ struct Session *get_session(pid_t sid);
 struct Pgrp *get_pgrp(pid_t pgid);
 void remove_from_pgrp(struct Process *proc);
 void remove_from_session(struct Process *proc);
+
+// proc/privileges.c
+int sys_set_privileges(int when, uint64_t *set, uint64_t *result);
 
 // proc/proc.c
 int sys_fork(void);

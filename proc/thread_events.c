@@ -168,7 +168,7 @@ int sys_thread_event_signal(int tid, int event)
   
   RestoreInterrupts(int_state);
 
-
+  return 0;
 }
 
 

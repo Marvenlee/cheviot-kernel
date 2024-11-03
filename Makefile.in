@@ -141,17 +141,21 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(sbindir)"
 PROGRAMS = $(sbin_PROGRAMS)
 am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
-	proc/pid.c proc/proc.c proc/sched.c proc/signal.c \
-	proc/sleep_wakeup_bkl.c proc/sysconf.c proc/thread.c \
-	proc/thread_events.c proc/timer.c proc/usage.c fs/access.c \
+	proc/pid.c proc/privileges.c proc/proc.c proc/reboot.c \
+	proc/sched.c proc/signal.c proc/sleep_wakeup_bkl.c \
+	proc/sysconf.c proc/thread.c proc/thread_cond.c \
+	proc/thread_events.c proc/thread_mutex.c proc/thread_rwlock.c \
+	proc/thread_sched.c proc/timer.c proc/usage.c fs/access.c \
 	fs/block.c fs/cache.c fs/char.c fs/dir.c fs/dnlc.c fs/exec.c \
 	fs/filp.c fs/filedesc.c fs/fproc.c fs/globals.c fs/init.c \
 	fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c fs/mount.c \
 	fs/msg.c fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
-	fs/signal.c fs/stat.c fs/symlink.c fs/sync.c fs/truncate.c \
-	fs/vfs.c fs/vnode.c fs/write.c utility/doprintf.c \
-	utility/string.c vm/as.c vm/bounds.c vm/globals.c vm/ipcopy.c \
-	vm/page.c vm/pagefault.c vm/segment.c vm/vm.c \
+	fs/select.c fs/signal.c fs/stat.c fs/symlink.c fs/sync.c \
+	fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
+	utility/doprintf.c utility/string.c vm/as.c vm/bounds.c \
+	vm/globals.c vm/ipcopy.c vm/page.c vm/pagefault.c vm/segment.c \
+	vm/vm.c socket/host.c socket/recv.c socket/send.c \
+	socket/socket.c socket/socketpair.c socket/sockopt.c \
 	boards/raspberry_pi_1/arm.S boards/raspberry_pi_1/aux_uart.c \
 	boards/raspberry_pi_1/debug.c \
 	boards/raspberry_pi_1/exception.c \
@@ -213,25 +217,31 @@ am__dirstamp = $(am__leading_dot)dirstamp
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/vectors.$(OBJEXT)
 am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
 	proc/interrupt.$(OBJEXT) proc/pid.$(OBJEXT) \
-	proc/proc.$(OBJEXT) proc/sched.$(OBJEXT) proc/signal.$(OBJEXT) \
-	proc/sleep_wakeup_bkl.$(OBJEXT) proc/sysconf.$(OBJEXT) \
-	proc/thread.$(OBJEXT) proc/thread_events.$(OBJEXT) \
-	proc/timer.$(OBJEXT) proc/usage.$(OBJEXT) fs/access.$(OBJEXT) \
-	fs/block.$(OBJEXT) fs/cache.$(OBJEXT) fs/char.$(OBJEXT) \
-	fs/dir.$(OBJEXT) fs/dnlc.$(OBJEXT) fs/exec.$(OBJEXT) \
-	fs/filp.$(OBJEXT) fs/filedesc.$(OBJEXT) fs/fproc.$(OBJEXT) \
-	fs/globals.$(OBJEXT) fs/init.$(OBJEXT) fs/ioctl.$(OBJEXT) \
-	fs/kqueue.$(OBJEXT) fs/link.$(OBJEXT) fs/lookup.$(OBJEXT) \
-	fs/mount.$(OBJEXT) fs/msg.$(OBJEXT) fs/open.$(OBJEXT) \
-	fs/pipe.$(OBJEXT) fs/read.$(OBJEXT) fs/rename.$(OBJEXT) \
-	fs/seek.$(OBJEXT) fs/signal.$(OBJEXT) fs/stat.$(OBJEXT) \
+	proc/privileges.$(OBJEXT) proc/proc.$(OBJEXT) \
+	proc/reboot.$(OBJEXT) proc/sched.$(OBJEXT) \
+	proc/signal.$(OBJEXT) proc/sleep_wakeup_bkl.$(OBJEXT) \
+	proc/sysconf.$(OBJEXT) proc/thread.$(OBJEXT) \
+	proc/thread_cond.$(OBJEXT) proc/thread_events.$(OBJEXT) \
+	proc/thread_mutex.$(OBJEXT) proc/thread_rwlock.$(OBJEXT) \
+	proc/thread_sched.$(OBJEXT) proc/timer.$(OBJEXT) \
+	proc/usage.$(OBJEXT) fs/access.$(OBJEXT) fs/block.$(OBJEXT) \
+	fs/cache.$(OBJEXT) fs/char.$(OBJEXT) fs/dir.$(OBJEXT) \
+	fs/dnlc.$(OBJEXT) fs/exec.$(OBJEXT) fs/filp.$(OBJEXT) \
+	fs/filedesc.$(OBJEXT) fs/fproc.$(OBJEXT) fs/globals.$(OBJEXT) \
+	fs/init.$(OBJEXT) fs/ioctl.$(OBJEXT) fs/kqueue.$(OBJEXT) \
+	fs/link.$(OBJEXT) fs/lookup.$(OBJEXT) fs/mount.$(OBJEXT) \
+	fs/msg.$(OBJEXT) fs/open.$(OBJEXT) fs/pipe.$(OBJEXT) \
+	fs/read.$(OBJEXT) fs/rename.$(OBJEXT) fs/seek.$(OBJEXT) \
+	fs/select.$(OBJEXT) fs/signal.$(OBJEXT) fs/stat.$(OBJEXT) \
 	fs/symlink.$(OBJEXT) fs/sync.$(OBJEXT) fs/truncate.$(OBJEXT) \
 	fs/vfs.$(OBJEXT) fs/vnode.$(OBJEXT) fs/write.$(OBJEXT) \
 	utility/doprintf.$(OBJEXT) utility/string.$(OBJEXT) \
 	vm/as.$(OBJEXT) vm/bounds.$(OBJEXT) vm/globals.$(OBJEXT) \
 	vm/ipcopy.$(OBJEXT) vm/page.$(OBJEXT) vm/pagefault.$(OBJEXT) \
-	vm/segment.$(OBJEXT) vm/vm.$(OBJEXT) $(am__objects_1) \
-	$(am__objects_2)
+	vm/segment.$(OBJEXT) vm/vm.$(OBJEXT) socket/host.$(OBJEXT) \
+	socket/recv.$(OBJEXT) socket/send.$(OBJEXT) \
+	socket/socket.$(OBJEXT) socket/socketpair.$(OBJEXT) \
+	socket/sockopt.$(OBJEXT) $(am__objects_1) $(am__objects_2)
 kernel_OBJECTS = $(am_kernel_OBJECTS)
 kernel_DEPENDENCIES =
 kernel_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(kernel_LDFLAGS) \
@@ -296,22 +306,29 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	fs/$(DEPDIR)/lookup.Po fs/$(DEPDIR)/mount.Po \
 	fs/$(DEPDIR)/msg.Po fs/$(DEPDIR)/open.Po fs/$(DEPDIR)/pipe.Po \
 	fs/$(DEPDIR)/read.Po fs/$(DEPDIR)/rename.Po \
-	fs/$(DEPDIR)/seek.Po fs/$(DEPDIR)/signal.Po \
-	fs/$(DEPDIR)/stat.Po fs/$(DEPDIR)/symlink.Po \
-	fs/$(DEPDIR)/sync.Po fs/$(DEPDIR)/truncate.Po \
-	fs/$(DEPDIR)/vfs.Po fs/$(DEPDIR)/vnode.Po \
-	fs/$(DEPDIR)/write.Po proc/$(DEPDIR)/globals.Po \
-	proc/$(DEPDIR)/id.Po proc/$(DEPDIR)/interrupt.Po \
-	proc/$(DEPDIR)/pid.Po proc/$(DEPDIR)/proc.Po \
-	proc/$(DEPDIR)/sched.Po proc/$(DEPDIR)/signal.Po \
-	proc/$(DEPDIR)/sleep_wakeup_bkl.Po proc/$(DEPDIR)/sysconf.Po \
-	proc/$(DEPDIR)/thread.Po proc/$(DEPDIR)/thread_events.Po \
-	proc/$(DEPDIR)/timer.Po proc/$(DEPDIR)/usage.Po \
-	utility/$(DEPDIR)/doprintf.Po utility/$(DEPDIR)/string.Po \
-	vm/$(DEPDIR)/as.Po vm/$(DEPDIR)/bounds.Po \
-	vm/$(DEPDIR)/globals.Po vm/$(DEPDIR)/ipcopy.Po \
-	vm/$(DEPDIR)/page.Po vm/$(DEPDIR)/pagefault.Po \
-	vm/$(DEPDIR)/segment.Po vm/$(DEPDIR)/vm.Po
+	fs/$(DEPDIR)/seek.Po fs/$(DEPDIR)/select.Po \
+	fs/$(DEPDIR)/signal.Po fs/$(DEPDIR)/stat.Po \
+	fs/$(DEPDIR)/symlink.Po fs/$(DEPDIR)/sync.Po \
+	fs/$(DEPDIR)/truncate.Po fs/$(DEPDIR)/vfs.Po \
+	fs/$(DEPDIR)/vnode.Po fs/$(DEPDIR)/write.Po \
+	proc/$(DEPDIR)/globals.Po proc/$(DEPDIR)/id.Po \
+	proc/$(DEPDIR)/interrupt.Po proc/$(DEPDIR)/pid.Po \
+	proc/$(DEPDIR)/privileges.Po proc/$(DEPDIR)/proc.Po \
+	proc/$(DEPDIR)/reboot.Po proc/$(DEPDIR)/sched.Po \
+	proc/$(DEPDIR)/signal.Po proc/$(DEPDIR)/sleep_wakeup_bkl.Po \
+	proc/$(DEPDIR)/sysconf.Po proc/$(DEPDIR)/thread.Po \
+	proc/$(DEPDIR)/thread_cond.Po proc/$(DEPDIR)/thread_events.Po \
+	proc/$(DEPDIR)/thread_mutex.Po proc/$(DEPDIR)/thread_rwlock.Po \
+	proc/$(DEPDIR)/thread_sched.Po proc/$(DEPDIR)/timer.Po \
+	proc/$(DEPDIR)/usage.Po socket/$(DEPDIR)/host.Po \
+	socket/$(DEPDIR)/recv.Po socket/$(DEPDIR)/send.Po \
+	socket/$(DEPDIR)/socket.Po socket/$(DEPDIR)/socketpair.Po \
+	socket/$(DEPDIR)/sockopt.Po utility/$(DEPDIR)/doprintf.Po \
+	utility/$(DEPDIR)/string.Po vm/$(DEPDIR)/as.Po \
+	vm/$(DEPDIR)/bounds.Po vm/$(DEPDIR)/globals.Po \
+	vm/$(DEPDIR)/ipcopy.Po vm/$(DEPDIR)/page.Po \
+	vm/$(DEPDIR)/pagefault.Po vm/$(DEPDIR)/segment.Po \
+	vm/$(DEPDIR)/vm.Po
 am__mv = mv -f
 CPPASCOMPILE = $(CCAS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CCASFLAGS) $(CCASFLAGS)
@@ -360,8 +377,9 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(srcdir)/boards/raspberry_pi_1/Makefile.am \
 	$(srcdir)/boards/raspberry_pi_4/Makefile.am \
 	$(srcdir)/fs/Makefile.am $(srcdir)/proc/Makefile.am \
-	$(srcdir)/utility/Makefile.am $(srcdir)/vm/Makefile.am \
-	README.md compile depcomp install-sh missing
+	$(srcdir)/socket/Makefile.am $(srcdir)/utility/Makefile.am \
+	$(srcdir)/vm/Makefile.am README.md compile depcomp install-sh \
+	missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -473,17 +491,22 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 kernel_SOURCES = proc/globals.c proc/id.c proc/interrupt.c proc/pid.c \
-	proc/proc.c proc/sched.c proc/signal.c proc/sleep_wakeup_bkl.c \
-	proc/sysconf.c proc/thread.c proc/thread_events.c proc/timer.c \
-	proc/usage.c fs/access.c fs/block.c fs/cache.c fs/char.c \
-	fs/dir.c fs/dnlc.c fs/exec.c fs/filp.c fs/filedesc.c \
+	proc/privileges.c proc/proc.c proc/reboot.c proc/sched.c \
+	proc/signal.c proc/sleep_wakeup_bkl.c proc/sysconf.c \
+	proc/thread.c proc/thread_cond.c proc/thread_events.c \
+	proc/thread_mutex.c proc/thread_rwlock.c proc/thread_sched.c \
+	proc/timer.c proc/usage.c fs/access.c fs/block.c fs/cache.c \
+	fs/char.c fs/dir.c fs/dnlc.c fs/exec.c fs/filp.c fs/filedesc.c \
 	fs/fproc.c fs/globals.c fs/init.c fs/ioctl.c fs/kqueue.c \
 	fs/link.c fs/lookup.c fs/mount.c fs/msg.c fs/open.c fs/pipe.c \
-	fs/read.c fs/rename.c fs/seek.c fs/signal.c fs/stat.c \
-	fs/symlink.c fs/sync.c fs/truncate.c fs/vfs.c fs/vnode.c \
-	fs/write.c utility/doprintf.c utility/string.c vm/as.c \
-	vm/bounds.c vm/globals.c vm/ipcopy.c vm/page.c vm/pagefault.c \
-	vm/segment.c vm/vm.c $(am__append_1) $(am__append_2)
+	fs/read.c fs/rename.c fs/seek.c fs/select.c fs/signal.c \
+	fs/stat.c fs/symlink.c fs/sync.c fs/truncate.c fs/vfs.c \
+	fs/vnode.c fs/write.c utility/doprintf.c utility/string.c \
+	vm/as.c vm/bounds.c vm/globals.c vm/ipcopy.c vm/page.c \
+	vm/pagefault.c vm/segment.c vm/vm.c socket/host.c \
+	socket/recv.c socket/send.c socket/socket.c \
+	socket/socketpair.c socket/sockopt.c $(am__append_1) \
+	$(am__append_2)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CFLAGS = -O0 -g2 -std=c99 -mcpu=cortex-a72 -mfpu=vfpv3-d16 -Wall
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CFLAGS = -O0 -g2 -std=c99
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CPPFLAGS = -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
@@ -508,7 +531,7 @@ all: all-am
 .SUFFIXES: .S .c .o .obj
 am--refresh: Makefile
 	@:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(srcdir)/proc/Makefile.am $(srcdir)/fs/Makefile.am $(srcdir)/utility/Makefile.am $(srcdir)/vm/Makefile.am $(srcdir)/boards/raspberry_pi_1/Makefile.am $(srcdir)/boards/raspberry_pi_4/Makefile.am $(am__configure_deps)
+$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(srcdir)/proc/Makefile.am $(srcdir)/fs/Makefile.am $(srcdir)/utility/Makefile.am $(srcdir)/vm/Makefile.am $(srcdir)/socket/Makefile.am $(srcdir)/boards/raspberry_pi_1/Makefile.am $(srcdir)/boards/raspberry_pi_4/Makefile.am $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -530,7 +553,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $@ $(am__maybe_remake_depfiles)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $@ $(am__maybe_remake_depfiles);; \
 	esac;
-$(srcdir)/proc/Makefile.am $(srcdir)/fs/Makefile.am $(srcdir)/utility/Makefile.am $(srcdir)/vm/Makefile.am $(srcdir)/boards/raspberry_pi_1/Makefile.am $(srcdir)/boards/raspberry_pi_4/Makefile.am $(am__empty):
+$(srcdir)/proc/Makefile.am $(srcdir)/fs/Makefile.am $(srcdir)/utility/Makefile.am $(srcdir)/vm/Makefile.am $(srcdir)/socket/Makefile.am $(srcdir)/boards/raspberry_pi_1/Makefile.am $(srcdir)/boards/raspberry_pi_4/Makefile.am $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	$(SHELL) ./config.status --recheck
@@ -595,7 +618,11 @@ proc/interrupt.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/pid.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
+proc/privileges.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
 proc/proc.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
+proc/reboot.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/sched.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
@@ -607,7 +634,15 @@ proc/sysconf.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/thread.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
+proc/thread_cond.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
 proc/thread_events.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
+proc/thread_mutex.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
+proc/thread_rwlock.$(OBJEXT): proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
+proc/thread_sched.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/timer.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
@@ -642,6 +677,7 @@ fs/pipe.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/read.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/rename.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/seek.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
+fs/select.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/signal.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/stat.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/symlink.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
@@ -675,6 +711,24 @@ vm/pagefault.$(OBJEXT): vm/$(am__dirstamp) \
 	vm/$(DEPDIR)/$(am__dirstamp)
 vm/segment.$(OBJEXT): vm/$(am__dirstamp) vm/$(DEPDIR)/$(am__dirstamp)
 vm/vm.$(OBJEXT): vm/$(am__dirstamp) vm/$(DEPDIR)/$(am__dirstamp)
+socket/$(am__dirstamp):
+	@$(MKDIR_P) socket
+	@: > socket/$(am__dirstamp)
+socket/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) socket/$(DEPDIR)
+	@: > socket/$(DEPDIR)/$(am__dirstamp)
+socket/host.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
+socket/recv.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
+socket/send.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
+socket/socket.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
+socket/socketpair.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
+socket/sockopt.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_1/$(am__dirstamp):
 	@$(MKDIR_P) boards/raspberry_pi_1
 	@: > boards/raspberry_pi_1/$(am__dirstamp)
@@ -803,6 +857,7 @@ mostlyclean-compile:
 	-rm -f boards/raspberry_pi_4/*.$(OBJEXT)
 	-rm -f fs/*.$(OBJEXT)
 	-rm -f proc/*.$(OBJEXT)
+	-rm -f socket/*.$(OBJEXT)
 	-rm -f utility/*.$(OBJEXT)
 	-rm -f vm/*.$(OBJEXT)
 
@@ -867,6 +922,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/read.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/rename.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/seek.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/select.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/signal.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/stat.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/symlink.Po@am__quote@ # am--include-marker
@@ -879,15 +935,27 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/id.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/interrupt.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/pid.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/privileges.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/proc.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/reboot.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sched.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/signal.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sleep_wakeup_bkl.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sysconf.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_cond.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_events.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_mutex.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_rwlock.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_sched.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/timer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/usage.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/host.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/recv.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/send.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/socket.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/socketpair.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/sockopt.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@utility/$(DEPDIR)/doprintf.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@utility/$(DEPDIR)/string.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@vm/$(DEPDIR)/as.Po@am__quote@ # am--include-marker
@@ -1208,6 +1276,8 @@ distclean-generic:
 	-rm -f fs/$(am__dirstamp)
 	-rm -f proc/$(DEPDIR)/$(am__dirstamp)
 	-rm -f proc/$(am__dirstamp)
+	-rm -f socket/$(DEPDIR)/$(am__dirstamp)
+	-rm -f socket/$(am__dirstamp)
 	-rm -f utility/$(DEPDIR)/$(am__dirstamp)
 	-rm -f utility/$(am__dirstamp)
 	-rm -f vm/$(DEPDIR)/$(am__dirstamp)
@@ -1280,6 +1350,7 @@ distclean: distclean-am
 	-rm -f fs/$(DEPDIR)/read.Po
 	-rm -f fs/$(DEPDIR)/rename.Po
 	-rm -f fs/$(DEPDIR)/seek.Po
+	-rm -f fs/$(DEPDIR)/select.Po
 	-rm -f fs/$(DEPDIR)/signal.Po
 	-rm -f fs/$(DEPDIR)/stat.Po
 	-rm -f fs/$(DEPDIR)/symlink.Po
@@ -1292,15 +1363,27 @@ distclean: distclean-am
 	-rm -f proc/$(DEPDIR)/id.Po
 	-rm -f proc/$(DEPDIR)/interrupt.Po
 	-rm -f proc/$(DEPDIR)/pid.Po
+	-rm -f proc/$(DEPDIR)/privileges.Po
 	-rm -f proc/$(DEPDIR)/proc.Po
+	-rm -f proc/$(DEPDIR)/reboot.Po
 	-rm -f proc/$(DEPDIR)/sched.Po
 	-rm -f proc/$(DEPDIR)/signal.Po
 	-rm -f proc/$(DEPDIR)/sleep_wakeup_bkl.Po
 	-rm -f proc/$(DEPDIR)/sysconf.Po
 	-rm -f proc/$(DEPDIR)/thread.Po
+	-rm -f proc/$(DEPDIR)/thread_cond.Po
 	-rm -f proc/$(DEPDIR)/thread_events.Po
+	-rm -f proc/$(DEPDIR)/thread_mutex.Po
+	-rm -f proc/$(DEPDIR)/thread_rwlock.Po
+	-rm -f proc/$(DEPDIR)/thread_sched.Po
 	-rm -f proc/$(DEPDIR)/timer.Po
 	-rm -f proc/$(DEPDIR)/usage.Po
+	-rm -f socket/$(DEPDIR)/host.Po
+	-rm -f socket/$(DEPDIR)/recv.Po
+	-rm -f socket/$(DEPDIR)/send.Po
+	-rm -f socket/$(DEPDIR)/socket.Po
+	-rm -f socket/$(DEPDIR)/socketpair.Po
+	-rm -f socket/$(DEPDIR)/sockopt.Po
 	-rm -f utility/$(DEPDIR)/doprintf.Po
 	-rm -f utility/$(DEPDIR)/string.Po
 	-rm -f vm/$(DEPDIR)/as.Po
@@ -1416,6 +1499,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f fs/$(DEPDIR)/read.Po
 	-rm -f fs/$(DEPDIR)/rename.Po
 	-rm -f fs/$(DEPDIR)/seek.Po
+	-rm -f fs/$(DEPDIR)/select.Po
 	-rm -f fs/$(DEPDIR)/signal.Po
 	-rm -f fs/$(DEPDIR)/stat.Po
 	-rm -f fs/$(DEPDIR)/symlink.Po
@@ -1428,15 +1512,27 @@ maintainer-clean: maintainer-clean-am
 	-rm -f proc/$(DEPDIR)/id.Po
 	-rm -f proc/$(DEPDIR)/interrupt.Po
 	-rm -f proc/$(DEPDIR)/pid.Po
+	-rm -f proc/$(DEPDIR)/privileges.Po
 	-rm -f proc/$(DEPDIR)/proc.Po
+	-rm -f proc/$(DEPDIR)/reboot.Po
 	-rm -f proc/$(DEPDIR)/sched.Po
 	-rm -f proc/$(DEPDIR)/signal.Po
 	-rm -f proc/$(DEPDIR)/sleep_wakeup_bkl.Po
 	-rm -f proc/$(DEPDIR)/sysconf.Po
 	-rm -f proc/$(DEPDIR)/thread.Po
+	-rm -f proc/$(DEPDIR)/thread_cond.Po
 	-rm -f proc/$(DEPDIR)/thread_events.Po
+	-rm -f proc/$(DEPDIR)/thread_mutex.Po
+	-rm -f proc/$(DEPDIR)/thread_rwlock.Po
+	-rm -f proc/$(DEPDIR)/thread_sched.Po
 	-rm -f proc/$(DEPDIR)/timer.Po
 	-rm -f proc/$(DEPDIR)/usage.Po
+	-rm -f socket/$(DEPDIR)/host.Po
+	-rm -f socket/$(DEPDIR)/recv.Po
+	-rm -f socket/$(DEPDIR)/send.Po
+	-rm -f socket/$(DEPDIR)/socket.Po
+	-rm -f socket/$(DEPDIR)/socketpair.Po
+	-rm -f socket/$(DEPDIR)/sockopt.Po
 	-rm -f utility/$(DEPDIR)/doprintf.Po
 	-rm -f utility/$(DEPDIR)/string.Po
 	-rm -f vm/$(DEPDIR)/as.Po

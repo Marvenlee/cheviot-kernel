@@ -24,6 +24,7 @@ kernel_SOURCES += \
   fs/read.c \
   fs/rename.c \
   fs/seek.c \
+  fs/select.c \
   fs/signal.c \
   fs/stat.c \
   fs/symlink.c \

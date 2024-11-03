@@ -74,4 +74,15 @@ int sys_fsync(int fd)
 }
 
 
+/* @brief   Force a filesystem sync from the server side
+ *
+ * @param   fd, file descriptor of server message port
+ * @param   unmount, force an unmount from the filesystem to prevent further changes
+ *
+ * This is a non-blocking function.
+ */
+int sys_sync2(int fd, bool unmount)
+{
+  return -ENOSYS;
+}
 

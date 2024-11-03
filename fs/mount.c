@@ -402,6 +402,15 @@ int sys_pivotroot(char *_new_root, char *_old_root)
 
 
 /*
+ *
+ */
+int sys_unmount(char *_path, bool force)
+{
+  return -ENOSYS;
+}
+
+
+/*
  * Need to have separate function to sync the device,
  * flush all pending delayed writes and anything in message queue
  * Prevent further access

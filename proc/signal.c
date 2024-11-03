@@ -211,7 +211,7 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
  * @param   signal, signal number to send to target process
  * @return  0 on success, negative errno on failure
  */
-int sys_kill(int pid, int signal)
+int sys_kill(pid_t pid, int signal)
 {
 	Info("sys_kill(pid:%d, signal:%d)", pid, signal);
     
@@ -227,6 +227,18 @@ int sys_kill(int pid, int signal)
 	}
 
 	return 0;
+}
+
+
+/* @brief   Send a signal to a thread
+ *
+ * @param   tid, ID of target thread to send signal to 
+ * @param   signal, signal number to send to target process
+ * @return  0 on success, negative errno on failure
+ */
+int sys_thread_kill(pid_t tid, int signal)
+{
+  // TODO: do_kill_thread(thread, signal);
 }
 
 
@@ -285,6 +297,15 @@ int do_kill_process_group(pid_t pgid, int signal, int code, intptr_t val)
 	  proc = LIST_NEXT(proc, pgrp_link);
 	}
 	
+  return 0;
+}
+
+
+/*
+ * TODO: do_kill_thread
+ */
+int do_kill_thread(struct Thread *thread, int signal)
+{
   return 0;
 }
 
