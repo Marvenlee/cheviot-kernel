@@ -79,3 +79,26 @@ int sys_set_privileges(int when, uint64_t *_set, uint64_t *_result)
 }
 
 
+/* @brief   Check if a process is allowed to perform privileged I/O operations
+ *
+ * @param   proc, process to check
+ * @return  true if it has privileges to perform I/O operations, false otherwise
+ *
+ * TODO: Replace with a function to check against the current privilege bitmap.
+ *       check_privilege(proc, uint64_t privilege);
+ */
+bool io_allowed(struct Process *proc)
+{
+#if 1
+  return true;
+#else
+  // FIXME: check PROCF_ALLOW_IO
+  if(proc->flags & PROCF_ALLOW_IO) {
+    return true;
+  } else {
+    return false;
+  }
+#endif
+}
+
+

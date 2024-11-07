@@ -199,6 +199,10 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
  * TODO:  What if group and other have more privileges than owner?
  * TODO:  Add root/administrator check (GID = 0 or 1 for admins)?
  * Admins can't access root files.
+ *
+ * TODO: Callers will need separate call to check_privilege in proc/privilege.c
+ *
+ * TODO: Rename to check_file_access(proc, filp, desired_access);
  */
 int is_allowed(struct VNode *vnode, mode_t desired_access)
 {

@@ -35,7 +35,7 @@ bool execargs_busy = false;
 char execargs_buf[MAX_ARGS_SZ];
 
 // Private prototypes
-int do_exec(int fd, struct execargs *_args);
+int do_exec(int fd, char *basename, struct execargs *_args);
 static int check_elf_headers(int fd);
 static int load_process(struct Process *proc, int fd, void **entry_point);
 ssize_t read_file (int fd, off_t offset, void *vaddr, size_t sz);
@@ -44,39 +44,47 @@ ssize_t kread_file (int fd, off_t offset, void *vaddr, size_t sz);
 
 /* @brief   Exec system call
  */
-int sys_exec(char *filename, struct execargs *_args)
+int sys_exec(char *_path, struct execargs *_args)
 {
   int sc;
   int fd;
-   
+  struct lookupdata ld;
+  
   Info ("sys_exec");
   
-  if ((fd = sys_open(filename, O_RDONLY, 0)) < 0) {
+  if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
+    Error("Exec failed to lookup file");
+    return sc;
+  }
+
+  if ((fd = do_open(&ld, O_RDONLY, 0)) < 0) {
     Error("Exec failed to open file, fd = %d", fd);
+    // lookup_cleanup(&ld);
     return -ENOENT;
   }
-  
-  /* FIXME: is_allowed check
-  filp = get_filp();
-  vnode = filp->vnode;
-  if (is_allowed(vnode, R_BIT | X_BIT) != 0)
+
+#if 0    // TODO: Enable access check
+  if (check_access_fd(fd, R_BIT | X_BIT) != 0) {
   {
       sys_close(fd);
+      // lookup_cleanup(&ld);
       return -EPERM;
   }
-  */
+#endif  
 
   // TODO: Kill all other threads
 
-  sc = do_exec(fd, _args);
+  sc = do_exec(fd, ld.last_component, _args);
   
   sys_close(fd);
   
   if (sc == -ENOMEM) {
     Error("Exec failed to exec, sc = %d", sc);
+    // lookup_cleanup(&ld);
     sys_exit(-1);
   }
-  
+
+  // lookup_cleanup(&ld);  
   return sc; 
 }
 
@@ -84,7 +92,7 @@ int sys_exec(char *filename, struct execargs *_args)
 /*
  *
  */
-int do_exec(int fd, struct execargs *_args)
+int do_exec(int fd, char *basename, struct execargs *_args)
 {
   void *entry_point;
   void *stack_pointer;
@@ -147,6 +155,8 @@ int do_exec(int fd, struct execargs *_args)
   // FIXME: CloseOnExec (current);
 
   exec_signals(current, current_thread);
+	
+  StrLCpy(current->basename, basename, sizeof current->basename);
 
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
   return 0;
@@ -238,21 +248,6 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
     argv[t] = dst;
 
     sz = StrLen(dst) + 1;
-    
-		if (t == 0) {			
-			size_t basename_sz = (sz < PROC_BASENAME_SZ) ? sz : PROC_BASENAME_SZ;
-			struct Process *current;
-			
-			current = get_current_process();
-	
-			current->basename[0] = '\0';
-						
-			for(int c=0; c<basename_sz; c++) {
-				current->basename[c] = dst[c];
-			}			
-
-			current->basename[PROC_BASENAME_SZ-1] = '\0';
-		}    
         
     dst += sz;
     remaining -= sz;

@@ -454,6 +454,7 @@ void free_superblock(struct SuperBlock *sb);
 /* fs/open.c */
 int sys_open(char *_path, int oflags, mode_t mode);
 int kopen(char *_path, int oflags, mode_t mode);
+int do_open(struct lookupdata *ld, int oflags, mode_t mode);
 
 /* fs/pipe.c */
 void InitPipes(void);

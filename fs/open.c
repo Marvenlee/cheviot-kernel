@@ -25,9 +25,6 @@
 #include <poll.h>
 #include <string.h>
 
-// Static Prototypes
-static int do_open(struct lookupdata *ld, int oflags, mode_t mode);
-
 
 /*
  *
@@ -45,10 +42,12 @@ int sys_open(char *_path, int oflags, mode_t mode)
   return do_open(&ld, oflags, mode);
 }
 
+
 /*
  *
  */
-int kopen(char *_path, int oflags, mode_t mode) {
+int kopen(char *_path, int oflags, mode_t mode)
+{
   struct lookupdata ld;
   int sc;
 
@@ -64,7 +63,8 @@ int kopen(char *_path, int oflags, mode_t mode) {
 /*
  *
  */
-static int do_open(struct lookupdata *ld, int oflags, mode_t mode) {
+int do_open(struct lookupdata *ld, int oflags, mode_t mode)
+{
   struct Process *current;
   struct VNode *dvnode = NULL;
   struct VNode *vnode = NULL;
@@ -149,7 +149,5 @@ exit:
   vnode_put(vnode);
   return err;
 }
-
-
 
 

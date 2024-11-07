@@ -456,22 +456,4 @@ void free_process_struct(struct Process *proc)
 }
 
 
-/* @brief   Check if a process is allowed to perform privileged I/O operations
- *
- * @param   proc, process to check
- * @return  true if it has privileges to perform I/O operations, false otherwise
- */
-bool io_allowed(struct Process *proc)
-{
-#if 1
-  return true;
-#else
-  // FIXME: check PROCF_ALLOW_IO
-  if(proc->flags & PROCF_ALLOW_IO) {
-    return true;
-  } else {
-    return false;
-  }
-#endif
-}
 
