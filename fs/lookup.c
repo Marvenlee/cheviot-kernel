@@ -422,4 +422,20 @@ int walk_component(struct lookupdata *ld)
 }
 
 
+/*
+ *
+ */
+struct VNode *path_advance(struct VNode *dvnode, char *component)
+{
+  struct VNode *rvnode;
+  
+  if ((vfs_lookup(dvnode, component, &rvnode)) != 0) {
+    return NULL;
+  }
+  
+  return rvnode;
+}
+
+
+
 

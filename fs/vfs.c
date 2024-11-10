@@ -302,7 +302,7 @@ int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
  * FIXME: Need to allocate vnode but not set INODE nr, then send message to server.
  * Otherwise could fail to allocate after sending.
  */
-int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **result)
+int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat, struct VNode **result)
 {
   iorequest_t req = {0};
   ioreply_t reply = {0};
@@ -311,10 +311,10 @@ int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
   struct VNode *vnode = NULL;
   int sc;
 
-  sb = dir->superblock;
+  sb = dvnode->superblock;
 
   req.cmd = CMD_MKNOD;
-  req.args.mknod.dir_inode_nr = dir->inode_nr;
+  req.args.mknod.dir_inode_nr = dvnode->inode_nr;
   req.args.mknod.name_sz = StrLen(name) + 1;
   // req.args.mknod.size = 0;
   req.args.mknod.uid = stat->st_uid;
@@ -354,7 +354,7 @@ int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
 /*
  *
  */
-int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **result)
+int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat, struct VNode **result)
 {
   iorequest_t req = {0};
   ioreply_t reply = {0};
@@ -363,10 +363,10 @@ int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
   struct VNode *vnode = NULL;
   int sc;
 
-  sb = dir->superblock;
+  sb = dvnode->superblock;
 
   req.cmd = CMD_MKDIR;
-  req.args.mkdir.dir_inode_nr = dir->inode_nr;
+  req.args.mkdir.dir_inode_nr = dvnode->inode_nr;
   req.args.mkdir.name_sz = StrLen(name) + 1;
   // req.args.mknod.size = 0;
   req.args.mkdir.uid = stat->st_uid;
@@ -455,7 +455,27 @@ int vfs_truncate(struct VNode *vnode, size_t size)
 int vfs_rename(struct VNode *src_dvnode, char *src_name,
                struct VNode *dst_dvnode, char *dst_name)
 {
-  return -ENOTSUP;
+  iorequest_t req = {0};
+  struct SuperBlock *sb;
+  msgiov_t siov[2];
+  struct VNode *vnode = NULL;
+  int sc;
+
+  sb = src_dvnode->superblock;
+
+  req.cmd = CMD_RENAME;
+  req.args.rename.src_dir_inode_nr = src_dvnode->inode_nr;
+  req.args.rename.dst_dir_inode_nr = dst_dvnode->inode_nr;
+  req.args.rename.src_name_sz = StrLen(src_name) + 1;
+  req.args.rename.dst_name_sz = StrLen(dst_name) + 1;
+ 
+  siov[0].addr = src_name;
+  siov[0].size = req.args.rename.src_name_sz;
+  siov[1].addr = dst_name;
+  siov[1].size = req.args.rename.dst_name_sz;
+
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
+  return sc;
 }
 
 

@@ -175,13 +175,7 @@ int sys_ismount(char *_path)
   
   vnode = ld.vnode;
   
-  if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {
-    Info("is mount");
-    sc = 1;
-  } else {
-    Info("not mount");
-    sc = 0;
-  }
+  sc = is_mountpoint(vnode);
 
   vnode_put(vnode);
   
@@ -196,5 +190,20 @@ int sys_unmount(char *_path, uint32_t flags)
 {
   return -ENOSYS;
 }
+
+
+/*
+ *
+ */
+bool is_mountpoint(struct VNode *vnode)
+{
+
+  if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 
 

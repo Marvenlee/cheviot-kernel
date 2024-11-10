@@ -62,7 +62,6 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 // set_fd() flags
 #define FD_FLAG_CLOEXEC   (1 << 0)
 
-
 // Sizes
 #define MAX_SYMLINK     32     // Limit of number of symlinks that can be followed
 
@@ -96,10 +95,13 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define PIPE_BUF_SZ     4096      // Buffer size of pipes (should be same as page size)
 
 
-#define DELWRI_DELAY_TICKS            500  // Time in ticks to delay a delayed-write
-#define SCHED_PRIO_CACHE_HANDLER      16   // Task priority of bdflush tasks.
-  
+#define DELWRI_DELAY_TICKS            500   // Time in ticks to delay a delayed-write
+#define SCHED_PRIO_CACHE_HANDLER      16    // Task priority of bdflush tasks.
 
+#define MAX_RENAME_PATH_CHECK_DEPTH   128   /* Max directories to ascend when checking rename
+                                               directory is now a subdirectory of new path */
+
+  
 /* @brief   A single cluster of a file in the file buffer cache
  */
 struct Buf
@@ -463,6 +465,7 @@ int lookup_last_component(struct lookupdata *ld);
 char *path_token(struct lookupdata *ld);
 bool is_last_component(struct lookupdata *ld);
 int walk_component (struct lookupdata *ld);
+struct VNode *path_advance(struct VNode *dvnode, char *component);
 
 // fs/mknod.c */
 int sys_mknod2(char *_handlerpath, uint32_t flags, struct stat *stat);
@@ -472,6 +475,7 @@ int sys_pivotroot(char *_new_root, char *_old_root);
 int sys_renamemount(char *_new_path, char *_old_path);
 int sys_ismount(char *_path);
 int sys_unmount(char *_path, uint32_t flags);
+bool is_mountpoint(struct VNode *vnode);
 
 /* fs/msgport.c */
 int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat);
