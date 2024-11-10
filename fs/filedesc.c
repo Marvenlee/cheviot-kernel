@@ -190,7 +190,7 @@ int do_close(struct Process *proc, int fd)
         close_vnode(proc, fd);
         break;
       case FILP_TYPE_SUPERBLOCK:
-        close_mount(proc, fd);
+        close_msgport(proc, fd);
         break;
       case FILP_TYPE_KQUEUE:
         close_kqueue(proc, fd);

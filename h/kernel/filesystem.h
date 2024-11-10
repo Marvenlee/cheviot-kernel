@@ -282,7 +282,8 @@ struct DName {
 
 /* @brief   File pointer of an open file
  */
-struct Filp {
+struct Filp
+{
   int type;
   
   union {
@@ -326,7 +327,8 @@ struct FProcess
 
 /* @brief   Lookup state of files to vnodes
  */
-struct lookupdata {
+struct lookupdata
+{
   struct VNode *start_vnode;
   struct VNode *vnode;
   struct VNode *parent;
@@ -341,6 +343,7 @@ struct lookupdata {
 /*
  * Prototypes
  */
+
 // fs/access.c
 int sys_access(char *path, mode_t permisssions);
 mode_t sys_umask(mode_t mode);
@@ -461,20 +464,19 @@ char *path_token(struct lookupdata *ld);
 bool is_last_component(struct lookupdata *ld);
 int walk_component (struct lookupdata *ld);
 
+// fs/mknod.c */
+int sys_mknod2(char *_handlerpath, uint32_t flags, struct stat *stat);
+
 /* fs/mount.c */
 int sys_pivotroot(char *_new_root, char *_old_root);
-int sys_mknod(char *_handlerpath, uint32_t flags, struct stat *stat);
+int sys_renamemount(char *_new_path, char *_old_path);
 int sys_ismount(char *_path);
+int sys_unmount(char *_path, uint32_t flags);
+
+/* fs/msgport.c */
 int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat);
-int sys_renamemsgport(char *_new_path, char *_old_path);
-
-int close_mount(struct Process *proc, int fd);
-struct SuperBlock *get_superblock(struct Process *proc, int fd);
-int alloc_fd_superblock(struct Process *proc);
-int free_fd_superblock(struct Process *proc, int fd);
-struct SuperBlock *alloc_superblock(void);
-void free_superblock(struct SuperBlock *sb);
-
+int close_msgport(struct Process *proc, int fd);
+ 
 /* fs/open.c */
 int sys_open(char *_path, int oflags, mode_t mode);
 int kopen(char *_path, int oflags, mode_t mode);
@@ -511,6 +513,13 @@ int sys_lseek64(int fd, off64_t *pos, int whence);
 int sys_socketpair(int fd[2]);
 struct Socket *AllocSocket(void);
 void FreeSocket(struct Socket *socket);
+
+/* fs/superblock.c */
+struct SuperBlock *get_superblock(struct Process *proc, int fd);
+int alloc_fd_superblock(struct Process *proc);
+int free_fd_superblock(struct Process *proc, int fd);
+struct SuperBlock *alloc_superblock(void);
+void free_superblock(struct SuperBlock *sb);
 
 /* fs/sync.c */
 int sys_sync(void);

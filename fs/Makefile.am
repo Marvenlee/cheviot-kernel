@@ -17,8 +17,10 @@ kernel_SOURCES += \
   fs/kqueue.c \
   fs/link.c \
   fs/lookup.c \
+  fs/mknod.c \
   fs/mount.c \
   fs/msg.c \
+  fs/msgport.c \
   fs/open.c \
   fs/pipe.c \
   fs/read.c \
@@ -27,6 +29,7 @@ kernel_SOURCES += \
   fs/select.c \
   fs/signal.c \
   fs/stat.c \
+  fs/superblock.c \
   fs/symlink.c \
   fs/sync.c \
   fs/truncate.c \

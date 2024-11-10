@@ -78,8 +78,8 @@ syscall_table:
 
     .long sys_exec                      // 20   
 
-    .long sys_createmsgport             // 21   TODO: Rename to createport(). 
-    .long sys_unmount                   // 22   TODO: Was unmount, add back again, unmount(path, force)
+    .long sys_createmsgport             // 21 
+    .long sys_unmount                   // 22
 
     // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
     // Need listen(mount_fd) to create new listener handle (multiple for char device server)
@@ -158,8 +158,8 @@ syscall_table:
     .long sys_sigpending                // 77
     .long sys_sigsuspend                // 78
     
-    .long sys_mknod                     // 79
-    .long sys_renamemsgport             // 80
+    .long sys_mknod2                    // 79
+    .long sys_renamemount               // 80
     
     .long sys_chroot                    // 81
 
