@@ -574,7 +574,7 @@ int init_superblock_bdflush(struct SuperBlock *sb)
   
   sb->bdflush_thread = create_kernel_thread(bdflush_task, sb, 
                                         SCHED_RR, SCHED_PRIO_CACHE_HANDLER, 
-                                        THREADF_KERNEL, NULL);
+                                        THREADF_KERNEL, NULL, "bdflush-kt");
   
   if (sb->bdflush_thread == NULL) {
     Info("bd_flush initialization failed");

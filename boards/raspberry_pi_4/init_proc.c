@@ -146,7 +146,8 @@ void init_processes(void)
                                SCHED_RR, 16, 
                                THREADF_KERNEL,
                                0,
-                               &cpu_table[0]);
+                               &cpu_table[0],
+                               "reaper-kt");
                                
   Info("thread reaper thread created, tid:%d", get_thread_tid(thread_reaper_thread));
 
@@ -160,7 +161,8 @@ void init_processes(void)
                                SCHED_RR, 31, 
                                THREADF_KERNEL,
                                0,
-                               &cpu_table[0]);
+                               &cpu_table[0],
+                               "timer-kt");
                                
   Info("timer thread created, tid:%d", get_thread_tid(timer_thread));
 
@@ -178,7 +180,8 @@ void init_processes(void)
                                    SCHED_IDLE, 0, 
                                    THREADF_KERNEL,
                                    0,
-                                   &cpu_table[0]);
+                                   &cpu_table[0],
+                                   "idle-kt");
 
 
   cpu_table[0].idle_thread->state = THREAD_STATE_READY;

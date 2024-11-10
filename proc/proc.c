@@ -332,7 +332,7 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
   init_fproc(new_proc);
   init_signals(new_proc);
   
-  thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, 0, THREADF_USER, cpu);
+  thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, 0, THREADF_USER, cpu, basename);
 
   if (thread == NULL) {
     free_address_space(&new_proc->as);

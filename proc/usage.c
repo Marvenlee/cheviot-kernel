@@ -95,7 +95,7 @@ int sys_get_cpu_usage(void *buf, size_t sz)
     cu.priority = thread->priority;
     cu.policy = thread->sched_policy;
     
-    strncpy(&cu.name[0], &proc->basename[0], sizeof cu.name);
+    strncpy(&cu.name[0], &thread->basename[0], sizeof cu.name);
       
     // Reset counters
     thread->usage_usec = 0;

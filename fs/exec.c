@@ -35,7 +35,7 @@ bool execargs_busy = false;
 char execargs_buf[MAX_ARGS_SZ];
 
 // Private prototypes
-int do_exec(int fd, char *basename, struct execargs *_args);
+int do_exec(int fd, char *name, struct execargs *_args);
 static int check_elf_headers(int fd);
 static int load_process(struct Process *proc, int fd, void **entry_point);
 ssize_t read_file (int fd, off_t offset, void *vaddr, size_t sz);
@@ -92,7 +92,7 @@ int sys_exec(char *_path, struct execargs *_args)
 /*
  *
  */
-int do_exec(int fd, char *basename, struct execargs *_args)
+int do_exec(int fd, char *name, struct execargs *_args)
 {
   void *entry_point;
   void *stack_pointer;
@@ -156,7 +156,8 @@ int do_exec(int fd, char *basename, struct execargs *_args)
 
   exec_signals(current, current_thread);
 	
-  StrLCpy(current->basename, basename, sizeof current->basename);
+  StrLCpy(current->basename, name, sizeof current->basename);
+  StrLCpy(current_thread->basename, name, sizeof current_thread->basename);
 
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
   return 0;

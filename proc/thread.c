@@ -40,7 +40,7 @@
  */
 pid_t sys_thread_create(void (*entry)(void *), void *arg,
                                   int policy, int priority,
-                                  uint32_t flags, char *basename)
+                                  uint32_t flags, char *_basename)
 {
   struct Process *current_proc;
   struct Thread *current_thread;
@@ -52,7 +52,7 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg,
   thread = do_create_thread(current_proc, entry, arg,
                               policy, priority, flags, 
                               current_thread->signal.sig_mask, 
-                              get_cpu());
+                              get_cpu(), current_proc->basename);
 
   if (thread == NULL) {
     return -ENOMEM;
@@ -157,7 +157,7 @@ struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, s
   }
   
   
-  init_thread(thread, get_cpu(), new_proc, stack, tid, 0x00000000);
+  init_thread(thread, get_cpu(), new_proc, stack, tid, 0x00000000, old_thread->basename);
   init_msgport(&thread->reply_port);
   dup_schedparams(thread, old_thread);
 
@@ -171,13 +171,13 @@ struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, s
  *
  */
 struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy, int priority,
-                               uint32_t flags, struct CPU *cpu)
+                               uint32_t flags, struct CPU *cpu, char *name)
 {
   struct Thread *thread;
 
   flags |= THREADF_KERNEL;
     
-  thread = do_create_thread(root_process, entry, arg, policy, priority, flags, 0x00000000, cpu);
+  thread = do_create_thread(root_process, entry, arg, policy, priority, flags, 0x00000000, cpu, name);
 
   if (thread != NULL) {
     thread_start(thread);
@@ -192,7 +192,7 @@ struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy
  */
 struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *), void *arg,
                                 int policy, int priority, uint32_t flags, uint32_t sig_mask,
-                                struct CPU *cpu)
+                                struct CPU *cpu, char *name)
 {
   struct Thread *thread;
   pid_t tid;
@@ -221,7 +221,7 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
     return NULL;
   }
   
-  init_thread(thread, get_cpu(), new_proc, stack, tid, sig_mask);
+  init_thread(thread, get_cpu(), new_proc, stack, tid, sig_mask, name);
   init_msgport(&thread->reply_port);
   init_schedparams(thread, policy, priority);
 
@@ -240,7 +240,7 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
  * Later add thread affinity mask and some load balancing.
  */
 void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack,
-                 pid_t tid, uint32_t sig_mask)
+                 pid_t tid, uint32_t sig_mask, char *name)
 {
   InitRendez(&thread->rendez);
 
@@ -284,7 +284,13 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
 
   if (sig_mask != 0xFFFFFFFF) {
     LIST_ADD_TAIL(&proc->unmasked_signal_thread_list, thread, unmasked_signal_thread_link);
-  }  
+  }
+  
+  if (name != NULL) {
+    StrLCpy(thread->basename, name, sizeof thread->basename);
+  } else {
+    StrLCpy(thread->basename, proc->basename, sizeof thread->basename);
+  }
 }
 
 

@@ -139,7 +139,7 @@ struct Process
   struct Timer alarm;               // TODO: Handle per-process alarm() timer
   
   int log_level;                    // TODO: Control log level per process in kernel?
-	char basename[PROC_BASENAME_SZ];  // FIXME: Update code to use basename instead of full path
+	char basename[PROC_BASENAME_SZ];
 
   int exit_status;                  // sys_exit() saved error code
   bool exit_in_progress;            // A thread has initiated the exit steps
@@ -199,6 +199,8 @@ struct Thread
     
   thread_link_t free_link;    // TODO: later dynamically allocate thread (remove this field)
   thread_link_t thread_link;  // TODO: should be process_link
+  
+  char basename[PROC_BASENAME_SZ];
   
   uint32_t flags;         // Permissions and features of a thread
   int state;              // thread state
@@ -400,12 +402,12 @@ int sys_thread_join(pid_t tid, intptr_t *retval);
 void sys_thread_exit(intptr_t retval);
 struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, struct Thread *old_thread);
 struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy, int priority,
-                                    uint32_t flags, struct CPU *cpu);
+                                    uint32_t flags, struct CPU *cpu, char *name);
 struct Thread *do_create_thread(struct Process *proc, void (*entry)(void *), void *arg,
                                 int policy, int priority, uint32_t flags, uint32_t sig_mask,
-                                struct CPU *cpu);
+                                struct CPU *cpu, char *name);
 void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack,
-                 pid_t tid, uint32_t sig_mask);
+                 pid_t tid, uint32_t sig_mask, char *name);
 int do_kill_thread(struct Thread *thread, int signal);
 void do_kill_other_threads_and_wait(struct Process *current, struct Thread *current_thread);
 int do_exit_thread(intptr_t status);
