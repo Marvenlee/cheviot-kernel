@@ -32,7 +32,7 @@ int sys_truncate(int fd, size_t sz) {
   struct Process *current;
   struct Filp *filp = NULL;
   struct VNode *vnode = NULL;
-  int err = 0;
+  int sc = 0;
 
   current = get_current_process();
   filp = get_filp(current, fd);
@@ -42,26 +42,25 @@ int sys_truncate(int fd, size_t sz) {
     return -EINVAL;
   }
 
-  vnode_lock(vnode);
-
+  vn_lock(vnode, VL_EXCLUSIVE);
+  
   if (!S_ISREG(vnode->mode)) {
     Error("truncate: vnode is not reg file!");
-    err = -EINVAL;
-    goto exit;
+    vn_lock(vnode, VL_RELEASE);
+    return -EINVAL;
   }
 
-  if ((err = vfs_truncate(vnode, 0)) != 0) {
-    goto exit;
+  if ((sc = vfs_truncate(vnode, 0)) != 0) {
+    vn_lock(vnode, VL_RELEASE);
+    return sc;
   }
 
   // TODO: Check if size has gone up or down.
   knote(&vnode->knote_list, NOTE_EXTEND | NOTE_ATTRIB);
-  vnode_unlock(vnode);
-  return 0;
 
-exit:
-  vnode_unlock(vnode);
-  return err;
+  vn_lock(vnode, VL_RELEASE);
+
+  return 0;
 }
 
 

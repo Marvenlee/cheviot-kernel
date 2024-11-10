@@ -278,6 +278,8 @@ int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, 
   
   vnode = vnode_get(sb, ino_nr);
   
+  vn_lock(vnode, VL_UPGRADE);
+  
   if (vnode == NULL) {
     return -EINVAL;
   }

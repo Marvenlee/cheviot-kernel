@@ -108,7 +108,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 // FIXME:   if (vnode->vnode_mounted_here != NULL) {
       //	        vnode_put(vnode);
 //      vnode = vnode->vnode_mounted_here;
-      //	        vnode_lock (vnode);
+      //	        vn_lock (vnode, VL_SHARED);
 //    }
   }
 
@@ -140,7 +140,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   else
     filp->offset = 0;
 
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_RELEASE);
   return fd;
   
 exit:

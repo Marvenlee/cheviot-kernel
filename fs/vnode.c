@@ -75,15 +75,10 @@ int close_vnode(struct Process *proc, int fd)
     return -EINVAL;  
   }
   
-  vnode_lock(vnode);
+  vn_lock(vnode, VL_EXCLUSIVE);     // TODO: Make it VL_DRAIN, deny access to it
   
-  if (vnode->reference_cnt == 1) {
-    // FIXME: Do any special cleanup of file, dir, fifo ?
-  }
-
   vnode_put(vnode);
   
-  // TODO: decrement vnode reference count, if 0 free vnode.
   free_fd_filp(proc, fd);
   
   return 0;
@@ -117,10 +112,13 @@ struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr)
   sb->reference_cnt++;
   
   InitRendez(&vnode->rendez);
+
+  vn_lock_init(&vnode->vlock);
   
-  vnode->busy = true;
-  vnode->reader_cnt = 0;
-  vnode->writer_cnt = 0;
+  vn_lock(vnode, VL_SHARED);
+
+  vnode->char_read_busy = false;
+  vnode->char_write_busy = false;
 
   vnode->superblock = sb;
   vnode->flags = 0;
@@ -169,15 +167,11 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
     vnode->reference_cnt++;
     sb->reference_cnt++;
   
-    while (vnode->busy) {
-      TaskSleep(&vnode->rendez);
-    }
-
-    vnode->busy = true;
-
     if ((vnode->flags & V_FREE) == V_FREE) {
       LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_entry);
     }
+
+    vn_lock(vnode, VL_SHARED);
 
     return vnode;
   
@@ -209,15 +203,13 @@ void vnode_put(struct VNode *vnode)
 {
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
-  // KASSERT(vnode->busy == true);     // Fails if vnode and parent are same path = "/." then most ops do 2 VNodePuts on same vnode.
   
-  vnode->busy = false;
-    
   vnode->reference_cnt--;  
   vnode->superblock->reference_cnt--;
   
   if (vnode->reference_cnt == 0) {
     // FIXME: IF vnode->link_count == 0,  delete entries in cache.
+    // FIXME: Do any special cleanup of file, dir, fifo ?
     
     /*
     if (vnode->nlink == 0) {
@@ -232,9 +224,12 @@ void vnode_put(struct VNode *vnode)
       LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_entry);
     }
   }
-  
+
+  vn_lock(vnode, VL_RELEASE);
+    
   TaskWakeupAll(&vnode->rendez);
 }
+
 
 /* 
  * FIXME:  Needed? Used to destroy anonymous vnodes such as pipes/queues
@@ -248,37 +243,10 @@ void vnode_free(struct VNode *vnode)
 
   vnode->flags = V_FREE;
   LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_entry);
-
-  vnode->busy = false;
   vnode->reference_cnt = 0;
-  TaskWakeupAll(&vnode->rendez);
-}
 
+  vn_lock(vnode, VL_RELEASE);
 
-/* @brief   Acquire exclusive access to a vnode
- * 
- */
-void vnode_lock(struct VNode *vnode)
-{
-  KASSERT(vnode != NULL);
-  
-  while (vnode->busy == true) {
-    TaskSleep(&vnode->rendez);
-  }
-
-  vnode->busy = true;
-}
-
-
-/* @brief   Relinquish exclusive access to a vnode
- *
- */
-void vnode_unlock(struct VNode *vnode)
-{
-  KASSERT(vnode != NULL);
-  KASSERT(vnode->busy == true);
-  
-  vnode->busy = false;
   TaskWakeupAll(&vnode->rendez);
 }
 
@@ -301,4 +269,92 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
   return NULL;
 }
 
+
+/* @brief   VNode lock acquisition and release
+ *
+ */
+int vn_lock(struct VNode *vnode, int flags)
+{
+  int request;
+  
+  request = flags & VN_LOCK_REQUEST_MASK;
+  
+  switch(request) {
+    case VL_EXCLUSIVE:
+      while (vnode->vlock.exclusive_cnt != 0 || vnode->vlock.share_cnt != 0) {
+        TaskSleep(&vnode->vlock.rendez);
+      }
+      
+      vnode->vlock.exclusive_cnt = 1;
+      break;
+
+    case VL_SHARED:
+      while (vnode->vlock.exclusive_cnt == 1) {
+        TaskSleep(&vnode->vlock.rendez);
+      }
+      
+      vnode->vlock.share_cnt++;
+      break;
+
+    case VL_UPGRADE:
+      if (vnode->vlock.exclusive_cnt == 1) {
+        return -EINVAL;
+      }
+    
+      if (vnode->vlock.share_cnt > 0) {
+        vnode->vlock.share_cnt--;
+      }
+            
+      while(vnode->vlock.share_cnt != 0 || vnode->vlock.exclusive_cnt != 0) {
+        TaskSleep(&vnode->vlock.rendez);
+      }
+
+      vnode->vlock.exclusive_cnt = 1;
+      break;
+
+    case VL_DOWNGRADE:
+      if (vnode->vlock.exclusive_cnt == 1) {
+        vnode->vlock.exclusive_cnt = 0;
+        vnode->vlock.share_cnt++;
+      } else {
+        return -EINVAL;
+      }            
+      break;
+
+    case VL_RELEASE:
+      if (vnode->vlock.share_cnt > 0) {
+        vnode->vlock.share_cnt--;
+      } else if (vnode->vlock.exclusive_cnt == 1) {
+        vnode->vlock.exclusive_cnt = 0;
+      }
+      
+      if (vnode->vlock.exclusive_cnt == 0 || vnode->vlock.share_cnt == 0) {
+        TaskWakeupAll(&vnode->vlock.rendez);
+      }
+      break;
+
+    case VL_DRAIN:
+      while(vnode->vlock.exclusive_cnt != 0 && vnode->vlock.share_cnt != 0) {
+        TaskSleep(&vnode->vlock.rendez);
+      }
+      break;
+
+    default:
+      return -EINVAL;      
+  }
+  
+  return 0;
+}
+
+
+/* @brief   VNode lock initialization
+ *
+ */
+int vn_lock_init(struct VLock *vlock)
+{
+  vlock->share_cnt = 0;
+  vlock->exclusive_cnt = 0;
+  InitRendez(&vlock->rendez);  
+  return 0;
+}
 

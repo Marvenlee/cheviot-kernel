@@ -56,10 +56,6 @@ int sys_stat(char *_path, struct stat *_stat) {
 	// Update these on reads, writes or truncate operations.
 	// special case return zeros for char and other non-block devices?
 
-#if 0  
-  stat.st_blocks = ld.vnode->blocks;
-  stat.st_blksize = ld.vnode->blksize;
-#else
 	if (ld.vnode->superblock->block_size != 0) {
 		stat.st_blocks = ld.vnode->size / ld.vnode->superblock->block_size;
 		stat.st_blksize = ld.vnode->superblock->block_size;
@@ -67,7 +63,6 @@ int sys_stat(char *_path, struct stat *_stat) {
 		stat.st_blocks = 0;
 		stat.st_blksize = 0;
 	}
-#endif
 
   vnode_put(ld.vnode);
 
@@ -106,7 +101,7 @@ int sys_fstat(int fd, struct stat *_stat) {
     return -EINVAL;
   }
 
-  vnode_lock(vnode);
+  vn_lock(vnode, VL_SHARED);
   
   // FIXME: Should have vnodehold  when we know the vnode
   // But we don't acquire it , so no need for hold/put here.
@@ -127,10 +122,6 @@ int sys_fstat(int fd, struct stat *_stat) {
 	// Update these on reads, writes or truncate operations.
 	// special case return zeros for char and other non-block devices?
 
-#if 0
-  stat.st_blocks = vnode->blocks;
-  stat.st_blksize = vnode->blksize;
-#else
 	if (vnode->superblock->block_size != 0) {
 		stat.st_blocks = vnode->size / vnode->superblock->block_size;
 		stat.st_blksize = vnode->superblock->block_size;
@@ -138,9 +129,8 @@ int sys_fstat(int fd, struct stat *_stat) {
 		stat.st_blocks = 0;
 		stat.st_blksize = 0;
 	}
-#endif
 
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_RELEASE);
 
   if (_stat == NULL || CopyOut(_stat, &stat, sizeof stat) != 0) {
     return -EFAULT;

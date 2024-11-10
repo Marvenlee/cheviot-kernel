@@ -26,6 +26,7 @@ struct Pgrp;
 struct PidDesc;
 struct KQueue;
 
+
 // Process related list types
 LIST_TYPE(PidDesc, piddesc_list_t, piddesc_link_t);
 LIST_TYPE(Session, session_list_t, session_link_t);
@@ -225,6 +226,7 @@ struct Thread
   knote_list_t knote_list;
 
   struct MsgPort reply_port;
+  struct Msg *msg;
 
   struct ThreadSignalState signal;
   thread_link_t unmasked_signal_thread_link;

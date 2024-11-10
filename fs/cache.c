@@ -114,6 +114,8 @@ ssize_t read_from_cache(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
  *
  * If we are writing a full block, can we avoid reading it in?
  * if block doesn't exist, does bread create it?
+ *
+ * FIXME: Do we need an exclusive lock?
  */
 ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offset)
 {

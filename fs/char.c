@@ -38,41 +38,37 @@
  * Need to allow readmsg/writemsg to read/write from the client's address space for certain
  * commands such as read, write, readdir and sendmsg.
  *
- * Note: There is no use of vnode->busy.  Instead we use vnode->reader_cnt and vnode->writer_cnt
- * All other commands are assumed to be going to the command type queue.
+ * This code limits the sending of 1 write and 1 read at a time.
  *
- * This code limits the sending of 1 write, 1 read and 1 command at a time.
- *
- * TODO: Need to handle non-blocking reads and writes.  Add field to fsreq to indicate non-blocking?
+ * TODO: Need to handle non-blocking reads and writes.  Add field to iorequest to indicate non-blocking?
  * TODO: May want to wake up other tasks if reader_cnt is 0 on interruption
+ *
  */
 ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 {
   struct Process *current;
   ssize_t xfered = 0;
+  int sc;
   
   current = get_current_process();
 
-#if 0
-  if (vnode->isatty == true && vnode->tty_pgrp != current-pgrp) {
-    do_signal_thread(current, SIG);
-    return -EPERM;
+  if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
+    return sc;
   }
-#endif
-    
-  while (vnode->reader_cnt != 0) {
+  
+  while (vnode->char_read_busy == true) {
     if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
       return -EINTR;
     }    
   }
 
-  vnode->reader_cnt = 1;
+  vnode->char_read_busy = true;
     
   if (sz > 0) {
     xfered = vfs_read(vnode, IPCOPY, dst, sz, NULL);     
   }
   
-  vnode->reader_cnt = 0;
+  vnode->char_read_busy = false;
   TaskWakeupAll(&vnode->rendez);
 
   return xfered;
@@ -81,7 +77,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 
 /* @brief   Write data to a character device
  *
- * TODO: Need to handle non-blocking reads and writes.  Add field to fsreq to indicate non-blocking?
+ * TODO: Need to handle non-blocking reads and writes.  Add field to iorequest to indicate non-blocking?
  * TODO: May want to wake up other tasks if writer_cnt is 0 on interruption
  */
 ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
@@ -90,23 +86,21 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   size_t remaining;
   ssize_t xfered = 0;
   ssize_t total_xfered = 0;  
-
+  int sc;
+  
   current = get_current_process();
 
-#if 0
-  if (vnode->isatty == true && vnode->tty_pgrp != current-pgrp) {
-    do_signal_thread(current, SIG);
-    return -EPERM;
+  if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
+    return sc;
   }
-#endif
-
-  while (vnode->writer_cnt != 0) {
+  
+  while (vnode->char_write_busy == true) {
     if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
       return -EINTR;
     }    
   }
 
-  vnode->writer_cnt = 1;
+  vnode->char_write_busy = true;
   remaining = sz;
     
   while(remaining > 0) {
@@ -121,7 +115,7 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
     src += xfered;
   }
 
-  vnode->writer_cnt = 0;
+  vnode->char_write_busy = false;
   TaskWakeupAll(&vnode->rendez);    
 
   if (total_xfered == 0) {
@@ -157,7 +151,7 @@ int sys_isatty(int fd)
     return -EACCES;
   }
 
-  vnode_lock(vnode);
+  vn_lock(vnode, VL_SHARED);
 
   if (S_ISCHR(vnode->mode)) {
     sc = vfs_isatty (vnode);    
@@ -165,9 +159,25 @@ int sys_isatty(int fd)
   	sc = 0;
   }
   
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_RELEASE);
 
   return sc;
+}
+
+
+/* @brief   Check if we are a TTT and if so if we are in the foreground process group
+ *
+ */
+int tty_fg_pgrp_check(struct VNode *vnode)
+{
+#if 0
+  if (vnode->isatty == true && vnode->tty_pgrp != current-pgrp) {
+    do_signal_thread(current, SIG);
+    return -EPERM;
+  }
+#else
+  return 0;
+#endif
 }
 
 

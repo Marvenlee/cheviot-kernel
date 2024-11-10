@@ -34,7 +34,7 @@ int sys_sync(void)
   sb = LIST_HEAD(&mounted_superblock_list);
   
   while (sb != NULL) {
-    sc = vfs_syncfs(sb);
+    //    sc = vfs_syncfs(sb);
   
     sb = LIST_NEXT(sb, mounted_superblock_link);
   }
@@ -66,9 +66,11 @@ int sys_fsync(int fd)
     return -EACCES;
   }
   
-  vnode_lock(vnode);
-  sc = vfs_fsync(vnode);
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_SHARED);
+
+  // TODO:  Sync all blocks of file
+  
+  vn_lock(vnode, VL_RELEASE);
   
   return sc;  
 }

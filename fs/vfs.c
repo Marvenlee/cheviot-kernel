@@ -27,6 +27,7 @@
 #include <kernel/proc.h>
 #include <kernel/vm.h>
 #include <kernel/utility.h>
+#include <sys/iorequest.h>
 #include <string.h>
 
 
@@ -41,8 +42,8 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
 {
   struct SuperBlock *sb;
   struct VNode *vnode;
-  struct fsreq req = {0};
-  struct fsreply reply = {0};
+  iorequest_t req = {0};
+  ioreply_t reply = {0};
   msgiov_t siov[1];
   size_t name_sz;
   int sc;
@@ -107,8 +108,8 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
 {
   struct SuperBlock *sb;
   struct VNode *vnode;
-  struct fsreq req = {0};
-  struct fsreply reply = {0};
+  iorequest_t req = {0};
+  ioreply_t reply = {0};
   msgiov_t siov[1];
   size_t name_sz;
   int sc;
@@ -165,7 +166,7 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
 int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov, 
                     int riov_cnt, msgiov_t *riov, size_t sbuf_total_sz, size_t rbuf_total_sz)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   int nbytes_response;
   struct SuperBlock *sb;
   
@@ -188,7 +189,7 @@ int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov,
 ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t *offset)
 {
   struct SuperBlock *sb;
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   msgiov_t riov[1];
   int nbytes_read;
 
@@ -231,7 +232,7 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
 ssize_t vfs_write(struct VNode *vnode, int ipc, void *src, size_t nbytes, off64_t *offset)
 {
   struct SuperBlock *sb;
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   msgiov_t siov[1];
   int nbytes_written;
 
@@ -270,8 +271,8 @@ ssize_t vfs_write(struct VNode *vnode, int ipc, void *src, size_t nbytes, off64_
  */
 int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
 {
-  struct fsreq req = {0};
-  struct fsreply reply = {0};
+  iorequest_t req = {0};
+  ioreply_t reply = {0};
   struct SuperBlock *sb;
   msgiov_t riov[1];
   int nbytes_read;
@@ -303,8 +304,8 @@ int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
  */
 int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **result)
 {
-  struct fsreq req = {0};
-  struct fsreply reply = {0};
+  iorequest_t req = {0};
+  ioreply_t reply = {0};
   struct SuperBlock *sb;
   msgiov_t siov[1];
   struct VNode *vnode = NULL;
@@ -355,8 +356,8 @@ int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
  */
 int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **result)
 {
-  struct fsreq req = {0};
-  struct fsreply reply = {0};
+  iorequest_t req = {0};
+  ioreply_t reply = {0};
   struct SuperBlock *sb;
   msgiov_t siov[1];
   struct VNode *vnode = NULL;
@@ -407,7 +408,7 @@ int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **r
  */
 int vfs_rmdir(struct VNode *dvnode, char *name)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   struct SuperBlock *sb;
   msgiov_t siov[1];
   int sc;
@@ -431,7 +432,7 @@ int vfs_rmdir(struct VNode *dvnode, char *name)
  */
 int vfs_truncate(struct VNode *vnode, size_t size)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   struct SuperBlock *sb;
   int sc;
   int sz;
@@ -463,7 +464,7 @@ int vfs_rename(struct VNode *src_dvnode, char *src_name,
  */
 int vfs_chmod(struct VNode *vnode, mode_t mode)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   struct SuperBlock *sb;
   int sc;
   
@@ -483,7 +484,7 @@ int vfs_chmod(struct VNode *vnode, mode_t mode)
  */
 int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   struct SuperBlock *sb;
   int sc;
   
@@ -506,7 +507,7 @@ int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid)
  */
 int vfs_unlink(struct VNode *dvnode, char *name)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   struct SuperBlock *sb;
   msgiov_t siov[1];
   int sc;
@@ -560,7 +561,7 @@ int vfs_fsync(struct VNode *vnode)
  */
 int vfs_isatty(struct VNode *vnode)
 {
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   struct SuperBlock *sb;
   int sc;
   
@@ -579,7 +580,7 @@ int vfs_isatty(struct VNode *vnode)
 ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset)
 {
   struct SuperBlock *sb;
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   int nbytes_read;
 
   KASSERT(vnode != NULL);
@@ -617,7 +618,7 @@ ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, si
 ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset)
 {
   struct SuperBlock *sb;
-  struct fsreq req = {0};
+  iorequest_t req = {0};
   int nbytes_written;
 
   KASSERT(vnode != NULL);

@@ -263,6 +263,8 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
   thread->pending_events = 0;
   thread->detached = false;
 
+  thread->msg = NULL;
+
   thread->event_knote = NULL;
   thread->event_kqueue = NULL;
   LIST_INIT(&thread->knote_list);

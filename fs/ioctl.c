@@ -53,6 +53,8 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
     Error("iotctl - FD invalid, not char");
     return -EINVAL;
   }
+
+  vn_lock(vnode, VL_EXCLUSIVE);
   
   switch (cmd)
   {
@@ -108,6 +110,8 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
       sc = -ENOTSUP;
       break;
   }
+
+  vn_lock(vnode, VL_RELEASE);
 
   Error("iotctl - returned %d", sc);
   return sc;

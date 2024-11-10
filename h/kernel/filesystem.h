@@ -12,7 +12,7 @@
 #include <kernel/kqueue.h>
 #include <kernel/types.h>
 #include <limits.h>
-#include <sys/fsreq.h>
+#include <sys/iorequest.h>
 #include <sys/stat.h>
 #include <sys/termios.h>
 #include <sys/execargs.h>
@@ -24,6 +24,7 @@
 #include <sys/syscalls.h>
 
 // Forward declarations
+struct VNodeLock;
 struct VNode;
 struct Filp;
 struct VFS;
@@ -151,15 +152,38 @@ struct Pipe
 };
 
 
+/* @brief   VNode Lock
+ *
+ */
+struct VLock
+{
+  struct Rendez rendez;
+  int share_cnt;
+  int exclusive_cnt;  
+};
+
+// vn_lock flags masks
+#define VN_LOCK_REQUEST_MASK  0x0000000F
+
+// Lock Request types for vn_lock()
+#define VL_EXCLUSIVE    1
+#define VL_SHARED       2
+#define VL_UPGRADE      3
+#define VL_DOWNGRADE    4
+#define VL_RELEASE      5
+#define VL_DRAIN        6
+
+
 /* @brief   VNode state representing a file, directory, pipe or special device.
  */
 struct VNode
 {
-  struct Rendez rendez;
+  struct VLock vlock;
+  
+  struct Rendez rendez;           // Non-lock related rendez
 
-  int busy;           // For locking fields of VNode
-  int reader_cnt;     // For read/write access of character devices
-  int writer_cnt;     // For read/write access of character devices
+  bool char_read_busy;     // Allow only a single read to progress
+  bool char_write_busy;     // Allow only a single write to progress
 
   struct SuperBlock *superblock;
 
@@ -215,7 +239,6 @@ struct SuperBlock
   dev_t dev;
   
   struct MsgPort msgport;
-  struct MsgBacklog msgbacklog;
 
   off64_t size;
   int block_size;     // start sector needs to be aligned with block size
@@ -358,6 +381,7 @@ int sys_isatty(int fd);
 ssize_t read_from_char(struct VNode *vnode, void *src, size_t nbytes);
 ssize_t write_to_char(struct VNode *vnode, void *src, size_t nbytes);                               
 int sys_isatty(int fd);
+int tty_fg_pgrp_check(struct VNode *vnode);
 int ioctl_tcsetattr(int fd, struct termios *_termios);
 int ioctl_tcgetattr(int fd, struct termios *_termios);
 int ioctl_tiocsctty(int fd, int arg);
@@ -439,10 +463,10 @@ int walk_component (struct lookupdata *ld);
 
 /* fs/mount.c */
 int sys_pivotroot(char *_new_root, char *_old_root);
-int sys_movemount(char *_new_mount, char *old_mount);
 int sys_mknod(char *_handlerpath, uint32_t flags, struct stat *stat);
-int sys_mount(char *_handlerpath, uint32_t flags, struct stat *stat);
 int sys_ismount(char *_path);
+int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat);
+int sys_renamemsgport(char *_new_path, char *_old_path);
 
 int close_mount(struct Process *proc, int fd);
 struct SuperBlock *get_superblock(struct Process *proc, int fd);
@@ -525,10 +549,10 @@ void vnode_put(struct VNode *vnode);
 void vnode_inc_ref(struct VNode *vnode);    // Why not just vnode->ref_cnt++;
 void vnode_free(struct VNode *vnode);      // Delete a vnode from cache and disk
 
-void vnode_lock(struct VNode *vnode);      // Acquire busy lock
-void vnode_unlock(struct VNode *vnode);    // Release busy lock
-
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
+
+int vn_lock(struct VNode *vnode, int flags);
+int vn_lock_init(struct VLock *vlock);
 
 /* fs/write.c */
 ssize_t sys_write(int fd, void *buf, size_t count);

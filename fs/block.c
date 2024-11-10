@@ -22,7 +22,7 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <sys/fsreq.h>
+#include <sys/iorequest.h>
 #include <sys/mount.h>
 #include <limits.h>
 

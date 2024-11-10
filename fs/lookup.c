@@ -79,7 +79,7 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
       ld->parent = NULL;
       ld->vnode = root_vnode;
       vnode_inc_ref(ld->vnode);
-      vnode_lock(ld->vnode);
+      vn_lock(ld->vnode, VL_SHARED);
       return 0;
     }
 
@@ -175,7 +175,7 @@ int lookup_path(struct lookupdata *ld)
   ld->vnode = ld->start_vnode;
 
   vnode_inc_ref(ld->vnode);
-  vnode_lock(ld->vnode);  
+  vn_lock(ld->vnode, VL_SHARED);
   
   while(1) {    
     ld->last_component = path_token(ld);
@@ -408,13 +408,13 @@ int walk_component(struct lookupdata *ld)
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
       vnode_inc_ref(ld->vnode);
-      vnode_lock(ld->vnode);
+      vn_lock(ld->vnode, VL_SHARED);
       
     } else {
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
       vnode_inc_ref(ld->vnode);
-      vnode_lock(ld->vnode);
+      vn_lock(ld->vnode, VL_SHARED);
     }    
   }  
 

@@ -105,6 +105,8 @@ int sys_pipe(int *_fd)
   pipe_inode_nr++;
   vnode = vnode_new(&pipe_sb, pipe_inode_nr);
 
+  // FIXME: Do we need an exclusive lock?   Is it locked by vnode_new ?
+
 
   if (vnode == NULL) {
     error = -ENOMEM;
@@ -146,7 +148,7 @@ int sys_pipe(int *_fd)
   vnode->pipe = pipe;
   vnode->mode = _IFIFO | 0777;
   
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_RELEASE);
 
   if (CopyOut(_fd, fd, sizeof fd) != 0) {
     Info("Pipe, failed, EFAULT");

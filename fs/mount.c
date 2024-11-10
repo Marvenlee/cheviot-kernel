@@ -114,9 +114,11 @@ int sys_ismount(char *_path)
  * sys_writemsg system calls are available to servers to process file
  * system requests.
  *
- * TODO: Rename back to mount()
+ * TODO: Atomically create node on filesystem and mount this message port on it.
+ * Avoids need for 2 steps and possible race conditions during mount.
+ *
  */ 
-int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backlog_sz)
+int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 {
   struct lookupdata ld;
   struct stat stat;
@@ -200,7 +202,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
   InitRendez(&sb->rendez);
 
   init_msgport(&sb->msgport);
-  init_msgbacklog(&sb->msgbacklog, backlog_sz);
   sb->msgport.context = sb;
 
   sb->root = mount_root_vnode;
@@ -253,11 +254,11 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, int backl
     knote(&vnode_covered->knote_list, NOTE_ATTRIB);
 
     vnode_inc_ref(vnode_covered);
-    vnode_unlock(vnode_covered);
+    vn_lock(vnode_covered, VL_RELEASE);
   }
 
   vnode_inc_ref(mount_root_vnode);
-  vnode_unlock(mount_root_vnode);
+  vn_lock(mount_root_vnode, VL_RELEASE);
   
   return fd;
 

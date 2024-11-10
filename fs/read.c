@@ -22,7 +22,6 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <sys/fsreq.h>
 #include <sys/mount.h>
 #include <sys/syslimits.h>
 
@@ -58,18 +57,20 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
     return -EBADF;
   }
 
+  vn_lock(vnode, VL_SHARED);
+  
   if (is_allowed(vnode, R_OK) != 0) {
+    vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
 
 #if 0
   if (filp->flags & O_READ) == 0) {
+    vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   } 
 #endif  
-
-  vnode_lock(vnode);
-
+  
   if (S_ISCHR(vnode->mode)) {
     xfered = read_from_char (vnode, dst, sz);
   } else if (S_ISREG(vnode->mode)) {
@@ -88,7 +89,7 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
   
   // Update accesss timestamps
   
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_RELEASE);
   return xfered;
 }
 
@@ -115,18 +116,20 @@ ssize_t kread(int fd, void *dst, size_t sz)
   if (vnode == NULL) {
     return -EBADF;
   }
+
+  vn_lock(vnode, VL_SHARED);
   
   if (is_allowed(vnode, R_OK) != 0) {
+    vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
 
 #if 0
   if (filp->flags & O_READ) == 0) {
+    vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   } 
 #endif  
-
-  vnode_lock(vnode);
   
   if (S_ISREG(vnode->mode)) {
     xfered = read_from_cache (vnode, dst, sz, &filp->offset, true);
@@ -136,7 +139,7 @@ ssize_t kread(int fd, void *dst, size_t sz)
 
   // Update accesss timestamps
     
-  vnode_unlock(vnode);
+  vn_lock(vnode, VL_RELEASE);
   return xfered;
 }
 
@@ -175,7 +178,10 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     return -EBADF;
   }
 
+  vn_lock(vnode, VL_SHARED);
+
   if (is_allowed(vnode, R_OK) != 0) {
+    vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
 
@@ -184,8 +190,6 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     return -EACCES;
   } 
 #endif  
-
-  vnode_lock(vnode);
 
   if (S_ISBLK(vnode->mode)) {
     if (_offset == NULL) {
@@ -199,7 +203,7 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   
   // Update accesss timestamps
   
-  vnode_unlock(vnode);  
+  vn_lock(vnode, VL_RELEASE);
   return xfered;
 }
 
