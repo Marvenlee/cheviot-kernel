@@ -25,6 +25,7 @@
 #include <poll.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Create a node on a file system that can be mounted onto
@@ -52,6 +53,7 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
   if (ld.vnode != NULL) {    
     vnode_put(ld.vnode);
     vnode_put(ld.parent);
+    lookup_cleanup(&ld);
     return -EEXIST;
   }
     
@@ -59,6 +61,7 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
 
   vnode_put(vnode);
   vnode_put(ld.parent);
+  lookup_cleanup(&ld);
 
   return sc;
 }

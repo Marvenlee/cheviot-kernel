@@ -147,7 +147,7 @@ int sys_isatty(int fd)
     return -EINVAL;
   }
 
-  if (is_allowed(vnode, R_OK) != 0) {
+  if (check_access(vnode, filp, R_OK) != 0) {
     return -EACCES;
   }
 

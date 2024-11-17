@@ -62,7 +62,7 @@ int sys_fsync(int fd)
     return -EINVAL;
   }
 
-  if (is_allowed(vnode, W_OK) != 0) {
+  if (check_access(vnode, W_OK) != 0) {
     return -EACCES;
   }
   

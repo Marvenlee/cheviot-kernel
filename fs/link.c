@@ -72,6 +72,7 @@ int sys_unlink(char *_path)
 exit:
   vnode_put(vnode);
   vnode_put(dvnode);
+  lookup_cleanup(&ld);
   return err;
 }
 

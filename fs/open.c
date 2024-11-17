@@ -24,6 +24,7 @@
 #include <kernel/vm.h>
 #include <poll.h>
 #include <string.h>
+#include <sys/privileges.h>
 
 
 /*
@@ -39,7 +40,10 @@ int sys_open(char *_path, int oflags, mode_t mode)
     return sc;
   }
 
-  return do_open(&ld, oflags, mode);
+  sc = do_open(&ld, oflags, mode);
+  
+  lookup_cleanup(&ld);
+  return sc;
 }
 
 
@@ -56,12 +60,15 @@ int kopen(char *_path, int oflags, mode_t mode)
     return sc;
   }
 
-  return do_open(&ld, oflags, mode);
+  sc = do_open(&ld, oflags, mode);
+  
+  lookup_cleanup(&ld);
+  return sc;  
 }
 
 
 /*
- *
+ * TODO: May need to clear ld vnode pointers before returning on success
  */
 int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 {
@@ -78,7 +85,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   dvnode = ld->parent;
       
   if (vnode == NULL) {
-    if ((oflags & O_CREAT) && is_allowed(dvnode, W_OK) != 0) {
+    if ((oflags & O_CREAT) && check_access(dvnode, W_OK) != 0) {
       Error("SysOpen vnode_put O_CREAT");
       vnode_put(dvnode);
       return -ENOENT;

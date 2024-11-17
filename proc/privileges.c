@@ -56,11 +56,6 @@ int sys_set_privileges(int when, uint64_t *_set, uint64_t *_result)
       result = current_proc->privileges;
       sc = 0;
       break;
-    case PRIV_AFTER_FORK:
-      current_proc->privileges_after_fork &= set;
-      result = current_proc->privileges_after_fork;
-      sc = 0;
-      break;
     case PRIV_AFTER_EXEC:
       current_proc->privileges_after_exec &= set;
       result = current_proc->privileges_after_exec;
@@ -87,18 +82,43 @@ int sys_set_privileges(int when, uint64_t *_set, uint64_t *_result)
  * TODO: Replace with a function to check against the current privilege bitmap.
  *       check_privilege(proc, uint64_t privilege);
  */
-bool io_allowed(struct Process *proc)
+int check_privileges(struct Process *proc, uint64_t map)
 {
-#if 1
-  return true;
-#else
-  // FIXME: check PROCF_ALLOW_IO
-  if(proc->flags & PROCF_ALLOW_IO) {
-    return true;
-  } else {
-    return false;
+  if ((proc->privileges & map) != map) {
+    return -EPERM;
   }
-#endif
+  
+  return 0;
+}
+
+
+/*
+ *
+ */
+void fork_privileges(struct Process *new_proc, struct Process *parent)
+{
+  new_proc->privileges = parent->privileges;
+  new_proc->privileges_after_exec = parent->privileges;
+}
+
+
+/*
+ *
+ */
+void init_privileges(struct Process *proc)
+{
+  proc->privileges = PRIV_PERMIT_ALL;
+  proc->privileges_after_exec = PRIV_PERMIT_ALL;
+}
+
+
+/*
+ *
+ */
+void exec_privileges(struct Process *proc)
+{
+  proc->privileges &= proc->privileges_after_exec;
+  proc->privileges_after_exec = proc->privileges;
 }
 
 

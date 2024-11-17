@@ -71,7 +71,6 @@ typedef struct SysInfo
 #define NGROUPS                       8   // Number of supplementary groups a user belongs to
 
 // Process.state
-// TODO: Use some random numbers (so we can hopefully detect any accidental writes)
 #define PROC_STATE_FREE               0
 #define PROC_STATE_INIT               111
 #define PROC_STATE_ALIVE              222
@@ -96,30 +95,27 @@ typedef struct SysInfo
  */
 struct Process
 {
-  uint32_t canary1;
-  pid_t pid;                // Process ID
-  uint32_t canary2;
-
-  pid_t sid;
-  pid_t pgid;
+  pid_t pid;              // Process ID
+  pid_t sid;              // Session ID
+  pid_t pgid;             // Process Group ID
   process_link_t session_link;
   process_link_t pgrp_link;
 
   uint32_t flags;         // Permissions and features of a process
   int state;              // Process state  (alive, zombie ?)
   
-  int uid;          // real uid
-  int gid;          // real gid
-  int euid;         // effective uid
-  int egid;         // effective gid
-  int suid;         // saved uid
-  int sgid;         // saved gid
+  int uid;                // real UID
+  int gid;                // real GID
+  int euid;               // effective UID
+  int egid;               // effective GID
+  int suid;               // saved UID
+  int sgid;               // saved GID
   
   int ngroups;            // Number of supplementary groups
   int groups[NGROUPS];
 
-  process_link_t free_link;   // TODO: later dynamically allocate process (remove this link)
-
+  process_link_t free_link;
+  
   struct Process *parent;
   struct Rendez child_list_rendez;
   process_list_t child_list;
@@ -136,20 +132,18 @@ struct Process
   struct ProcSignalState signal;    // For async external signals from sys_kill()
   thread_list_t unmasked_signal_thread_list;
   
-  struct Timer alarm;               // TODO: Handle per-process alarm() timer
+  struct Timer alarm;               // TODO: Is alarm() per thread or per process?
   
-  int log_level;                    // TODO: Control log level per process in kernel?
+  int log_level;                    // TODO: Control log level per process in kernel?  sys_setloglevel
 	char basename[PROC_BASENAME_SZ];
 
   int exit_status;                  // sys_exit() saved error code
   bool exit_in_progress;            // A thread has initiated the exit steps
           
   struct FProcess *fproc;           // Process's file descriptor table
-                                    // TODO: Keep as struct Process
-  uint64_t privileges;
-  uint64_t privileges_after_fork;
-  uint64_t privileges_after_exec;
-  
+
+  uint64_t privileges;              // Privilege bitmap of process
+  uint64_t privileges_after_exec;   // Privilege bitmap to use after exec.  
 };
 
 
@@ -165,14 +159,14 @@ struct Process
 #define THREAD_STATE_EXITED           999
 
 // thread.flags
-#define THREADF_USER     0          // User process
-#define THREADF_KERNEL   (1 << 0)   // Kernel task: For kernel daemons
+#define THREADF_USER     0            // User process
+#define THREADF_KERNEL   (1 << 0)     // Kernel task: For kernel daemons
 
 // thread.sched_policy
-#define SCHED_IDLE -1             // Scheduling policy not defined in C library
+#define SCHED_IDLE -1                 // Scheduling policy not defined in C library
 
 // Scheduler related
-#define SCHED_QUANTA_JIFFIES  5   // Reschedule if task has ran for this many timer ticks
+#define SCHED_QUANTA_JIFFIES  5       // Reschedule if task has ran for this many timer ticks
 
 
 /*
@@ -184,42 +178,40 @@ struct Thread
   struct CPU *cpu;
   struct ExceptionState exception_state;
   void *context;
-  void *stack;                // Kernel stack
-  
-  void *user_stack;           // TODO: User-mode stack, unless it's provided upon creation
-  
-  uint32_t canary1;
+  void *stack;                  // Kernel stack  
+  void *user_stack;             // User-mode stack
+  size_t user_stack_sz;         // User-mode stack size
+  void *user_tcb;               // User-mode thread-control-block
   pid_t tid;
-  uint32_t canary2;
 
   struct Process *process;
-  struct Thread *joiner_thread;     // Thread that is performing a join() on this thread
+  struct Thread *joiner_thread; // Thread that is performing a join() on this thread
   intptr_t exit_status;
   bool detached;
     
-  thread_link_t free_link;    // TODO: later dynamically allocate thread (remove this field)
-  thread_link_t thread_link;  // TODO: should be process_link
+  thread_link_t free_link;
+  thread_link_t thread_link;
   
   char basename[PROC_BASENAME_SZ];
   
-  uint32_t flags;         // Permissions and features of a thread
-  int state;              // thread state
+  uint32_t flags;               // Features of a thread
+  int state;                    // thread state
   
-  struct Rendez rendez;      // Is this used for timers, message reply ports, joining threads ?
+  struct Rendez rendez;         // Is this used for timers, message reply ports, joining threads ?
   
   struct Rendez *blocking_rendez;
   thread_link_t blocked_link;
 
-  thread_cqlink_t sched_entry; // run-queue
+  thread_cqlink_t sched_entry;  // run-queue entry
   int sched_policy;
-  int quanta_used;        // number of ticks the process has run without blocking
-  int priority;           // effective priority of process
-  int desired_priority;   // default priority of process
+  int quanta_used;              // number of ticks the process has run without blocking
+  int priority;                 // effective priority of process
+  int desired_priority;         // default priority of process
 
 
   // TODO: Remove events, use sigsuspend() to temporarilly unmask and wait for signals.
-  uint32_t intr_flags;            // Mask of what sources can interrupt TaskSleepInterruptible
-  uint32_t kevent_event_mask;     // Allowed wakeup events in kevent().
+  uint32_t intr_flags;          // Mask of what sources can interrupt TaskSleepInterruptible
+  uint32_t kevent_event_mask;   // Allowed wakeup events in kevent().
   uint32_t pending_events;
   uint32_t event_mask;
 
@@ -233,12 +225,12 @@ struct Thread
   struct ThreadSignalState signal;
   thread_link_t unmasked_signal_thread_link;
     
-  struct Timer sleep_timer;         // Merge these 2 timers?
+  struct Timer sleep_timer;     // Merge these 2 timers?
   struct Timer timeout_timer;
   
   isr_handler_list_t isr_handler_list;
 
-  uint64_t usage_usec;
+  uint64_t usage_usec;                // CPU usage
   uint64_t last_resched_time_usec;
   uint64_t creation_usec;
 };
@@ -249,8 +241,7 @@ struct Thread
  */
 struct Session
 {
-  session_link_t free_link;
-    
+  session_link_t free_link;    
   pid_t sid;
   struct VNode *controlling_tty;
   pid_t foreground_pgrp;
@@ -263,11 +254,9 @@ struct Session
  */
 struct Pgrp
 {
-  pgrp_link_t free_link;
-  
+  pgrp_link_t free_link;  
   pid_t sid;
-  pid_t pgid;
-  
+  pid_t pgid;  
   process_list_t process_list; 
 };
 
@@ -278,7 +267,6 @@ struct Pgrp
 struct PidDesc
 {
   piddesc_link_t free_link;
-
   struct Process *proc;
   struct Thread *thread;
   struct Session *session;
@@ -354,6 +342,10 @@ void remove_from_session(struct Process *proc);
 
 // proc/privileges.c
 int sys_set_privileges(int when, uint64_t *set, uint64_t *result);
+int check_privileges(struct Process *proc, uint64_t map);
+void fork_privileges(struct Process *new_proc, struct Process *parent);
+void init_privileges(struct Process *proc);
+void exec_privileges(struct Process *proc);
 
 // proc/proc.c
 int sys_fork(void);
@@ -366,8 +358,6 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
 void free_process(struct Process *proc);
 struct Process *alloc_process_struct(void);
 void free_process_struct(struct Process *proc);
-bool io_allowed(struct Process *proc);
-
 
 // proc/sched.c
 void SchedLock(void);
@@ -377,7 +367,6 @@ void SchedReady(struct Thread *thread);
 void SchedUnready(struct Thread *thread);
 int init_schedparams(struct Thread *thread, int policy, int priority);
 int dup_schedparams(struct Thread *thread, struct Thread *old_thread);
-
 
 // proc/sleep_wakeup_bkl.c
 void InitRendez(struct Rendez *rendez);
@@ -392,7 +381,6 @@ void KernelUnlock(void);
 bool IsKernelLocked(void);
 void thread_start(struct Thread *thread);
 void thread_stop(void);
-
 
 // proc/thread.c
 pid_t sys_thread_create(void (*entry)(void *), void *arg,

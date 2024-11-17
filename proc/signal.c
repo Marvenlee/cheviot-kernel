@@ -26,6 +26,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <signal.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Define the default actions and properties of each signal.

@@ -55,6 +55,8 @@
 #include <kernel/types.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/privileges.h>
+
 
 
 /* @brief   Returns the system time in seconds and microseconds.
@@ -210,10 +212,12 @@ int sys_sleep(int seconds)
 int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
 {
   int_state_t int_state;
+  struct Process *current_proc;
   struct Thread *current;
   struct Timer *timer;
   struct timespec req, rem;
 
+  current_proc = get_current_process();
   current = get_current_thread();
   
   if (CopyIn(&req, _req, sizeof(req)) != 0) {
@@ -222,7 +226,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   }
   
   // TODO:  spin_nanosleep() for IO processes that need to sleep for less than 10ms
-  if (io_allowed(get_current_process())) {
+  if (check_privileges(current_proc, PRIV_HIRES_TIMER) == 0) {
     if (req.tv_sec == 0 && req.tv_nsec < 10000000) {
       if (arch_spin_nanosleep(&req) == 0) {
 	      return 0;

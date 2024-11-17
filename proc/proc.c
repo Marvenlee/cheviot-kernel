@@ -61,7 +61,8 @@ int sys_fork(void)
   fork_ids(new_proc, current_proc);
   fork_process_fds(new_proc, current_proc);
   fork_signals(new_proc, current_proc);  
-
+  fork_privileges(new_proc, current_proc);
+  
   new_thread = fork_thread(new_proc, current_proc, current_thread);
 
   if (new_thread == NULL) {
@@ -331,6 +332,7 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
   init_ids(new_proc);
   init_fproc(new_proc);
   init_signals(new_proc);
+  init_privileges(new_proc);
   
   thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, 0, THREADF_USER, cpu, basename);
 
@@ -383,10 +385,9 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
   }
   
   proc->state = PROC_STATE_INIT;
-  proc->exit_status = 0;
-  
+  proc->exit_status = 0;  
   proc->flags = 0;
-
+  
   InitRendez(&proc->rendez);
   InitRendez(&proc->child_list_rendez);
   InitRendez(&proc->thread_list_rendez);
@@ -436,9 +437,6 @@ struct Process *alloc_process_struct(void)
   LIST_REM_HEAD(&free_process_list, free_link);
   
   memset(proc, 0, sizeof *proc);
-
-  proc->canary1 = 0xcafef00d;
-  proc->canary2 = 0xdeadbeef;
 
   return proc;
 }

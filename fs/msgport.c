@@ -200,6 +200,7 @@ exit:
   vnode_free(mount_root_vnode);
   free_fd_superblock(current, fd);
   vnode_put(vnode_covered);
+  lookup_cleanup(&ld);
   return error;
 }
 

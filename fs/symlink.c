@@ -40,6 +40,7 @@ int sys_symlink(char *_path, char *_link) {
 
   //    status = vfs_mklink(ld.parent, ld.last_component, _link);
   vnode_put(ld.parent);
+  lookup_cleanup(&ld);
   return status;
 }
 
@@ -56,17 +57,20 @@ int sys_readlink(char *_path, char *_link, size_t link_size) {
   }
 
   if (ld.vnode == NULL) {
+    lookup_cleanup(&ld);
     return -EEXIST;
   }
 
   // TODO, check if vnode is a symlink.
   if (!S_ISLNK(ld.vnode->mode)) {
     vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -ENOLINK;
   }
 
   // TODO:   status = vfs_readlink(ld.vnode, _link, link_size);
   vnode_put(ld.vnode);
+  lookup_cleanup(&ld);
   return status;
 }
 

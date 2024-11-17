@@ -27,7 +27,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <sys/execargs.h>
-
+#include <sys/privileges.h>
 
 // Private variables
 struct Rendez execargs_rendez;
@@ -49,9 +49,17 @@ int sys_exec(char *_path, struct execargs *_args)
   int sc;
   int fd;
   struct lookupdata ld;
-  
+  struct Process *current_proc;
+  struct VNode *vnode;
+
   Info ("sys_exec");
   
+  current_proc = get_current_process();
+      
+  if (check_privileges(current_proc, PRIV_EXEC) != 0) {
+    return -EPERM;
+  }
+
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     Error("Exec failed to lookup file");
     return sc;
@@ -59,18 +67,22 @@ int sys_exec(char *_path, struct execargs *_args)
 
   if ((fd = do_open(&ld, O_RDONLY, 0)) < 0) {
     Error("Exec failed to open file, fd = %d", fd);
-    // lookup_cleanup(&ld);
+    lookup_cleanup(&ld);
     return -ENOENT;
   }
 
-#if 0    // TODO: Enable access check
-  if (check_access_fd(fd, R_BIT | X_BIT) != 0) {
-  {
+  vnode = get_fd_vnode(current_proc, fd);
+
+  if (vnode == NULL) {
+    sys_close(fd);
+    return -EINVAL;
+  }  
+
+  if (check_access(vnode, NULL, R_OK | X_OK) != 0) {
       sys_close(fd);
-      // lookup_cleanup(&ld);
+      lookup_cleanup(&ld);
       return -EPERM;
   }
-#endif  
 
   // TODO: Kill all other threads
 
@@ -80,11 +92,14 @@ int sys_exec(char *_path, struct execargs *_args)
   
   if (sc == -ENOMEM) {
     Error("Exec failed to exec, sc = %d", sc);
-    // lookup_cleanup(&ld);
+    lookup_cleanup(&ld);
     sys_exit(-1);
   }
 
-  // lookup_cleanup(&ld);  
+  lookup_cleanup(&ld);    
+  
+  exec_privileges(current_proc);
+
   return sc; 
 }
 

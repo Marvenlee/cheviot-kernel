@@ -21,7 +21,7 @@
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
-
+#include <sys/privileges.h>
 
 
 /*

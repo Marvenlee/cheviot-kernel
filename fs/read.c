@@ -59,17 +59,10 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
 
   vn_lock(vnode, VL_SHARED);
   
-  if (is_allowed(vnode, R_OK) != 0) {
+  if (check_access(vnode, filp, R_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
-
-#if 0
-  if (filp->flags & O_READ) == 0) {
-    vn_lock(vnode, VL_RELEASE);
-    return -EACCES;
-  } 
-#endif  
   
   if (S_ISCHR(vnode->mode)) {
     xfered = read_from_char (vnode, dst, sz);
@@ -119,17 +112,10 @@ ssize_t kread(int fd, void *dst, size_t sz)
 
   vn_lock(vnode, VL_SHARED);
   
-  if (is_allowed(vnode, R_OK) != 0) {
+  if (check_access(vnode, filp, R_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
-
-#if 0
-  if (filp->flags & O_READ) == 0) {
-    vn_lock(vnode, VL_RELEASE);
-    return -EACCES;
-  } 
-#endif  
   
   if (S_ISREG(vnode->mode)) {
     xfered = read_from_cache (vnode, dst, sz, &filp->offset, true);
@@ -180,16 +166,10 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 
   vn_lock(vnode, VL_SHARED);
 
-  if (is_allowed(vnode, R_OK) != 0) {
+  if (check_access(vnode, filp, R_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
-
-#if 0 
-  if (filp->flags & O_READ) == 0) {
-    return -EACCES;
-  } 
-#endif  
 
   if (S_ISBLK(vnode->mode)) {
     if (_offset == NULL) {

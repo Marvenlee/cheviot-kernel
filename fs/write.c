@@ -54,7 +54,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
 
   vn_lock(vnode, VL_SHARED);
   
-  if (is_allowed(vnode, W_OK) != 0) {
+  if (check_access(vnode, filp, W_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
@@ -121,7 +121,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 
   vn_lock(vnode, VL_SHARED);
   
-  if (is_allowed(vnode, R_OK) != 0) {
+  if (check_access(vnode, filp, R_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }

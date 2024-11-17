@@ -30,6 +30,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Convert a user-mode virtual address to the page's physical address
@@ -51,7 +52,8 @@ vm_addr sys_virtualtophysaddr(vm_addr addr)
   as = &current->as;
   va = ALIGN_DOWN(addr, PAGE_SIZE);
  
-  if (!io_allowed(current)) {
+  if (check_privileges(current, PRIV_VALLOCPHYS) != 0) {
+    Warn("VirtualToPhysAddr failed, privileges");
     return (vm_addr)NULL;
   }
  
@@ -85,6 +87,12 @@ void *sys_virtualalloc(void *_addr, size_t len, bits32_t flags)
   struct Pageframe *pf;
 
   current = get_current_process();
+
+  if (check_privileges(current, PRIV_VALLOC) != 0) {
+    Warn("VirtualAlloc failed, privileges");
+    return NULL;
+  }
+
   as = &current->as;
   addr = ALIGN_DOWN((vm_addr)_addr, PAGE_SIZE);
   len = ALIGN_UP(len, PAGE_SIZE);
@@ -153,8 +161,9 @@ void *sys_virtualallocphys(void *_addr, size_t len, bits32_t flags,
   len = ALIGN_UP(len, PAGE_SIZE);
   flags = (flags & ~VM_SYSTEM_MASK) | MEM_PHYS;
   
-  if (!io_allowed(current)) {
-    return 0;
+  if (check_privileges(current, PRIV_VALLOCPHYS) != 0) {
+    Warn("VirtualAllocPhys failed, privileges");
+    return NULL;
   }
   
   addr = segment_create(as, addr, len, SEG_TYPE_PHYS, flags);
@@ -203,6 +212,7 @@ int sys_virtualfree(void *_addr, size_t len)
   vm_addr va;
 
   current = get_current_process();
+
   as = &current->as;
   addr = ALIGN_DOWN((vm_addr)_addr, PAGE_SIZE);
   len = ALIGN_UP(len, PAGE_SIZE);
@@ -232,12 +242,24 @@ int sys_virtualprotect(void *_addr, size_t len, bits32_t flags)
   vm_addr addr;
   vm_addr va;
   vm_addr pa;
-
+  uint64_t privileges;
+  
 #if 1
 	return 0;		// FIXME: virtualprotect COW
 #endif	
 
   current = get_current_process();
+
+  if (flags & PROT_EXEC) {
+    privileges = PRIV_VPROTECT | PRIV_VPROTEXEC;
+  } else {
+    privileges = PRIV_VPROTECT;
+  }
+
+  if (check_privileges(current, privileges) != 0) {
+    return -EPERM;
+  }
+
   as = &current->as;
   addr = ALIGN_DOWN((vm_addr)_addr, PAGE_SIZE);
   len = ALIGN_UP(len, PAGE_SIZE);

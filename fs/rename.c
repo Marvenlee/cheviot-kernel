@@ -23,6 +23,7 @@
 #include <kernel/types.h>
 #include <kernel/vm.h>
 #include <poll.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Rename a file or directory
@@ -64,6 +65,8 @@ int sys_rename(char *oldpath, char *newpath)
     vnode_put(oldl.parent);
     vnode_put(newl.parent);
     vnode_put(newl.vnode);
+    lookup_cleanup(&oldl);
+    lookup_cleanup(&newl);
     return -EEXIST;
   }  
 
@@ -72,6 +75,8 @@ int sys_rename(char *oldpath, char *newpath)
     vnode_put(oldl.vnode);
     vnode_put(oldl.parent);
     vnode_put(newl.parent);
+    lookup_cleanup(&oldl);
+    lookup_cleanup(&newl);
     return -EXDEV;
   }
 
@@ -130,7 +135,8 @@ int sys_rename(char *oldpath, char *newpath)
       vnode_put(oldl.vnode);
       vnode_put(oldl.parent);
       vnode_put(newl.parent);
-      return sc;
+      lookup_cleanup(&oldl);
+      lookup_cleanup(&newl);
 	  }
 	}
 	
@@ -161,6 +167,9 @@ int sys_rename(char *oldpath, char *newpath)
   vnode_put(oldl.vnode);
   vnode_put(oldl.parent);
   vnode_put(newl.parent);
+  lookup_cleanup(&oldl);
+  lookup_cleanup(&newl);
+
   return sc;
 }
 

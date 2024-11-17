@@ -53,6 +53,11 @@ int sys_chdir(char *_path)
     return -ENOTDIR;
   }
 
+  if (check_access(ld.vnode, NULL, R_OK) != 0) {
+    vnode_put(ld.vnode);
+    return -EPERM;
+  }
+
   if (current->fproc->current_dir != NULL) {
     vnode_put(current->fproc->current_dir);
   }
@@ -85,6 +90,10 @@ int sys_fchdir(int fd)
 
   if (!S_ISDIR(vnode->mode)) {
     return -ENOTDIR;
+  }
+
+  if (check_access(vnode, NULL, R_OK) != 0) {
+    return -EPERM;
   }
 
   vnode_put(current->fproc->current_dir);
@@ -124,6 +133,11 @@ int sys_opendir(char *_path)
   if (!S_ISDIR(ld.vnode->mode)) {
     vnode_put(ld.vnode);
     return -EINVAL;
+  }
+
+  if (check_access(ld.vnode, NULL, R_OK) != 0) {
+    vnode_put(ld.vnode);
+    return -EPERM;
   }
 
   fd = alloc_fd_filp(current);
@@ -251,6 +265,15 @@ int sys_createdir(char *_path, mode_t mode)
     return sc;
   }
 
+  if (check_access(ld.parent, NULL, R_OK) != 0) {
+    if (ld.vnode != NULL) {
+      vnode_put(ld.vnode);
+    }
+    
+    vnode_put(ld.parent);
+    return -EPERM;
+  }
+
   vn_lock(dvnode, VL_UPGRADE);    // Exclusive lock to add entries to directory
 
   vnode = ld.vnode;
@@ -305,6 +328,7 @@ int sys_rmdir(char *_path)
   if (!S_ISDIR(vnode->mode)) {
     vnode_put(vnode); // This should delete it
     vnode_put(dvnode);
+    lookup_cleanup(&ld);
     return -ENOTDIR;
   }
 
@@ -317,6 +341,8 @@ int sys_rmdir(char *_path)
   knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);
   vnode_put(vnode); // This should delete it
   vnode_put(dvnode);
+  lookup_cleanup(&ld);
+
   return 0;
 }
 

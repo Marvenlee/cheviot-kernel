@@ -106,6 +106,16 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
 }
 
 
+/*
+ * TODO: lookup_cleanup - add to dir operations and others
+ */ 
+void lookup_cleanup(struct lookupdata *ld)
+{
+
+}
+
+
+
 /* @brief Initialize the state for performing a pathname lookup
  *
  * @param _path

@@ -35,6 +35,10 @@ int sys_stat(char *_path, struct stat *_stat) {
   int sc;
 
   Info("sys_stat");
+
+  if (_stat == NULL) {
+    return -EFAULT;
+  }
 	
   if ((sc = lookup(_path, 0, &ld)) != 0) {
     return sc;
@@ -66,15 +70,14 @@ int sys_stat(char *_path, struct stat *_stat) {
 
   vnode_put(ld.vnode);
 
-  if (_stat == NULL) {
-    return -EFAULT;
-  }
-
   if (CopyOut(_stat, &stat, sizeof stat) != 0) {
-    return -EFAULT;
+    sc = -EFAULT;
+  } else {
+    sc = 0;
   }
   
-  return 0;
+  lookup_cleanup(&ld);
+  return sc;
 }
 
 

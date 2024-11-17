@@ -28,6 +28,7 @@
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Registers an interrupt notification server
@@ -60,7 +61,7 @@ int sys_addinterruptserver(int irq, int event)
   current_proc = get_current_process();
   current_thread = get_current_thread();
     
-  if (!io_allowed(current_proc)) {
+  if (check_privileges(current_proc, PRIV_INTERRUPT) != 0) {
     Error("* cannot add interrupt, IO not allowed");
     return -EPERM;
   }
@@ -205,7 +206,7 @@ int sys_maskinterrupt(int irq)
   struct Process *current;
 
   current = get_current_process();
-  if (!io_allowed(current)) {
+  if (check_privileges(current, PRIV_INTERRUPT) != 0) {
     return -EPERM;
   }
 
@@ -238,7 +239,7 @@ int sys_unmaskinterrupt(int irq)
 
   current = get_current_process();
 
-  if (!io_allowed(current)) {
+  if (check_privileges(current, PRIV_INTERRUPT) != 0) {
     return -EPERM;
   }
 

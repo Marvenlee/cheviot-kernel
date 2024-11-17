@@ -25,6 +25,7 @@
 #include <poll.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Pivot the root directory
@@ -49,6 +50,7 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   }
 
   old_root_vnode = ld.vnode;
+  lookup_cleanup(&ld);
 
 
   if ((sc = lookup(_new_root, 0, &ld)) != 0) {
@@ -57,6 +59,7 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   }
 
   new_root_vnode = ld.vnode;
+  lookup_cleanup(&ld);
 
   if (new_root_vnode == NULL) {
     Error("PivotRoot failed new_root -ENOENT");
@@ -143,10 +146,12 @@ int sys_renamemount(char *_new_path, char *_old_path)
 
   vnode_put (old_vnode);   // release 
   vnode_put (new_vnode);   // release
+  lookup_cleanup(&ld);
   return 0;
   
 exit:
   Error("renamemsgport failed: %d", error);
+  lookup_cleanup(&ld);
   return error;
 }
 
@@ -170,6 +175,7 @@ int sys_ismount(char *_path)
 
   if (ld.vnode == NULL) {
     Error("sys_ismount, inode not found, -ENOENT");
+    lookup_cleanup(&ld);
     return -ENOENT;
   }
   
@@ -178,7 +184,7 @@ int sys_ismount(char *_path)
   sc = is_mountpoint(vnode);
 
   vnode_put(vnode);
-  
+  lookup_cleanup(&ld);  
   return sc;  
 }
 

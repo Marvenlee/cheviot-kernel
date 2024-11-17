@@ -27,6 +27,7 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/arch.h>
+#include <sys/privileges.h>
 
 
 /* @brief   Set thread scheduling policy and priority
@@ -43,7 +44,7 @@ int sys_thread_setschedparams(int policy, int priority)
   current = get_current_thread();
 
   if (policy == SCHED_RR || policy == SCHED_FIFO) {
-    if (!io_allowed(current_proc)) {
+    if (check_privileges(current_proc, PRIV_SCHED_RR | PRIV_SCHED) != 0) {
       return -EPERM;
     }
 

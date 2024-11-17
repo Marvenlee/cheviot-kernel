@@ -540,6 +540,7 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
 int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
 {
   struct Process *current;
+  struct Filp *filp;
   struct VNode *vnode;
   msgiov_t siov[IOV_MAX];
   msgiov_t riov[IOV_MAX];
@@ -570,17 +571,16 @@ int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cn
   }
   
   current = get_current_process();
+  filp = get_filp(current, fd);
   vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
     return -EBADF;
   }
 
-#if 0
-  if (is_allowed(vnode, R_OK) != 0) {
+  if (check_access(vnode, filp, X_OK) != 0) {
     return -EACCES;
   }
-#endif
 
   vn_lock(vnode, VL_SHARED);
 

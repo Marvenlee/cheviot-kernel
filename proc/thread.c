@@ -445,9 +445,6 @@ struct Thread *alloc_thread_struct(void)
   
   memset(thread, 0, sizeof *thread);
 
-  thread->canary1 = 0xcafefaad;
-  thread->canary2 = 0xdeadbaaf;
-
   return thread;
 }
 

@@ -27,13 +27,37 @@
 #include <fcntl.h>
 #include <kernel/kqueue.h>
 
+
 /* @brief   access system call
  * 
  */
 int sys_access(char *pathname, mode_t permissions)
 {
 	// TODO: implement sys_access
-  return F_OK;
+#if 1
+  return 0;
+#else
+  struct Process *current;
+  struct lookupdata ld;
+  struct VNode *vnode;
+  int sc;
+
+  current = get_current_process();
+
+  if ((sc = lookup(_path, 0, &ld)) != 0) {
+    return sc;
+  }
+
+  vnode = ld.vnode;
+
+  sc = check_access(vnode, NULL, desired_access);
+
+  knote(&vnode->knote_list, NOTE_ATTRIB);
+  vnode_put(vnode);
+  lookup_cleanup(&ld);
+
+  return sc;
+#endif
 }
 
 
@@ -61,30 +85,31 @@ int sys_chmod(char *_path, mode_t mode)
   struct Process *current;
   struct lookupdata ld;
   struct VNode *vnode;
-  int err;
+  int sc;
 
   current = get_current_process();
 
-  if ((err = lookup(_path, 0, &ld)) != 0) {
-    return err;
+  if ((sc = lookup(_path, 0, &ld)) != 0) {
+    return sc;
   }
 
   vnode = ld.vnode;
 
   if (vnode->uid == current->uid || current->uid == SUPERUSER) {
-    err = vfs_chmod(vnode, mode);
+    sc = vfs_chmod(vnode, mode);
     
-    if (err == 0) {
+    if (sc == 0) {
       vnode->mode = mode;
     }
   } else {
-    err = EPERM;
+    sc = EPERM;
   }
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   
   vnode_put(vnode);
-  return err;
+  lookup_cleanup(&ld);
+  return sc;
 }
 
 
@@ -97,29 +122,30 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
   struct Process *current;
   struct lookupdata ld;
   struct VNode *vnode;
-  int err;
+  int sc;
 
   current = get_current_process();
 
-  if ((err = lookup(_path, 0, &ld)) != 0) {
-    return err;
+  if ((sc = lookup(_path, 0, &ld)) != 0) {
+    return sc;
   }
 
   vnode = ld.vnode;
 
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
-    err = vfs_chown(vnode, uid, gid);
+    sc = vfs_chown(vnode, uid, gid);
     
-    if (err == 0) {
+    if (sc == 0) {
       vnode->uid = uid;
       vnode->gid = gid;
     }    
   } else {
-    err = EPERM;
+    sc = EPERM;
   }
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   vnode_put(vnode);
+  lookup_cleanup(&ld);
   return 0;
 }
 
@@ -131,7 +157,7 @@ int sys_fchmod(int fd, mode_t mode)
 {
   struct Process *current;
   struct VNode *vnode;
-  int err;
+  int sc;
 
   current = get_current_process();
   vnode = get_fd_vnode(current, fd);
@@ -141,19 +167,19 @@ int sys_fchmod(int fd, mode_t mode)
   }
 
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
-    err = vfs_chmod(vnode, mode);
+    sc = vfs_chmod(vnode, mode);
     
-    if (err == 0) {
+    if (sc == 0) {
       vnode->mode = mode;
     }
   } else {
-    err = EPERM;
+    sc = EPERM;
   }
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   
   vnode_put(vnode);
-  return err;
+  return sc;
 }
 
 
@@ -165,7 +191,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
 {
   struct Process *current;
   struct VNode *vnode;
-  int err;
+  int sc;
 
   current = get_current_process();
   vnode = get_fd_vnode(current, fd);
@@ -175,14 +201,14 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
   }
 
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
-    err = vfs_chown(vnode, uid, gid);
+    sc = vfs_chown(vnode, uid, gid);
     
-    if (err == 0) {
+    if (sc == 0) {
       vnode->uid = uid;
       vnode->gid = gid;
     }    
   } else {
-    err = EPERM;
+    sc = EPERM;
   }
 
 
@@ -192,26 +218,23 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
 }
 
 
-/* @brief   Check if an operation is allowed on a file
+/* @brief   Check if a read/write/execute operation is allowed on a file
  * 
- * TODO:  Should this also check the filp's mode bits ? 
- * 
- * TODO:  What if group and other have more privileges than owner?
- * TODO:  Add root/administrator check (GID = 0 or 1 for admins)?
- * Admins can't access root files.
+ * @param   vnode, filesystem vnode that we intend to access
+ * @param   filp, optional file pointer containing the file access mode.
+ *                 O_RDONLY, O_WRONLY or O_RDWR.
+ * @param   desired_access, requested file access to check against
+ *                 R_OK, W_OK, X_OK.
+ * @return  0 on success or -EACESS if the operation is not allowed.                                   
  *
- * TODO: Callers will need separate call to check_privilege in proc/privilege.c
- *
- * TODO: Rename to check_file_access(proc, filp, desired_access);
  */
-int is_allowed(struct VNode *vnode, mode_t desired_access)
+int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
 {
   mode_t perm_bits;
   int shift;
   struct Process *current;
 
-	// FIXME : fix is_allowed
-  return 0;
+  current = get_current_process();
   
   if (current->euid == SUPERUSER) {
     return 0;
@@ -219,25 +242,50 @@ int is_allowed(struct VNode *vnode, mode_t desired_access)
   
   desired_access &= (R_OK | W_OK | X_OK);
 
-  current = get_current_process();
-
-  if (current->euid == vnode->uid)
-    shift = 6; /* owner */
-  else if (current->egid == vnode->gid)
-    shift = 3; /* group */
-  else if (match_supplementary_group(current, vnode->gid) == true)
-    shift = 3; /* group */
-  else
-    shift = 0; /* other */
-
-  perm_bits = (vnode->mode >> shift) & (R_OK | W_OK | X_OK);
-
-  if ((perm_bits | desired_access) != perm_bits) {
-    Warn("IsAllowed failed ************");
-    return -EACCES;
+  if (filp != NULL) {
+    int access_mode = (filp->flags & O_ACCMODE);
+    
+    if ((access_mode == O_RDONLY && (desired_access & W_OK)) ||
+        (access_mode == O_WRONLY && (desired_access & R_OK))) {
+      return -EPERM;
+    }
   }
 
-  return 0;
+  if (current->euid == vnode->uid) {
+    shift = 6; /* owner */
+    perm_bits = (vnode->mode >> shift) & (R_OK | W_OK | X_OK);
+
+    if ((perm_bits & desired_access) == perm_bits) {
+      return 0;
+    }
+  }
+  
+  if (current->egid == vnode->gid) {
+    shift = 3; /* group */
+    perm_bits = (vnode->mode >> shift) & (R_OK | W_OK | X_OK);
+
+    if ((perm_bits & desired_access) == perm_bits) {
+      return 0;
+    }
+  }
+    
+  if (match_supplementary_group(current, vnode->gid) == true) {
+    shift = 3; /* supplementary group */
+    perm_bits = (vnode->mode >> shift) & (R_OK | W_OK | X_OK);
+
+    if ((perm_bits & desired_access) == perm_bits) {
+      return 0;
+    }
+  }
+
+  shift = 0; /* other */
+  perm_bits = (vnode->mode >> shift) & (R_OK | W_OK | X_OK);
+
+  if ((perm_bits | desired_access) == perm_bits) {
+    return 0;
+  }
+  
+  return -EACCES;
 }
 
 
