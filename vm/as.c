@@ -12,8 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
-
+ 
 /*
  * System calls for virtual memory management.
  */
@@ -37,13 +38,16 @@
  */
 int create_address_space(struct AddressSpace *as)
 {
+  Info("create_address_space(as:%08x)", (uint32_t)as);
   if (pmap_create(as) != 0) {
     return -ENOMEM;
   }
 
-  as->segment_cnt = 1;
-  as->segment_table[0] = VM_USER_BASE | SEG_TYPE_FREE;
-  as->segment_table[1] = VM_USER_CEILING | SEG_TYPE_CEILING;
+  if (init_memregions(as) != 0) {
+    pmap_destroy(as);    
+    return -ENOMEM;
+  }
+
   return 0;
 }
 
@@ -60,7 +64,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
   bits32_t flags;
   struct Pageframe *pf;
 
-  Info ("fork address space");
+  Info ("fork address space(new_as:%08x, old_ad:%08x)", (uint32_t)new_as, (uint32_t)old_as);
 	Info("new as:%08x, current as:%08x", (uint32_t)new_as, (uint32_t)old_as);
 
   KASSERT(new_as != NULL);
@@ -71,15 +75,14 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
     return -1;
   }
 
-  new_as->segment_cnt = old_as->segment_cnt;
-  
-  Info("as:%08x segment_cnt = %d", (uint32_t)new_as, new_as->segment_cnt);
-  
-  for (int t = 0; t <= new_as->segment_cnt; t++) {
-    new_as->segment_table[t] = old_as->segment_table[t];
-    
-//    Info("as:%08x segment_table[%d]=%08x", (uint32_t)new_as, t, new_as->segment_table[t]);    
+
+  if (fork_memregions(new_as, old_as) != 0) {
+    Error("Failed to fork memregions");
+    pmap_destroy(new_as);
+    free_address_space(new_as);
+    return -1;
   }
+
 
   for (vpt = VM_USER_BASE_PAGETABLE_ALIGNED; vpt < VM_USER_CEILING;
        vpt += PAGE_SIZE * N_PAGETABLE_PTE) {
@@ -158,11 +161,14 @@ cleanup:
 }
 
 
-/* @brief   Free user-space pages during process termnation
+/* @brief   Free user-space pages during process termination
  *
  * @param   as, address space to clear and free pages from.
+ *
+ * This initializes the memregion list to a single free region so that
+ * this can be used by sys_exec() to clear the existing address space.
  */
-void cleanup_address_space(struct AddressSpace *as)
+int cleanup_address_space(struct AddressSpace *as)
 {
   struct Pageframe *pf;
   vm_addr pa;
@@ -203,11 +209,14 @@ void cleanup_address_space(struct AddressSpace *as)
     }
   }
 
-  as->segment_cnt = 1;
-  as->segment_table[0] = VM_USER_BASE | SEG_TYPE_FREE;
-  as->segment_table[1] = VM_USER_CEILING | SEG_TYPE_CEILING;
+  // TODO: Add option to keep single "free" memregion to memregion_free_all().
+  memregion_free_all(as);
 
-//  pmap_flush_tlbs();
+  if (init_memregions(as) != 0) {
+    return -ENOMEM;
+  }
+  
+  return 0;  
 }
 
 
@@ -222,5 +231,7 @@ void free_address_space(struct AddressSpace *as)
 {
   pmap_destroy(as);
   pmap_flush_tlbs();
+  
+  memregion_free_all(as);
 }
 

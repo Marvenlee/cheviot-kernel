@@ -85,7 +85,10 @@ void *sys_virtualalloc(void *_addr, size_t len, bits32_t flags)
   vm_addr paddr;
   vm_addr ceiling;
   struct Pageframe *pf;
-
+  struct MemRegion *mr;
+  
+  Info("sys_virtualalloc(_addr:%08x, len:%08x)", (uint32_t)_addr, (uint32_t)len);
+  
   current = get_current_process();
 
   if (check_privileges(current, PRIV_VALLOC) != 0) {
@@ -98,11 +101,16 @@ void *sys_virtualalloc(void *_addr, size_t len, bits32_t flags)
   len = ALIGN_UP(len, PAGE_SIZE);
   flags = (flags & ~VM_SYSTEM_MASK) | MEM_ALLOC;
   
-  addr = segment_create(as, addr, len, SEG_TYPE_ALLOC, flags);
+  //addr = segment_create(as, addr, len, SEG_TYPE_ALLOC, flags);
 
-  if (addr == (vm_addr)NULL) {
+  mr = memregion_create(as, addr, len, flags, MR_TYPE_ALLOC);
+  
+  if (mr == NULL) {
+    Error("VirtualAlloc failed memregion_create");
     return NULL;
   }
+
+  addr = mr->base_addr;
 
   for (va = addr; va < addr + len; va += PAGE_SIZE) {
     if ((pf = alloc_pageframe(PAGE_SIZE)) == NULL) {
@@ -133,7 +141,7 @@ cleanup:
   }
 
   pmap_flush_tlbs();
-  segment_free(as, addr, len);
+  memregion_free(as, addr, len);
   return NULL;
 }
 
@@ -153,7 +161,10 @@ void *sys_virtualallocphys(void *_addr, size_t len, bits32_t flags,
   vm_addr va;
   vm_addr pa;
   vm_addr ceiling;
-
+  struct MemRegion *mr;
+  
+  Info("sys_virtualallocphys(_addr:%08x, len:%08x)", (uint32_t)_addr, (uint32_t)len);
+  
   current = get_current_process();
   as = &current->as;
   addr = ALIGN_DOWN((vm_addr)_addr, PAGE_SIZE);
@@ -166,12 +177,14 @@ void *sys_virtualallocphys(void *_addr, size_t len, bits32_t flags,
     return NULL;
   }
   
-  addr = segment_create(as, addr, len, SEG_TYPE_PHYS, flags);
-
-  if (addr == (vm_addr)NULL) {
-    Warn("VirtualAllocPhys failed, no segment");
+  mr = memregion_create(as, addr, len, flags, MR_TYPE_ALLOC);
+  
+  if (mr == NULL) {
+    Error("VirtualAllocPhys failed memregion_create");
     return NULL;
   }
+
+  addr = mr->base_addr;
 
   for (va = addr, pa = paddr; va < addr + len; va += PAGE_SIZE, pa += PAGE_SIZE) {
 //    Info("phys mapping va:%08x, pa:%08x, flags:%08x", va, pa, flags);
@@ -193,7 +206,7 @@ cleanup:
   }
   
   pmap_flush_tlbs();
-  segment_free(as, addr, len);
+  memregion_free(as, addr, len);
   return NULL;
 }
 
@@ -211,6 +224,8 @@ int sys_virtualfree(void *_addr, size_t len)
   vm_addr addr;
   vm_addr va;
 
+  Info("sys_virtualfree(_addr:%08x, len:%08x)", (uint32_t)_addr, (uint32_t)len);
+
   current = get_current_process();
 
   as = &current->as;
@@ -225,7 +240,7 @@ int sys_virtualfree(void *_addr, size_t len)
   }
 
   pmap_flush_tlbs();  
-  segment_free(as, addr, len);
+  memregion_free(as, addr, len);
   return 0;
 }
 
@@ -263,6 +278,10 @@ int sys_virtualprotect(void *_addr, size_t len, bits32_t flags)
   as = &current->as;
   addr = ALIGN_DOWN((vm_addr)_addr, PAGE_SIZE);
   len = ALIGN_UP(len, PAGE_SIZE);
+
+
+  memregion_splice(as, addr);
+  memregion_splice(as, addr + len);
 
   for (va = addr; va < addr + len; va += PAGE_SIZE) {
     if (pmap_is_page_present(as, va) == false) {

@@ -59,7 +59,10 @@ void init_vm(void)
 {
   vm_addr pa;
 
+
   init_memory_map();
+
+  init_memregion_list();
 
   init_pmappagedir_table();
 
@@ -128,6 +131,17 @@ void init_memory_map(void)
     pageframe_table[t].reference_cnt = 0;
     pageframe_table[t].flags = 0;
     pmap_pageframe_init(&pageframe_table[t].pmap_pageframe);
+  }
+}
+
+
+void init_memregion_list(void)
+{
+  LIST_INIT(&unused_memregion_list);
+
+  for (int t = 0; t < max_memregion; t++) {
+    memregion_table[t].type = MR_TYPE_UNALLOCATED;
+    LIST_ADD_TAIL(&unused_memregion_list, &memregion_table[t], unused_link);
   }
 }
 

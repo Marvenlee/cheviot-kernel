@@ -148,7 +148,11 @@ int do_exec(int fd, char *name, struct execargs *_args)
 
   do_kill_other_threads_and_wait(current, current_thread);
   
-  cleanup_address_space(&current->as);
+  if (cleanup_address_space(&current->as) != 0) {
+    Error("exec cleanup address space failed");
+    free_arg_pool(pool);
+    return -ENOMEM;
+  }
 
   if (load_process(current, fd, &entry_point) != 0) {
     Error("LoadProcess failed");

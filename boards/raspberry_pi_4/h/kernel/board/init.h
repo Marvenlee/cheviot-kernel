@@ -63,6 +63,7 @@ void init_cpu_tables(void);
 
 // arm/init_vm.c
 void init_vm(void);
+void init_memregion_list(void);
 void init_io_pagetables(void);
 void init_buffer_cache_pagetables(void);
 void init_memory_map(void);

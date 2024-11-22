@@ -40,4 +40,8 @@ pageframe_list_t free_4k_pf_list;
 pageframe_list_t free_16k_pf_list;
 pageframe_list_t free_64k_pf_list;
 
+int max_memregion;
+struct MemRegion *memregion_table;
+memregion_list_t unused_memregion_list;
+
 

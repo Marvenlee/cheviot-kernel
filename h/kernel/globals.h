@@ -23,6 +23,11 @@ extern pageframe_list_t free_4k_pf_list;
 extern pageframe_list_t free_16k_pf_list;
 extern pageframe_list_t free_64k_pf_list;
 
+extern int max_memregion;
+extern struct MemRegion *memregion_table;
+extern memregion_list_t unused_memregion_list;
+
+
 /*
  * Timer
  */

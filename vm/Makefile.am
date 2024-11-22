@@ -5,9 +5,9 @@ kernel_SOURCES += \
   vm/bounds.c \
   vm/globals.c \
   vm/ipcopy.c \
+  vm/memregion.c \
   vm/page.c \
   vm/pagefault.c \
-  vm/segment.c \
   vm/vm.c
   
 

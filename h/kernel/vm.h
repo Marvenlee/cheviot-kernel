@@ -8,9 +8,12 @@
 
 // Forward declarations
 struct Pageframe;
+struct MemRegion;
+
 
 // Linked list types
-LIST_TYPE(Pageframe, pageframe_list_t, pageframe_list_link_t);
+LIST_TYPE(Pageframe, pageframe_list_t, pageframe_link_t);
+LIST_TYPE(MemRegion, memregion_list_t, memregion_link_t);
 
 
 // Flags used for kernel administration of pages
@@ -36,16 +39,31 @@ LIST_TYPE(Pageframe, pageframe_list_t, pageframe_list_link_t);
 #define PGF_USER        (1 << 4)
 #define PGF_PAGETABLE   (1 << 5)
 
-// Number of segments in an address space 
-#define NSEGMENT 32
 
-// Lower bits of AddressSpace.segment_table[]
-#define SEG_TYPE_FREE 0
-#define SEG_TYPE_ALLOC 1
-#define SEG_TYPE_PHYS 2
-#define SEG_TYPE_CEILING 3
-#define SEG_TYPE_MASK 0x0000000f
-#define SEG_ADDR_MASK 0xfffff000
+// MemRegion types
+#define MR_TYPE_UNALLOCATED 0
+#define MR_TYPE_FREE 1
+#define MR_TYPE_ALLOC 2
+#define MR_TYPE_PHYS 3
+
+
+/* @brief   Structure representing an area of a process's address space
+ */
+struct MemRegion
+{
+	vm_addr base_addr;
+	vm_addr ceiling_addr;
+
+	memregion_link_t sorted_link;
+	memregion_link_t free_link;
+	memregion_link_t unused_link;
+
+	struct AddressSpace *as;
+	
+	uint32_t type;
+	uint32_t flags;
+	vm_addr phys_base_addr;
+};
 
 
 /* @brief   Structure representing a physical page of memory
@@ -54,10 +72,11 @@ struct Pageframe
 {
   vm_size size;                           // Pageframe is either 64k, 16k, or 4k
   vm_addr physical_addr;
+//  struct MemRegion *mr;  
   int reference_cnt;                      // Count of vpage references.
   bits32_t flags;
-  pageframe_list_link_t link;            // cache lru, busy link.  (busy and LRU on separate lists?)
-  pageframe_list_link_t free_slab_link;
+  pageframe_link_t link;            // cache lru, busy link.  (busy and LRU on separate lists?)
+  pageframe_link_t free_slab_link;
   struct PmapPageframe pmap_pageframe;
   size_t free_object_size;
   int free_object_cnt;
@@ -66,17 +85,17 @@ struct Pageframe
 
 
 /* @brief   Address space of a process
- *
- * TODO: Convert segments back to list of memregions instead of small array
- * The original intent was to have a single address space OS with a single
- * segment table. This segment table could be quickly searched with a binary
- * tree (though possibly expensive to insert).
  */
 struct AddressSpace
 {
   struct Pmap pmap;
-  vm_addr segment_table[NSEGMENT];
-  int segment_cnt;
+
+  memregion_list_t sorted_memregion_list;
+  memregion_list_t free_memregion_list;
+  
+  struct MemRegion *hint;
+  
+  int memregion_cnt;
 };
 
 
@@ -87,13 +106,28 @@ struct AddressSpace
 // vm/addressspace.c
 int create_address_space(struct AddressSpace *new_as);
 int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as);
-void cleanup_address_space(struct AddressSpace *as);
+int cleanup_address_space(struct AddressSpace *as);
 void free_address_space(struct AddressSpace *as);
 
-// vm/ipcopy.c
+// vm/bounds.c
+int bounds_check(void *addr, size_t sz);
+int bounds_check_kernel(void *addr, size_t sz);
 
+// vm/ipcopy.c
 ssize_t ipcopy(struct AddressSpace *dst_as, struct AddressSpace *src_as,
                void *dvaddr, void *svaddr, size_t sz);
+
+// vm/memregion.c
+struct MemRegion *memregion_find_free(struct AddressSpace *as, vm_addr addr);
+struct MemRegion *memregion_find_sorted(struct AddressSpace *as, vm_addr addr);
+struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
+                                   vm_size size, uint32_t flags, uint32_t type);
+int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size);
+int memregion_split(struct AddressSpace *as, vm_offset addr);
+int memregion_protect(struct AddressSpace *as, vm_offset addr, vm_size size);
+void memregion_free_all(struct AddressSpace *as);
+int init_memregions(struct AddressSpace *as);
+int fork_memregions(struct AddressSpace *new_as, struct AddressSpace *old_as);
 
 // vm/page.c
 void *kmalloc_page(void);
@@ -101,7 +135,6 @@ void kfree_page(void *vaddr);
 struct Pageframe *alloc_pageframe(vm_size);
 void free_pageframe(struct Pageframe *pf);
 void coalesce_slab(struct Pageframe *pf);
-
 
 // vm/pagefault.c
 int page_fault(vm_addr addr, bits32_t access);
@@ -112,18 +145,7 @@ void *sys_virtualallocphys(void *addr, size_t len, bits32_t flags, void *paddr);
 int sys_virtualfree(void *addr, size_t size);
 int sys_virtualprotect(void *addr, size_t size, bits32_t flags);
 
-// vm/segment.c
-vm_addr segment_create(struct AddressSpace *as, vm_offset addr, vm_size size,
-                      int type, bits32_t flags);
-void segment_free(struct AddressSpace *as, vm_addr base, vm_size size);
-void segment_insert(struct AddressSpace *as, int index, int cnt);
-vm_addr *segment_find(struct AddressSpace *as, vm_addr addr);
-void segment_coalesce(struct AddressSpace *as);
-vm_addr *segment_alloc(struct AddressSpace *as, vm_size size, uint32_t flags,
-                      vm_addr *ret_addr);
-int segment_splice(struct AddressSpace *as, vm_addr addr);
-
-// boards/
+// boards/.../arch.S
 int CopyIn(void *dst, const void *src, size_t sz);
 int CopyOut(void *dst, const void *src, size_t sz);
 int CopyInString(void *dst, const void *src, size_t max_sz);
@@ -163,8 +185,6 @@ int pmap_cache_remove(vm_addr va);
 int pmap_cache_extract(vm_addr va, vm_addr *pa);
 int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, void **rkaddr);
 
-int bounds_check(void *addr, size_t sz);
-int bounds_check_kernel(void *addr, size_t sz);
 /*
  * VM Macros
  * TODO: Replace ALIGN_UP and ALIGN_DOWN macros with roundup and rounddown

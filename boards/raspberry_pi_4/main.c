@@ -81,6 +81,7 @@ void Main(void)
   max_process = NPROCESS;
   max_thread = NTHREAD;
   max_pageframe = mem_size / PAGE_SIZE;
+  max_memregion = max_pageframe / 32;
   max_buf = 4 * 1024;
   max_superblock = NR_SUPERBLOCK;
   max_filp = NR_FILP;
@@ -101,6 +102,7 @@ void Main(void)
   pmappagedir_table = bootstrap_alloc(max_process * sizeof(struct PmapPagedir));
 
   pageframe_table   = bootstrap_alloc(max_pageframe * sizeof(struct Pageframe));
+  memregion_table   = bootstrap_alloc(max_memregion * sizeof(struct MemRegion));
   buf_table         = bootstrap_alloc(max_buf * sizeof(struct Buf));
   pipe_table        = bootstrap_alloc(max_pipe * sizeof (struct Pipe));
   pid_table         = bootstrap_alloc(max_pid * sizeof (struct PidDesc));
