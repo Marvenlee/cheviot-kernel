@@ -69,12 +69,9 @@ void *io_map(vm_addr pa, size_t sz, bool bufferable);
 void init_bootstrap_allocator(void);
 void *bootstrap_alloc(vm_size size);
 
-
-// TODO: Misc prototypes  FIXME: Rename/remove these prototypes
 void InitRoot(void);
 void InitIdleTasks(void);
 
-void bootstrap_root_process(void *arg);
 void Idle(void);
 void TimerBottomHalf(void);
 

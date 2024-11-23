@@ -18,7 +18,7 @@
  * Kernel initialization.
  */
 
-#define KDEBUG  1
+//#define KDEBUG  1
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -131,7 +131,7 @@ void init_processes(void)
   
   Info(".. cpu struct inited");
 
-  root_process = do_create_process(bootstrap_root_process, NULL,
+  root_process = do_create_process(exec_root, NULL,
                               SCHED_RR, 16,
                               PROCF_ALLOW_IO, 
                               "root",

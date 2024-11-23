@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Interprocess memory copying code.
  */
 
 //#define KDEBUG  1
@@ -26,6 +29,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
+#include <sys/mman.h>
 
 
 /* @brief   Interprocess memory copy

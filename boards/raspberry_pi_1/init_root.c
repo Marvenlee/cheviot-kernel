@@ -29,7 +29,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <sys/execargs.h>
-
+#include <sys/mman.h>
 
 
 // TODO: Move to filesystem/exec_root.c (or exec.c)
@@ -94,7 +94,7 @@ void BootstrapRootProcess(void) {
 
   Info ("allocating root stack");
   
-  if ((stack_base = sys_virtualalloc((void *)0x30000000, USER_STACK_SZ, PROT_READWRITE)) == NULL) {
+  if ((stack_base = sys_mmap((void *)0x30000000, USER_STACK_SZ, PROT_READ PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
     Info("Root stack alloc failed");
     KernelPanic();
   }
@@ -213,9 +213,9 @@ int LoadRootElf(void *file_base, void **entry_point)
     sec_mem_sz = segment_ceiling - segment_base;
 
     if (sec_mem_sz != 0) {
-      ret_addr = sys_virtualalloc(sec_addr, sec_mem_sz, PROT_READWRITE | PROT_EXEC | MAP_FIXED);
+      ret_addr = sys_mmap(sec_addr, sec_mem_sz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_FIXED, -1, 0);
 
-      if (ret_addr == NULL)
+      if (ret_addr == MAP_FAILED)
         return -ENOMEM;
     }
 
@@ -227,7 +227,7 @@ int LoadRootElf(void *file_base, void **entry_point)
       }
     }
 
-//    sys_virtualprotect(sec_addr, sec_mem_sz, sec_prot);
+    // FIXME:   sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
   }
 
   return 0;

@@ -30,6 +30,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
+#include <sys/mman.h>
 
 
 /* @brief   Page fault exception handler
@@ -57,11 +58,8 @@ int page_fault(vm_addr addr, bits32_t access)
 	
 	Info("extract paddr:%08x, page_flags:%08x", paddr, page_flags);
 
-  if ((page_flags & MEM_MASK) == MEM_PHYS) {
-  	Info("fault page flags MEM_PHYS");
-    return -1;
-  } else if ((page_flags & MEM_MASK) != MEM_ALLOC) {
-  	Info("fault on page flags not MEM_ALLOC");
+  if ((page_flags & MAP_PHYS) == MAP_PHYS) {
+  	Info("fault page flags MAP_PHYS");
     return -1;
   } else if (!(access & PROT_WRITE)) {
   	Info("fault when access not writing");

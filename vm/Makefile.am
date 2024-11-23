@@ -6,8 +6,8 @@ kernel_SOURCES += \
   vm/globals.c \
   vm/ipcopy.c \
   vm/memregion.c \
+  vm/mmap.c \
   vm/page.c \
-  vm/pagefault.c \
-  vm/vm.c
+  vm/pagefault.c
   
 

@@ -124,8 +124,6 @@ extern void start_of_user_thread(void);
 
 void save_fp_context(uint32_t *context);
 
-void bootstrap_root_process(void *arg);
-
 void idle_task(void *arg);
 void TimerBottomHalf(void *arg);
 

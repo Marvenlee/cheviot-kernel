@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Address space management of regions created by mmap
  */
 
 //#define KDEBUG
@@ -25,6 +28,7 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
+#include <sys/mman.h>
 
 
 /*
@@ -94,9 +98,8 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
   struct MemRegion *mr, *mrbase, *mrtail;
   vm_offset aligned_base_addr;
   
-  Info("memregion_create(addr:%08x, size:%08x, type:%d)", (uint32_t)addr, (uint32_t)size, type);
-  
-  
+  Info("memregion_create(addr:%08x, size:%08x, flags:%08x, type:%d)", (uint32_t)addr, (uint32_t)size, flags, type);
+    
   if (flags & MAP_FIXED) {
     if ((mr = memregion_find_free(as, addr)) != NULL) {
       if (((addr + size) > mr->ceiling_addr) || (mr->type != MR_TYPE_FREE)) {

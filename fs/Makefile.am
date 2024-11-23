@@ -8,6 +8,7 @@ kernel_SOURCES += \
   fs/dir.c \
   fs/dnlc.c \
   fs/exec.c \
+  fs/exec_root.c \
   fs/filp.c \
   fs/filedesc.c \
   fs/fproc.c \

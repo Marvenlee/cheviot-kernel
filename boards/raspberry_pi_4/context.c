@@ -12,15 +12,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * ARM-specific thread user/kernel context handling.
  */
 
 //#define KDEBUG
-
-/*
- * ARM-specific process creation and deletion code.
- *
- * TODO: Rename to context.c or arch_context.c
- */
  
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>
@@ -146,10 +143,17 @@ void arch_init_exec_thread(struct Process *proc, struct Thread *thread, void *en
   uint32_t *context;
   uint32_t cpsr;
 
+  Info("arch_init_exec_thread");
+  Info("sp:%08x", (uint32_t)stack_pointer);
+  Info("pc:%08x", (uint32_t)entry_point);
+  Info("args:%08x", (uint32_t)args);
+
   cpsr = USR_MODE | CPSR_DEFAULT_BITS; 
 
   uc = (struct UserContext *)((vm_addr)thread->stack + KERNEL_STACK_SZ -
                               sizeof(struct UserContext));
+
+  Info("k uc:%08x", (uint32_t)uc);
 
   memset(uc, 0, sizeof(*uc));
 

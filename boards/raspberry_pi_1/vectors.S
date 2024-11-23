@@ -63,10 +63,10 @@ syscall_table:
     .long sys_gettimeofday              // 10
     .long sys_settimeofday              // 11
     
-    .long sys_virtualalloc              // 12   TODO: Replace with mmap
-    .long sys_virtualallocphys          // 13   TODO: Replace with mmap
-    .long sys_virtualfree               // 14   TODO: Replace with munmap
-    .long sys_virtualprotect            // 15   TODO: Replace with mprotect
+    .long sys_mmap                      // 12
+    .long sys_deprecatedsyscall         // 13
+    .long sys_munmap                    // 14
+    .long sys_mprotect                  // 15
 
     .long sys_createinterrupt           // 16
     .long sys_maskinterrupt             // 17

@@ -30,6 +30,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
+#include <sys/mman.h>
 
 
 /* @brief   Allocate a page in kernel memory

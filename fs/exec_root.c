@@ -29,6 +29,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <sys/execargs.h>
+#include <sys/mman.h>
 
 
 // TODO: Move to filesystem/exec_root.c (or exec.c)
@@ -46,7 +47,7 @@ ssize_t ReadIFS (void *base, off_t offset, void *vaddr, size_t sz);
  * Allocates the initial stack for the process.
  * Starts the root process at the IFS.exe's entry point.
  */
-void bootstrap_root_process(void *arg)
+void exec_root(void *arg)
 {
   (void)arg;
   struct Process *current;
@@ -60,7 +61,7 @@ void bootstrap_root_process(void *arg)
   void *ifs_exe_base;
   struct AddressSpace *as;
 
-  Info ("bootstrap_root_process ...");
+  Info ("exec_root ...");
 
 #if 1
   // FIXME: Why is this here, shouldn't interrupts be enabled on task switch?
@@ -95,7 +96,7 @@ void bootstrap_root_process(void *arg)
 
   Info ("allocating root stack");
   
-  if ((stack_base = sys_virtualalloc((void *)0x02000000, USER_STACK_SZ, PROT_READWRITE)) == NULL) {
+  if ((stack_base = sys_mmap((void *)0x02000000, USER_STACK_SZ, PROT_READ | PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
     Info("Root stack alloc failed");
     KernelPanic();
   }
@@ -221,9 +222,9 @@ int LoadRootElf(void *file_base, void **entry_point)
     Info("--");
     
     if (sec_mem_sz != 0) {
-      ret_addr = sys_virtualalloc(sec_addr, sec_mem_sz, PROT_READWRITE | PROT_EXEC | MAP_FIXED);
+      ret_addr = sys_mmap(sec_addr, sec_mem_sz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_FIXED, -1, 0);
 
-      if (ret_addr == NULL)
+      if (ret_addr == MAP_FAILED)
         return -ENOMEM;
     }
 
@@ -235,7 +236,7 @@ int LoadRootElf(void *file_base, void **entry_point)
       }
     }
 
-//    sys_virtualprotect(sec_addr, sec_mem_sz, sec_prot);
+// FIXME:   sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
   }
 
   return 0;

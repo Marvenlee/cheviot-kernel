@@ -423,6 +423,9 @@ int copy_out_argv(void *stack_pointer, int stack_size, struct execargs *args);
 char *alloc_arg_pool(void);
 void free_arg_pool(char *mem);
 
+// fs/exec_root.c */
+void exec_root(void *arg);
+
 /* fs/filedesc.c */
 int sys_fcntl(int fd, int cmd, int arg);
 int sys_dup(int h);

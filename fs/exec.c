@@ -28,6 +28,8 @@
 #include <string.h>
 #include <sys/execargs.h>
 #include <sys/privileges.h>
+#include <sys/mman.h>
+
 
 // Private variables
 struct Rendez execargs_rendez;
@@ -160,7 +162,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
     return -ENOMEM;
   }
 
-  if ((stack_base = sys_virtualalloc((void *)0x30000000, USER_STACK_SZ, PROT_READWRITE)) == NULL) {
+  if ((stack_base = sys_mmap((void *)0x30000000, USER_STACK_SZ, PROT_READ | PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
     Error("Allocate stack failed");
     free_arg_pool(pool);
     return -ENOMEM;
@@ -449,9 +451,9 @@ static int load_process(struct Process *proc, int fd, void **entry_point) {
 		Info ("section sec_addr:%08x sec_mem_sz:%08x", sec_addr, sec_mem_sz);
 
     if (sec_mem_sz != 0) {
-      ret_addr = sys_virtualalloc(sec_addr, sec_mem_sz, PROT_READWRITE | PROT_EXEC | MAP_FIXED);
+      ret_addr = sys_mmap(sec_addr, sec_mem_sz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_FIXED, -1, 0);
 
-      if (ret_addr == NULL) {
+      if (ret_addr == MAP_FAILED) {
         Error("Failed to alloc fixed mem");
         return -ENOMEM;
       }
@@ -466,7 +468,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point) {
       }
     }
 
-    sys_virtualprotect(sec_addr, sec_mem_sz, sec_prot);
+    sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
   }
 
   return 0;

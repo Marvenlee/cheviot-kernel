@@ -13,10 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- */
- 
-/*
- * System calls for virtual memory management.
+ * --
+ * Address space creation and deletion
  */
 
 //#define KDEBUG 1
@@ -31,7 +29,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
-
+#include <sys/mman.h>
 
 /*
  * TODO: How was root address space originally created.?
@@ -107,7 +105,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
       }
       
      
-      if ((flags & MEM_PHYS) != MEM_PHYS && (flags & PROT_WRITE)) {
+      if ((flags & MAP_PHYS) != MAP_PHYS && (flags & PROT_WRITE)) {
 //        Info (".. va:%08x, rw, anon, mark both as COW", (uint32_t)va);
         
         // Read-Write mapping, Mark page in both as COW and read-only;
@@ -124,7 +122,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
         pf = pmap_pa_to_pf(pa);
         pf->reference_cnt++;
         
-      } else if ((flags & MEM_PHYS) != MEM_PHYS) {
+      } else if ((flags & MAP_PHYS) != MAP_PHYS) {
         // TODO: Should flags also map it as COW?
         // Read-only mapping
 //        Info (".. va:%08x, read-only, anon", (uint32_t)va);
@@ -140,7 +138,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
 //        Info(".. va:%08x, phys mapping, pa:%08x", (uint32_t)va, (uint32_t)pa);
 
 #if 1        
-      	flags =	MEM_PHYS | PROT_READ | PROT_WRITE;
+      	flags =	MAP_PHYS | PROT_READ | PROT_WRITE;
 #endif        
         
         if (pmap_enter(new_as, va, pa, flags) != 0) {
@@ -196,7 +194,7 @@ int cleanup_address_space(struct AddressSpace *as)
         continue;
       }
 
-      if ((flags & MEM_PHYS) == MEM_PHYS) {
+      if ((flags & MAP_PHYS) == MAP_PHYS) {
         continue;
       }
 

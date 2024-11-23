@@ -24,13 +24,6 @@
 
 /*
  * Memory Management
- *
- * TODO: Revert to linked lists of vm_area / struct memregions to manage
- * vm areas of address space instead of segments in an array.
- *
- * replace virtualalloc functions in vm.c with mmap/munmap/mprotect.
- * Segments were originally intended for a single-address-space-os to look
- * up regions of memory quickly and map/unmap whole regions between page directories.
  */
 vm_size mem_size;
 int max_pageframe;

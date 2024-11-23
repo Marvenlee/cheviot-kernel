@@ -35,7 +35,7 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
-
+#include <sys/mman.h>
 
 /*
  *
@@ -56,31 +56,31 @@ static uint32_t pmap_calc_pa_bits(bits32_t flags)
     pa_bits |= L2_NX;
   }
 
-  if ((flags & MEM_MASK) == MEM_ALLOC) {
-    if ((flags & CACHE_MASK) == CACHE_DEFAULT)
+  if ((flags & MAP_PHYS) == 0) {
+    if ((flags & VM_CACHE_MASK) == CACHE_DEFAULT)
       pa_bits |= L2_C | L2_B; // FIXME: | L2_S | L2_B;  
-    else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
+    else if ((flags & VM_CACHE_MASK) == CACHE_WRITEBACK)
       pa_bits |= L2_B | L2_C;
-    else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
+    else if ((flags & VM_CACHE_MASK) == CACHE_WRITETHRU)
       pa_bits |= L2_C;
-    else if ((flags & CACHE_MASK) == CACHE_WRITECOMBINE)
+    else if ((flags & VM_CACHE_MASK) == CACHE_WRITECOMBINE)
       pa_bits |= L2_B;
-    else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
+    else if ((flags & VM_CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
       pa_bits |= 0;
   }
 
-  if ((flags & MEM_MASK) == MEM_PHYS) {
-    if ((flags & CACHE_MASK) == CACHE_DEFAULT)
+  if ((flags & MAP_PHYS) == MAP_PHYS) {
+    if ((flags & VM_CACHE_MASK) == CACHE_DEFAULT)
       pa_bits |= 0;
-    else if ((flags & CACHE_MASK) == CACHE_WRITEBACK)
+    else if ((flags & VM_CACHE_MASK) == CACHE_WRITEBACK)
       pa_bits |= L2_B | L2_C;
-    else if ((flags & CACHE_MASK) == CACHE_WRITETHRU)
+    else if ((flags & VM_CACHE_MASK) == CACHE_WRITETHRU)
       pa_bits |= L2_C;
-    else if ((flags & CACHE_MASK) == CACHE_WRITECOMBINE)
+    else if ((flags & VM_CACHE_MASK) == CACHE_WRITECOMBINE)
       pa_bits |= L2_B;
-    else if ((flags & CACHE_MASK) == CACHE_UNCACHEABLE)
+    else if ((flags & VM_CACHE_MASK) == CACHE_UNCACHEABLE)
       pa_bits |= 0;
     else
       pa_bits |= 0;
@@ -175,7 +175,7 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
     return -EINVAL;
   }
 
-  if ((flags & MEM_MASK) != MEM_PHYS) {
+  if ((flags & MAP_PHYS) == 0) {
     pf = &pageframe_table[pa / PAGE_SIZE];
     LIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
   }
@@ -234,7 +234,7 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
     return -EINVAL;
   }
 
-  if ((vpte->flags & MEM_PHYS) == 0) {
+  if ((vpte->flags & MAP_PHYS) == 0) {
     pf = pmap_pa_to_pf(current_paddr);
     LIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
   }

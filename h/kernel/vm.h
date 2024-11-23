@@ -19,8 +19,10 @@ LIST_TYPE(MemRegion, memregion_list_t, memregion_link_t);
 // Flags used for kernel administration of pages
 #define MEM_RESERVED  (0 << 28)
 #define MEM_GARBAGE   (1 << 28)
-#define MEM_ALLOC     (2 << 28)
-#define MEM_PHYS      (3 << 28)
+
+//#define MEM_ALLOC     (2 << 28)
+//#define MEM_PHYS      (3 << 28)
+
 #define MEM_FREE      (4 << 28)
 
 #define MAP_COW       (1 << 26)
@@ -140,10 +142,9 @@ void coalesce_slab(struct Pageframe *pf);
 int page_fault(vm_addr addr, bits32_t access);
 
 // vm/vm.c
-void *sys_virtualalloc(void *addr, size_t len, bits32_t flags);
-void *sys_virtualallocphys(void *addr, size_t len, bits32_t flags, void *paddr);
-int sys_virtualfree(void *addr, size_t size);
-int sys_virtualprotect(void *addr, size_t size, bits32_t flags);
+void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offset);
+int sys_munmap(void *addr, size_t size);
+int sys_mprotect(void *addr, size_t size, int flags);
 
 // boards/.../arch.S
 int CopyIn(void *dst, const void *src, size_t sz);
