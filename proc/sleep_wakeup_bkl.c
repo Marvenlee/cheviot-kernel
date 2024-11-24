@@ -12,9 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
+ *
+ * --
  * Big kernel lock and sleep and wakeup condition variable functions.
  * Currently the kernel is non-preeemptive due to a big kernel lock
  * acquired on kernel entry and released on kernel exit.  This forms

@@ -12,9 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
+ *
+ * --
  * Page fault handling.
  */
 
@@ -84,15 +83,12 @@ int page_fault(vm_addr addr, bits32_t access)
   if (pf->reference_cnt > 1) {
     pf->reference_cnt--;
 
-    // FIXME: Make pmap_remove return void
-
     if (pmap_remove(&current->as, addr) != 0) {
       Info("pmap_remove failed");
       return -1;
     }
 
     // Now new page frame
-
     if ((pf = alloc_pageframe(PAGE_SIZE)) == NULL) {
       Info("alloc_pageframe failed");
       return -1;
@@ -116,7 +112,6 @@ int page_fault(vm_addr addr, bits32_t access)
     
     // FIXME: Add pmap_modify(as, PMAP_MOD_PADDR | PMAP_MOD_FLAGS, paddr, page_flags); 
     
-    // FIXME: Make pmap_remove return void
     if (pmap_remove(&current->as, addr) != 0) {
       Info("pmap_remove on  refcnt==1 failed");
 

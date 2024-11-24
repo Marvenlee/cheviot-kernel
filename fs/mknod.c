@@ -30,8 +30,8 @@
 
 /* @brief   Create a node on a file system that can be mounted onto
  *
- * TODO: Move this out into mknod.c.  Allow creation of named pipes/sockets.
- * Change flags to mode, change _stat to dev_t
+ * TODO: Allow creation of named pipes/sockets.
+ *       Change flags to mode, change _stat to dev_t
  */ 
 int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
 {

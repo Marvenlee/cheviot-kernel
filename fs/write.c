@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Write to a file
  */
 
 //#define KDEBUG
@@ -25,12 +28,15 @@
 #include <sys/mount.h>
 #include <sys/syslimits.h>
 
+
 /* @brief   Write the contents of a buffer to a file
  *
  * @param   fd, file descriptor of file to write to
  * @param   src, user-mode buffer containing data to write to file
  * @param   sz, size in bytes of buffer pointed to by src
  * @return  number of bytes written or negative errno on failure
+ *
+ * TODO: Update accesss timestamps
  */
 ssize_t sys_write(int fd, void *src, size_t sz)
 {
@@ -58,12 +64,6 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
-  
-  #if 0   // FIXME: Check if writer permission  
-  if (filp->flags & O_WRITE) == 0) {
-    return -EACCES;
-  } 
-  #endif
     
   if (S_ISCHR(vnode->mode)) {
     xfered = write_to_char(vnode, src, sz);  
@@ -77,8 +77,6 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     Error("sys_write fd:%d unknown type -EINVAL", fd);
     xfered = -EINVAL;
   }  
-
-  // Update accesss timestamps
   
   vn_lock(vnode, VL_RELEASE);
   return xfered;
@@ -87,6 +85,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
 
 /*
  * TODO: Check bounds of each IOV
+ * TODO: Update accesss timestamps
  */
 ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 {
@@ -121,16 +120,10 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 
   vn_lock(vnode, VL_SHARED);
   
-  if (check_access(vnode, filp, R_OK) != 0) {
+  if (check_access(vnode, filp, W_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
     return -EACCES;
   }
-
-#if 0 
-  if (filp->flags & O_READ) == 0) {
-    return -EACCES;
-  } 
-#endif  
 
   if (S_ISBLK(vnode->mode)) {
     if (_offset == NULL) {
@@ -141,9 +134,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   } else {
     xfered = -EBADF;
   }
-  
-  // Update accesss timestamps
-  
+
   vn_lock(vnode, VL_RELEASE);
   
   return xfered;

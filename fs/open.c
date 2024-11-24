@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Open a file
  */
 
 //#define KDEBUG
@@ -27,8 +30,16 @@
 #include <sys/privileges.h>
 
 
-/*
+/* @brief   Open a file
  *
+ * @param   _path, pathname of file to open
+ * @param   flags, options to open the file:
+ *          O_RDONLY, O_WRONLY, O_RDWR, access type, one of these must be set
+ *          O_CREAT, create a file if it does not exist
+ *          O_APPEND, seek to the end of the file on open
+ *          O_TRUNC, truncate a file to 0 bytes
+ * @param   mode, optional mode access bits to apply when creating a file
+ * @return  file descriptor number of success, negative errno on failure.
  */
 int sys_open(char *_path, int oflags, mode_t mode)
 {
@@ -68,7 +79,7 @@ int kopen(char *_path, int oflags, mode_t mode)
 
 
 /*
- * TODO: May need to clear ld vnode pointers before returning on success
+ * TODO: Increment vnode references so that lookup_cleanup() doesn't free vnode.
  */
 int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 {
@@ -110,17 +121,22 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       return err;
     }
 
-//    DNameEnter(dvnode, vnode, ld->last_component);
+// TODO:   DNameEnter(dvnode, vnode, ld->last_component);
+  
   } else {
-// FIXME:   if (vnode->vnode_mounted_here != NULL) {
-      //	        vnode_put(vnode);
-//      vnode = vnode->vnode_mounted_here;
-      //	        vn_lock (vnode, VL_SHARED);
-//    }
+#if 0
+    // FIXME:   
+    if (vnode->vnode_mounted_here != NULL) {
+      vnode_put(vnode);
+      vnode = vnode->vnode_mounted_here;
+      vn_lock (vnode, VL_SHARED);
+    }
+#endif
   }
 
-  vnode_put(dvnode);
-
+  vnode_put(dvnode);    // TODO: Remove, can be dereferenced by lookup_cleanup.
+  ld->parent = NULL;
+  
   if (oflags & O_TRUNC) {
     if (S_ISREG(vnode->mode)) {
       if ((err = vfs_truncate(vnode, 0)) != 0) {
@@ -147,13 +163,16 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   else
     filp->offset = 0;
 
+  // TODO: increment vnode reference count here to keep it open, lookup_cleanup will decrement it.
   vn_lock(vnode, VL_RELEASE);
   return fd;
   
 exit:
   Error("DoOpen failed: %d", err);
   free_fd_filp(current, fd);
-  vnode_put(vnode);
+  
+  vnode_put(vnode);   // TODO: Remove, can be dereferenced by lookup_cleanup.
+  ld->vnode = NULL;
   return err;
 }
 

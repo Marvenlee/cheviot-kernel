@@ -28,15 +28,16 @@
 #include <kernel/kqueue.h>
 
 
-/* @brief   access system call
+/* @brief   The access() system call
  * 
  */
-int sys_access(char *pathname, mode_t permissions)
+int sys_access(char *pathname, mode_t amode)
 {
-	// TODO: implement sys_access
 #if 1
+	// FIXME: Enable sys_access - remove return 0
   return 0;
-#else
+#endif
+
   struct Process *current;
   struct lookupdata ld;
   struct VNode *vnode;
@@ -44,20 +45,19 @@ int sys_access(char *pathname, mode_t permissions)
 
   current = get_current_process();
 
-  if ((sc = lookup(_path, 0, &ld)) != 0) {
+  if ((sc = lookup(pathname, 0, &ld)) != 0) {
     return sc;
   }
 
   vnode = ld.vnode;
 
-  sc = check_access(vnode, NULL, desired_access);
+  sc = check_access(vnode, NULL, amode);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   vnode_put(vnode);
   lookup_cleanup(&ld);
 
   return sc;
-#endif
 }
 
 

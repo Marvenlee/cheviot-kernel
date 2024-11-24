@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Exec the first process, the IFS driver into existence.
  */
 
 //#define KDEBUG
@@ -30,14 +33,6 @@
 #include <kernel/vm.h>
 #include <sys/execargs.h>
 #include <sys/mman.h>
-
-
-// TODO: Move to filesystem/exec_root.c (or exec.c)
-
-/* Forward declarations */
-static int LoadRootElf(void *file_base, void **entry_point);
-static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void *ifs_base, size_t ifs_size);
-ssize_t ReadIFS (void *base, off_t offset, void *vaddr, size_t sz);
 
 
 /* @Brief Kernel entry point of root process
@@ -87,7 +82,7 @@ void exec_root(void *arg)
   
   Info("ifs_exe_base kernel va:%08x", (uint32_t)ifs_exe_base); 
   
-  if (LoadRootElf(ifs_exe_base, &entry_point) != 0) {
+  if (load_root_elf(ifs_exe_base, &entry_point) != 0) {
     Info("LoadProcess failed");
     KernelPanic();
   }
@@ -101,8 +96,7 @@ void exec_root(void *arg)
     KernelPanic();
   }
 
-  
-  InitRootArgv(pool, &args, "/sbin/ifs", (void *)bootinfo->ifs_image, bootinfo->ifs_image_size);
+  init_root_argv(pool, &args, "/sbin/ifs", (void *)bootinfo->ifs_image, bootinfo->ifs_image_size);
   
   copy_out_argv(stack_base, USER_STACK_SZ, &args);
   
@@ -125,48 +119,36 @@ void exec_root(void *arg)
  * This uses the Elf header and Program header table is passed to the kernel in
  * the BootInfo structure.
  */
-int LoadRootElf(void *file_base, void **entry_point)
+int load_root_elf(void *file_base, void **entry_point)
 {
-  int rc;
-  
+  int sc;  
   Elf32_EHdr ehdr;
   Elf32_PHdr phdr;
-  
   int32_t phdr_cnt;
   off_t phdr_offs, sec_offs;
   void *sec_addr;
   void *sec_paddr;
-  int32_t sec_file_sz;         // TODO: Is this not needed, bootloader allocates enough mem size pages?
+  int32_t sec_file_sz;
   vm_size sec_mem_sz;
   uint32_t sec_prot;
   void *ret_addr;
   
-  Info ("LoadRootElf file_base=%08x", (uint32_t)file_base);
-    
   // Read in ELF header from bootinfo->ifs_exe_base
-  
-  Info ("..ReadIFS(ehdr) ehdr = %08x", (uint32_t)&ehdr);
-  rc = ReadIFS(file_base, 0, &ehdr, sizeof(Elf32_EHdr));
+  sc = read_ifs(file_base, 0, &ehdr, sizeof(Elf32_EHdr));
 
-  if (rc != sizeof(Elf32_EHdr)) {
+  if (sc != sizeof(Elf32_EHdr)) {
     Info ("ELF header could not read");
     return -EIO;
   }
 
   // Validate ELF header here
-
-  Info ("CheckELFHeaders");
-
   if (ehdr.e_ident[EI_MAG0] == ELFMAG0 && ehdr.e_ident[EI_MAG1] == 'E' &&
       ehdr.e_ident[EI_MAG2] == 'L' && ehdr.e_ident[EI_MAG3] == 'F' &&
       ehdr.e_ident[EI_CLASS] == ELFCLASS32 &&
       ehdr.e_ident[EI_DATA] == ELFDATA2LSB && ehdr.e_type == ET_EXEC &&
       ehdr.e_phnum > 0) {
-
-    Info ("root File is ELF");
   } else {
     Info("FILE IS NOT EXECUTABLE");
-
     Info ("Magic: %02x %02x %02x %02x", 
             ehdr.e_ident[EI_MAG0],
             ehdr.e_ident[EI_MAG1],
@@ -176,18 +158,15 @@ int LoadRootElf(void *file_base, void **entry_point)
     KernelPanic();
   }
 
-  Info ("ehdr.e_entry = %08x", ehdr.e_entry);
-
   *entry_point = (void *)ehdr.e_entry;
 
   phdr_cnt = ehdr.e_phnum;
   phdr_offs = ehdr.e_phoff;
 
-  for (int t = 0; t < phdr_cnt; t++) {
-    
-    rc = ReadIFS(file_base, phdr_offs + t * sizeof(Elf32_PHdr), &phdr, sizeof(Elf32_PHdr));
+  for (int t = 0; t < phdr_cnt; t++) {    
+    sc = read_ifs(file_base, phdr_offs + t * sizeof(Elf32_PHdr), &phdr, sizeof(Elf32_PHdr));
 
-    if (rc != sizeof(Elf32_PHdr)) {
+    if (sc != sizeof(Elf32_PHdr)) {
       return -EIO;
     }
 
@@ -212,9 +191,9 @@ int LoadRootElf(void *file_base, void **entry_point)
     if (phdr.p_flags & PF_W)
       sec_prot |= PROT_WRITE;
 
-//    segment_base = (void *)phdr.p_vaddr;
-//    segment_ceiling = (void *)phdr.p_vaddr + phdr.p_memsz;
-//    sec_mem_sz = segment_ceiling - segment_base;  // FIXME: why not just use phdr.p_memsz ? ALIGN_UP ??
+    // segment_base = (void *)phdr.p_vaddr;
+    // segment_ceiling = (void *)phdr.p_vaddr + phdr.p_memsz;
+    // sec_mem_sz = segment_ceiling - segment_base;  // FIXME: why not just use phdr.p_memsz ? ALIGN_UP ??
 
     Info("root sec_addr    :%08x", (uint32_t) sec_addr);
     Info("root sec_file_sz :%08x", (uint32_t) sec_file_sz);
@@ -229,14 +208,14 @@ int LoadRootElf(void *file_base, void **entry_point)
     }
 
     if (sec_file_sz != 0) {
-      rc = ReadIFS(file_base, sec_offs, (void *)phdr.p_vaddr, sec_file_sz);
+      sc = read_ifs(file_base, sec_offs, (void *)phdr.p_vaddr, sec_file_sz);
 
-      if (rc != sec_file_sz) {
+      if (sc != sec_file_sz) {
         return -ENOMEM;
       }
     }
 
-// FIXME:   sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
+    // FIXME:   sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
   }
 
   return 0;
@@ -247,7 +226,8 @@ int LoadRootElf(void *file_base, void **entry_point)
 /*
  *
  */
-static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void *ifs_base, size_t ifs_size) {
+int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_base, size_t ifs_size)
+{
   char **argv;
   char **envv;
   char *string_table;
@@ -317,18 +297,10 @@ exit:
 
 
 /*
- * TODO: For page-sized and aligned copies, use COW 
+ *
  */
-ssize_t ReadIFS (void *base, off_t offset, void *vaddr, size_t sz)
+ssize_t read_ifs (void *base, off_t offset, void *vaddr, size_t sz)
 {
-  uint8_t *dst, *src;
-  uint8_t tmp;
-  
-  dst = vaddr;
-  src = (uint8_t *)base + offset;
-  
-  Info ("ReadIFS(base:%08x, offs:%08x)", (uint32_t)base, (uint32_t)offset);
-  Info ("        vaddr:%08x, sz:%08x)", (uint32_t)vaddr, (uint32_t)sz);   
   memcpy(vaddr, base+offset, sz);
   
   return sz;

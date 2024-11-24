@@ -12,10 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Scheduling related functions
+ *
+ * --
+ * Thread CPU usage monitoring (for top command)
  */
 
 //#define KDEBUG
@@ -31,7 +30,6 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <string.h>
-
 
 
 /*

@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Read a file
  */
 
 //#define KDEBUG
@@ -36,6 +39,7 @@
  * Can VNode lock fail?  Can we do multiple readers/single writer ?
  * Can we update access timestamps lazily?
  * Can is_allowed take the filp pointer, to merge open oflags test?
+ * TODO: Update accesss timestamps
  */
 ssize_t sys_read(int fd, void *dst, size_t sz)
 {
@@ -80,8 +84,6 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
     xfered = -EBADF;
   }
   
-  // Update accesss timestamps
-  
   vn_lock(vnode, VL_RELEASE);
   return xfered;
 }
@@ -89,6 +91,7 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
 
 /* @brief   Read from a file to a kernel buffer
  *
+ * TODO: Update accesss timestamps
  */
 ssize_t kread(int fd, void *dst, size_t sz)
 {
@@ -122,8 +125,6 @@ ssize_t kread(int fd, void *dst, size_t sz)
   } else {
     xfered = -EBADF;
   }
-
-  // Update accesss timestamps
     
   vn_lock(vnode, VL_RELEASE);
   return xfered;
@@ -132,6 +133,7 @@ ssize_t kread(int fd, void *dst, size_t sz)
 
 /*
  * TODO: Check bounds of each IOV
+ * TODO: Update accesss timestamps
  */
 ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 {
@@ -180,9 +182,7 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   } else {
     xfered = -EBADF;
   }
-  
-  // Update accesss timestamps
-  
+    
   vn_lock(vnode, VL_RELEASE);
   return xfered;
 }

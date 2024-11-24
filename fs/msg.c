@@ -12,9 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
+ *
+ * --
  * Message passing system calls that the VFS uses to communicate with servers that
  * implement filesystem handlers, block and character device drivers.
  *

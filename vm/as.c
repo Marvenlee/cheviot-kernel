@@ -31,12 +31,18 @@
 #include <string.h>
 #include <sys/mman.h>
 
-/*
- * TODO: How was root address space originally created.?
+
+/* @brief   Initialize an address space
+ *
+ * @param   new_as, empty address space of child process
+ * @return  0 on success, negative errno on error
+ *
+ * Initializes an address space and creates the page directory
+ * and initializes the free memregion list of the process. Sets
+ * the entire user space as free.
  */
 int create_address_space(struct AddressSpace *as)
 {
-  Info("create_address_space(as:%08x)", (uint32_t)as);
   if (pmap_create(as) != 0) {
     return -ENOMEM;
   }
@@ -85,29 +91,20 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
   for (vpt = VM_USER_BASE_PAGETABLE_ALIGNED; vpt < VM_USER_CEILING;
        vpt += PAGE_SIZE * N_PAGETABLE_PTE) {
     
-//    Info("vpt: %08x", vpt);
-    
     if (pmap_is_pagetable_present(old_as, vpt) == false) {
-//    	Info ("vpt: %08x pagetable not present in old_as", vpt);
       continue;
     }
 
     for (va = vpt; va < vpt + PAGE_SIZE * N_PAGETABLE_PTE; va += PAGE_SIZE) {
-//      Info ("va=vpt+c : %08x", va);
-       
       if (pmap_is_page_present(old_as, va) == false) {
-//        Info("page va:%08x not present in old_as", va);
         continue;
       }
 
       if (pmap_extract(old_as, va, &pa, &flags) != 0) {
         goto cleanup;
       }
-      
-     
+           
       if ((flags & MAP_PHYS) != MAP_PHYS && (flags & PROT_WRITE)) {
-//        Info (".. va:%08x, rw, anon, mark both as COW", (uint32_t)va);
-        
         // Read-Write mapping, Mark page in both as COW and read-only;
         flags |= MAP_COW;
      
@@ -125,8 +122,6 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
       } else if ((flags & MAP_PHYS) != MAP_PHYS) {
         // TODO: Should flags also map it as COW?
         // Read-only mapping
-//        Info (".. va:%08x, read-only, anon", (uint32_t)va);
-
         if (pmap_enter(new_as, va, pa, flags) != 0) {
           goto cleanup;
         }
@@ -135,9 +130,8 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
         pf->reference_cnt++;
       } else {
         // Physical Mapping
-//        Info(".. va:%08x, phys mapping, pa:%08x", (uint32_t)va, (uint32_t)pa);
-
-#if 1        
+#if 1
+        // FIXME: physical mapping flags are being overridden here.        
       	flags =	MAP_PHYS | PROT_READ | PROT_WRITE;
 #endif        
         
@@ -174,8 +168,6 @@ int cleanup_address_space(struct AddressSpace *as)
   vm_addr va;
   uint32_t flags;
 
-  Info("*** cleanup_address_space *****");
-
   for (vpt = VM_USER_BASE_PAGETABLE_ALIGNED; vpt <= VM_USER_CEILING; vpt += PAGE_SIZE * N_PAGETABLE_PTE) {
     if (pmap_is_pagetable_present(as, vpt) == false) {
       continue;
@@ -207,7 +199,6 @@ int cleanup_address_space(struct AddressSpace *as)
     }
   }
 
-  // TODO: Add option to keep single "free" memregion to memregion_free_all().
   memregion_free_all(as);
 
   if (init_memregions(as) != 0) {

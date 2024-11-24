@@ -12,10 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Scheduling related functions
+ *
+ * --
+ * System configuration info
  */
 
 //#define KDEBUG
@@ -30,8 +29,10 @@
 #include <unistd.h>
 
 
-/*
+/* @brief   Get system configuration information
  *
+ * @param   name, the name of a setting to get
+ * @return  value of the named configuration or negative errno on failure
  */
 int sys_sysconf(int name)
 {

@@ -12,11 +12,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Functions to create the messages sent to the filesystem and device driver
- * servers.
+ *
+ * --
+ * Functions to create the messages sent to filesystem handler and device driver
+ * message ports on file system commands.
  */
 
 //#define KDEBUG 1

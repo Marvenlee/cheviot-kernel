@@ -12,9 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
+ *
+ * --
  * Architecture-neutral code to create and close InterruptHandler objects
  * Used by device drivers to receive notification of interrupts.
  */

@@ -23,6 +23,7 @@
 #include <sys/select.h>
 #include <sys/syscalls.h>
 
+
 // Forward declarations
 struct VNodeLock;
 struct VNode;
@@ -347,7 +348,7 @@ struct lookupdata
  */
 
 // fs/access.c
-int sys_access(char *path, mode_t permisssions);
+int sys_access(char *path, mode_t amode);
 mode_t sys_umask(mode_t mode);
 int sys_chmod(char *_path, mode_t mode);
 int sys_chown(char *_path, uid_t uid, gid_t gid);
@@ -379,8 +380,6 @@ void bdflush_task(void *arg);
 struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now);
 struct Buf *get_pending_write_buf(struct SuperBlock *sb);
 
-
-
 /* fs/char.c */
 int sys_isatty(int fd);
 ssize_t read_from_char(struct VNode *vnode, void *src, size_t nbytes);
@@ -395,7 +394,6 @@ int ioctl_tiocgsid(int fd, pid_t *sid);
 int ioctl_tiocgpgrp(int fd, pid_t *_pgrp);
 int ioctl_tiocspgrp(int fd, pid_t *_pgrp);
 int ioctl_setsyslog(int fd);
-
 
 /* fs/dir.c */
 int sys_chdir(char *path);
@@ -425,6 +423,9 @@ void free_arg_pool(char *mem);
 
 // fs/exec_root.c */
 void exec_root(void *arg);
+int load_root_elf(void *file_base, void **entry_point);
+int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_base, size_t ifs_size);
+ssize_t read_ifs_image(void *base, off_t offset, void *vaddr, size_t sz);
 
 /* fs/filedesc.c */
 int sys_fcntl(int fd, int cmd, int arg);
@@ -564,9 +565,7 @@ struct VNode *vnode_get(struct SuperBlock *sb, int vnode_nr);
 void vnode_put(struct VNode *vnode);
 void vnode_inc_ref(struct VNode *vnode);    // Why not just vnode->ref_cnt++;
 void vnode_free(struct VNode *vnode);      // Delete a vnode from cache and disk
-
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
-
 int vn_lock(struct VNode *vnode, int flags);
 int vn_lock_init(struct VLock *vlock);
 

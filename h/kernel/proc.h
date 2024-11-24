@@ -36,36 +36,6 @@ LIST_TYPE(Thread, thread_list_t, thread_link_t);
 CIRCLEQ_TYPE(Thread, thread_circleq_t, thread_cqlink_t);
 
 
-/* @brief   Structure containing system configuration
- * TODO: Probably move this to newlib
- */
-typedef struct SysInfo
-{
-  bits32_t flags;
-
-  size_t page_size;
-  size_t mem_alignment;
-
-  int max_pseg;
-  int pseg_cnt;
-  int max_vseg;
-  int vseg_cnt;
-
-  size_t avail_mem_sz;
-  size_t total_mem_sz;
-
-  int max_process;
-  int max_handle;
-  int free_process_cnt;
-  int free_handle_cnt;
-
-  int cpu_cnt;
-  int cpu_usage[MAX_CPU];
-
-  int power_state;
-} sysinfo_t;
-
-
 // User and Group ID related
 #define SUPERUSER                     0   // uid of the superuser
 #define NGROUPS                       8   // Number of supplementary groups a user belongs to

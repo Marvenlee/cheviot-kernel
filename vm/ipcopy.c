@@ -14,7 +14,7 @@
  * limitations under the License.
  *
  * --
- * Interprocess memory copying code.
+ * Interprocess memory copying for message passing.
  */
 
 //#define KDEBUG  1
