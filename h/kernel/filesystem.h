@@ -1,5 +1,5 @@
-#ifndef FILESYSTEM_H
-#define FILESYSTEM_H
+#ifndef KERNEL_FILESYSTEM_H
+#define KERNEL_FILESYSTEM_H
 
 #include <kernel/arch.h>
 #include <dirent.h>
@@ -516,11 +516,6 @@ int sys_rename(char *oldpath, char *newpath);
 /* fs/seek.c */
 off_t sys_lseek(int fd, off_t pos, int whence);
 int sys_lseek64(int fd, off64_t *pos, int whence);
-
-/* fs/socket.c */
-int sys_socketpair(int fd[2]);
-struct Socket *AllocSocket(void);
-void FreeSocket(struct Socket *socket);
 
 /* fs/superblock.c */
 struct SuperBlock *get_superblock(struct Process *proc, int fd);

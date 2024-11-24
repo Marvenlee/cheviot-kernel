@@ -16,20 +16,25 @@
 
 //#define KDEBUG
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/socket.h>
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <poll.h>
+#include <kernel/socket.h>
 #include <string.h>
 
 
 /*
  *
  */
-int sys_recv(void)
+ssize_t sys_recv(int socket, void *buffer, size_t length, int flags)
 {
   return -ENOSYS;
 }

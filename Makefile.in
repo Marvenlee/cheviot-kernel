@@ -155,9 +155,9 @@ am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
 	utility/doprintf.c utility/string.c vm/as.c vm/bounds.c \
 	vm/globals.c vm/ipcopy.c vm/memregion.c vm/mmap.c vm/page.c \
 	vm/pagefault.c socket/host.c socket/recv.c socket/send.c \
-	socket/socket.c socket/socketpair.c socket/sockopt.c \
-	boards/raspberry_pi_1/arm.S boards/raspberry_pi_1/aux_uart.c \
-	boards/raspberry_pi_1/debug.c \
+	socket/socket.c socket/socketpair.c socket/sockname.c \
+	socket/sockopt.c boards/raspberry_pi_1/arm.S \
+	boards/raspberry_pi_1/aux_uart.c boards/raspberry_pi_1/debug.c \
 	boards/raspberry_pi_1/exception.c \
 	boards/raspberry_pi_1/globals.c boards/raspberry_pi_1/gpio.c \
 	boards/raspberry_pi_1/idle.c boards/raspberry_pi_1/init_arm.c \
@@ -241,7 +241,8 @@ am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
 	vm/pagefault.$(OBJEXT) socket/host.$(OBJEXT) \
 	socket/recv.$(OBJEXT) socket/send.$(OBJEXT) \
 	socket/socket.$(OBJEXT) socket/socketpair.$(OBJEXT) \
-	socket/sockopt.$(OBJEXT) $(am__objects_1) $(am__objects_2)
+	socket/sockname.$(OBJEXT) socket/sockopt.$(OBJEXT) \
+	$(am__objects_1) $(am__objects_2)
 kernel_OBJECTS = $(am_kernel_OBJECTS)
 kernel_DEPENDENCIES =
 kernel_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(kernel_LDFLAGS) \
@@ -324,12 +325,12 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	proc/$(DEPDIR)/usage.Po socket/$(DEPDIR)/host.Po \
 	socket/$(DEPDIR)/recv.Po socket/$(DEPDIR)/send.Po \
 	socket/$(DEPDIR)/socket.Po socket/$(DEPDIR)/socketpair.Po \
-	socket/$(DEPDIR)/sockopt.Po utility/$(DEPDIR)/doprintf.Po \
-	utility/$(DEPDIR)/string.Po vm/$(DEPDIR)/as.Po \
-	vm/$(DEPDIR)/bounds.Po vm/$(DEPDIR)/globals.Po \
-	vm/$(DEPDIR)/ipcopy.Po vm/$(DEPDIR)/memregion.Po \
-	vm/$(DEPDIR)/mmap.Po vm/$(DEPDIR)/page.Po \
-	vm/$(DEPDIR)/pagefault.Po
+	socket/$(DEPDIR)/sockname.Po socket/$(DEPDIR)/sockopt.Po \
+	utility/$(DEPDIR)/doprintf.Po utility/$(DEPDIR)/string.Po \
+	vm/$(DEPDIR)/as.Po vm/$(DEPDIR)/bounds.Po \
+	vm/$(DEPDIR)/globals.Po vm/$(DEPDIR)/ipcopy.Po \
+	vm/$(DEPDIR)/memregion.Po vm/$(DEPDIR)/mmap.Po \
+	vm/$(DEPDIR)/page.Po vm/$(DEPDIR)/pagefault.Po
 am__mv = mv -f
 CPPASCOMPILE = $(CCAS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CCASFLAGS) $(CCASFLAGS)
@@ -507,7 +508,8 @@ kernel_SOURCES = proc/globals.c proc/id.c proc/interrupt.c proc/pid.c \
 	vm/as.c vm/bounds.c vm/globals.c vm/ipcopy.c vm/memregion.c \
 	vm/mmap.c vm/page.c vm/pagefault.c socket/host.c socket/recv.c \
 	socket/send.c socket/socket.c socket/socketpair.c \
-	socket/sockopt.c $(am__append_1) $(am__append_2)
+	socket/sockname.c socket/sockopt.c $(am__append_1) \
+	$(am__append_2)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CFLAGS = -O0 -g2 -std=c99 -mcpu=cortex-a72 -mfpu=vfpv3-d16 -Wall
 @BOARD_RASPBERRY_PI_1_TRUE@AM_CFLAGS = -O0 -g2 -std=c99
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@AM_CPPFLAGS = -I$(srcdir)/h -I$(srcdir)/boards/raspberry_pi_4/h -DBOARD_RASPBERRY_PI_4
@@ -734,6 +736,8 @@ socket/send.$(OBJEXT): socket/$(am__dirstamp) \
 socket/socket.$(OBJEXT): socket/$(am__dirstamp) \
 	socket/$(DEPDIR)/$(am__dirstamp)
 socket/socketpair.$(OBJEXT): socket/$(am__dirstamp) \
+	socket/$(DEPDIR)/$(am__dirstamp)
+socket/sockname.$(OBJEXT): socket/$(am__dirstamp) \
 	socket/$(DEPDIR)/$(am__dirstamp)
 socket/sockopt.$(OBJEXT): socket/$(am__dirstamp) \
 	socket/$(DEPDIR)/$(am__dirstamp)
@@ -963,6 +967,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/send.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/socket.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/socketpair.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/sockname.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@socket/$(DEPDIR)/sockopt.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@utility/$(DEPDIR)/doprintf.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@utility/$(DEPDIR)/string.Po@am__quote@ # am--include-marker
@@ -1394,6 +1399,7 @@ distclean: distclean-am
 	-rm -f socket/$(DEPDIR)/send.Po
 	-rm -f socket/$(DEPDIR)/socket.Po
 	-rm -f socket/$(DEPDIR)/socketpair.Po
+	-rm -f socket/$(DEPDIR)/sockname.Po
 	-rm -f socket/$(DEPDIR)/sockopt.Po
 	-rm -f utility/$(DEPDIR)/doprintf.Po
 	-rm -f utility/$(DEPDIR)/string.Po
@@ -1546,6 +1552,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f socket/$(DEPDIR)/send.Po
 	-rm -f socket/$(DEPDIR)/socket.Po
 	-rm -f socket/$(DEPDIR)/socketpair.Po
+	-rm -f socket/$(DEPDIR)/sockname.Po
 	-rm -f socket/$(DEPDIR)/sockopt.Po
 	-rm -f utility/$(DEPDIR)/doprintf.Po
 	-rm -f utility/$(DEPDIR)/string.Po

@@ -12,24 +12,32 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * -- 
+ * Unnamed socket pair
  */
 
 //#define KDEBUG
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/socket.h>
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <poll.h>
+#include <kernel/socket.h>
 #include <string.h>
 
 
 /*
  *
  */
-int sys_socketpair(int _fd[2])
+int sys_socketpair(int domain, int type, int protocol, int socket_vector[2])
 {
   return -ENOSYS;
 }

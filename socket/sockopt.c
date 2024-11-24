@@ -16,20 +16,25 @@
 
 //#define KDEBUG
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/socket.h>
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <poll.h>
+#include <kernel/socket.h>
 #include <string.h>
 
 
 /*
  *
  */
-int sys_getsockopt(void)
+int sys_getsockopt(int socket, int level, int option_name, void *option_value, socklen_t *option_len)
 {
   return -ENOSYS;
 }
@@ -38,7 +43,7 @@ int sys_getsockopt(void)
 /*
  *
  */
-int sys_setsockopt(void)
+int sys_setsockopt(int socket, int level, int option_name, const void *option_value, socklen_t option_len)
 {
   return -ENOSYS;
 }

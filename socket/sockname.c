@@ -32,12 +32,10 @@
 #include <netdb.h>
 
 
-
 /*
  *
  */
-
-int sys_gethostbyname(const char *name, struct hostent *result)
+int sys_getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
 {
   return -ENOSYS;
 }
@@ -46,7 +44,7 @@ int sys_gethostbyname(const char *name, struct hostent *result)
 /*
  *
  */
-int sys_gethostbyaddr(const void *addr, socklen_t len, int type, struct hostent *result)
+int sys_getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
 {
   return -ENOSYS;
 }

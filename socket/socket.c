@@ -5,31 +5,39 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Socket creation and connection
  */
 
 //#define KDEBUG
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/socket.h>
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <poll.h>
+#include <kernel/socket.h>
 #include <string.h>
 
 
 /*
  *
  */
-int sys_socket(void)
+int sys_socket(int domain, int type, int protocol)
 {
   return -ENOSYS;
 }
@@ -38,7 +46,7 @@ int sys_socket(void)
 /*
  *
  */
-int sys_bind(void)
+int sys_bind(int socket, const struct sockaddr *address, socklen_t address_len)
 {
   return -ENOSYS;
 }
@@ -47,7 +55,7 @@ int sys_bind(void)
 /*
  *
  */
-int sys_listen(void)
+int sys_listen(int socket, int backlog)
 {
   return -ENOSYS;
 }
@@ -56,7 +64,7 @@ int sys_listen(void)
 /*
  *
  */
-int sys_connect(void)
+int sys_connect(int socket, const struct sockaddr *address, socklen_t address_len)
 {
   return -ENOSYS;
 }
@@ -65,9 +73,16 @@ int sys_connect(void)
 /*
  *
  */
-int sys_accept(void)
+int sys_accept(int socket, struct sockaddr *address, socklen_t *address_len)
 {
   return -ENOSYS;
 }
 
+/*
+ *
+ */
+int sys_shutdown(int socket, int how)
+{
+  return -ENOSYS;
+}
 
