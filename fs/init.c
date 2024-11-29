@@ -57,7 +57,11 @@ void init_vfs_lists(void)
   // Perhaps get some params from kernel command line?
 
   for (int t = 0; t < NR_VNODE; t++) {
-    LIST_ADD_TAIL(&vnode_free_list, &vnode_table[t], vnode_entry);
+    LIST_ADD_TAIL(&vnode_free_list, &vnode_table[t], vnode_link);
+  }
+
+  for (int t = 0; t <VNODE_HASH; t++) {
+    LIST_INIT(&vnode_hash[t]);
   }
 
   for (int t = 0; t < NR_FILP; t++) {
@@ -130,6 +134,7 @@ void init_vfs_pipes(void)
   LIST_INIT(&free_pipe_list);
   
   for (int t=0; t<max_pipe; t++) {
+    pipe_table[t].inode_nr = t;
     LIST_ADD_TAIL(&free_pipe_list, &pipe_table[t], link);
   }
 }

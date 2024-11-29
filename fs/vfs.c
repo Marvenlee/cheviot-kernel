@@ -18,7 +18,7 @@
  * message ports on file system commands.
  */
 
-//#define KDEBUG 1
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -47,10 +47,14 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   size_t name_sz;
   int sc;
 
-  KASSERT(dvnode != NULL);
   KASSERT(name != NULL);
+
+  Info("vfs_lookup(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
+
+  KASSERT(dvnode != NULL);
   KASSERT(result != NULL);  
-  
+  KASSERT(dvnode->superblock != NULL);
+
   sb = dvnode->superblock;
   name_sz = StrLen(name) + 1;
 
@@ -70,6 +74,8 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   }
   
   if (reply.args.lookup.inode_nr == dvnode->inode_nr) {
+    Warn("lookup.inode_nr reply same as dvnode->inode_nr:%d", dvnode->inode_nr);
+     
     vnode_add_reference(dvnode);  // Will this happen?  Onlu if "." or if root ".."
     vnode = dvnode;
   } else {
@@ -92,7 +98,7 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode->mode = reply.args.lookup.mode;
     vnode->inode_nr = reply.args.lookup.inode_nr;
     vnode->flags = V_VALID;
-    vnode_hash(vnode);        
+    vnode_hash_enter(vnode);
   } 
 
   *result = vnode;
@@ -160,7 +166,7 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   vnode->mode = reply.args.create.mode;
   vnode->inode_nr = reply.args.create.inode_nr;
   vnode->flags = V_VALID;
-  vnode_hash(vnode);
+  vnode_hash_enter(vnode);
 
   *result = vnode;
   return 0;
@@ -360,7 +366,7 @@ int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
   vnode->mode = reply.args.mknod.mode;
   vnode->inode_nr = reply.args.mknod.inode_nr;
   vnode->flags = V_VALID;
-  vnode_hash(vnode);
+  vnode_hash_enter(vnode);
 
   vnode_put(vnode);
 
@@ -421,7 +427,7 @@ int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat)
   vnode->mode = reply.args.mkdir.mode;
   vnode->inode_nr = reply.args.mkdir.inode_nr;
   vnode->flags = V_VALID;
-  vnode_hash(vnode);
+  vnode_hash_enter(vnode);
 
   vnode_put(vnode);
 

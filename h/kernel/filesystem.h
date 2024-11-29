@@ -66,8 +66,6 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define MAX_SYMLINK         32    // Limit of number of symlinks that can be followed
 #define NR_DNAME            64    // Number of entries in directory name lookup cache (DNLC)
 #define DNAME_SZ            64
-#define DNAME_HASH          32
-
 #define MIN_READDIR_BUF_SZ  512   // Minimum readdir buffer size
 
 
@@ -76,7 +74,6 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define NR_SUPERBLOCK   128
 #define NR_FILP         1024
 #define NR_VNODE        1024
-#define BUF_HASH        32
 #define NR_PIPE         64
 #define NR_BUF          1024    // Dynamically allocate ?
 #define NR_MSGID2MSG    256     // Must match NPROCESS or greater
@@ -88,7 +85,6 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define CACHE_BASE_VA                 0xC0000000
 #define CACHE_CEILING_VA              0xD0000000
 
-#define NBUF_HASH                     128
 #define MAX_ARGS_SZ                   0x10000 // Size of buffers for args and environment variables used during exec 
 #define PIPE_BUF_SZ                   4096    // Buffer size of pipes (should be same as page size)
 
@@ -97,6 +93,11 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 
 #define MAX_RENAME_PATH_CHECK_DEPTH   128   /* Max directories to ascend when checking rename
                                                directory is now a subdirectory of new path */
+
+// Hash table sizes
+#define VNODE_HASH                    1024
+#define BUF_HASH                      1024
+#define DNAME_HASH                    32
 
   
 /* @brief   A single cluster of a file in the file buffer cache
@@ -148,6 +149,7 @@ struct Pipe
   int data_sz;
   int reader_cnt;     // Number of filps that are readers (not total FDs?)
   int writer_cnt;     // Number of filps that are writers (not total FDs?)
+  int inode_nr;       // Preallocated inode number
 };
 
 
@@ -212,10 +214,12 @@ struct VNode
   int rdev;
   int nlink;
   
-  vnode_link_t hash_entry;
-  vnode_link_t vnode_entry;
   
-  buf_list_t buf_list;
+  vnode_link_t hash_link;
+    
+  vnode_link_t vnode_link;         // Free list or in use link
+  
+  buf_list_t buf_list;              // TODO: All buffers belonging to a file
   
   dname_list_t vnode_list;          // List of all dname entries pointing to this vnode
   dname_list_t directory_list;      // List of all entries within this directory
@@ -560,7 +564,9 @@ ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, s
 struct VNode *get_fd_vnode(struct Process *proc, int fd);
 int close_vnode(struct Process *proc, int fd);
 struct VNode *vnode_new(struct SuperBlock *sb);
-void vnode_hash(struct VNode *vnode);
+int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr);
+void vnode_hash_enter(struct VNode *vnode);
+void vnode_hash_remove(struct VNode *vnode);
 struct VNode *vnode_get(struct SuperBlock *sb, int vnode_nr);
 void vnode_put(struct VNode *vnode);
 void vnode_add_reference(struct VNode *vnode);

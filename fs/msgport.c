@@ -148,7 +148,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   mount_root_vnode->gid = stat.st_gid;
   mount_root_vnode->mode = stat.st_mode;    
   mount_root_vnode->flags = V_VALID | V_ROOT;
-  vnode_hash(mount_root_vnode);
+
+  vnode_hash_enter(mount_root_vnode);
 
   // TODO: Read-only filesystems don't need delayed writes
   if (S_ISDIR(mount_root_vnode->mode)) {

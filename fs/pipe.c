@@ -100,10 +100,7 @@ int sys_pipe(int *_fd)
   if (pipe == NULL) {
     return -ENOMEM;
   }
-
-  // FIXME: Unique inode nr for each pipe we create
-  static int pipe_inode_nr;
-  pipe_inode_nr++;
+  
   vnode = vnode_new(&pipe_sb);
 
   if (vnode == NULL) {
@@ -150,9 +147,9 @@ int sys_pipe(int *_fd)
   
   vnode->pipe = pipe;
   vnode->mode = _IFIFO | 0777;
-  vnode->inode_nr = pipe_inode_nr;
+  vnode->inode_nr = pipe->inode_nr;
   vnode->flags = V_VALID;
-  vnode_hash(vnode);
+  vnode_hash_enter(vnode);
     
   vn_lock(vnode, VL_RELEASE);
 

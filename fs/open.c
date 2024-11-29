@@ -93,6 +93,8 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   int sc = 0;
   struct stat stat;
   
+  Info("do_open()");
+  
   current = get_current_process();
   vnode = ld->vnode;
   dvnode = ld->parent;

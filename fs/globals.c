@@ -33,6 +33,7 @@ superblock_list_t free_superblock_list;
 int max_vnode;
 struct VNode *vnode_table;
 vnode_list_t vnode_free_list;
+vnode_list_t vnode_hash[VNODE_HASH];
 
 int max_filp;
 struct Filp *filp_table;

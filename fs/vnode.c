@@ -38,6 +38,10 @@ struct VNode *get_fd_vnode(struct Process *proc, int fd)
 {
   struct Filp *filp;
 
+  Info("get_fd_vnode(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+
+  KASSERT(proc != NULL);
+
   if (fd < 0 || fd >= OPEN_MAX) {
     return NULL;
   }
@@ -71,6 +75,10 @@ int close_vnode(struct Process *proc, int fd)
   struct Pipe *pipe;
   struct VNode *vnode;
 
+  Info("close_vnode(proc:%08x, fd:%d", (uint32_t)proc, fd);
+
+  KASSERT(proc != NULL);
+
   filp = get_filp(proc, fd);
   vnode = get_fd_vnode(proc, fd);
   
@@ -101,13 +109,15 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 
   Info("vnode_new(sb:%08x)", (uint32_t)sb);
 
+  KASSERT(sb != NULL);
+
   vnode = LIST_HEAD(&vnode_free_list);
 
   if (vnode == NULL) {
     return NULL;
   }
 
-  LIST_REM_HEAD(&vnode_free_list, vnode_entry);
+  LIST_REM_HEAD(&vnode_free_list, vnode_link);
 
   if (vnode->flags & V_VALID) {
     vn_lock(vnode, VL_EXCLUSIVE);
@@ -158,20 +168,15 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 }
 
 
-/* @brief   Place vnode in hash table for quicker lookups
- *
- * TODO;
- */
-void vnode_hash(struct VNode *vnode)
-{
-}
-
-
 /* @brief   Find an existing vnode
  */
 struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
+
+  Info("vnode_get(sb:%08x, fd:%d)", (uint32_t)sb, fd);
+
+  KASSERT(sb != NULL);
 
   if (sb->flags & S_ABORT) {
     return NULL;
@@ -181,8 +186,8 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
     vnode->reference_cnt++;
     sb->reference_cnt++;
   
-    if ((vnode->flags & V_FREE) == V_FREE) {
-      LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_entry);
+    if (vnode->flags & V_FREE) {
+      LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
     }
 
     return vnode;
@@ -200,6 +205,8 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
  */
 void vnode_add_reference(struct VNode *vnode)
 {
+  KASSERT(vnode != NULL);
+
   vnode->reference_cnt++;
   vnode->superblock->reference_cnt++;
 }
@@ -214,10 +221,9 @@ void vnode_add_reference(struct VNode *vnode)
  */
 void vnode_put(struct VNode *vnode)
 {
-  KASSERT(vnode != NULL);
- 
-  Info("vnode_put() - sb:%08x", (uint32_t)vnode->superblock);
+  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
 
+  KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
 
   // Assert it is not locked.
@@ -237,7 +243,7 @@ void vnode_put(struct VNode *vnode)
 
     if ((vnode->flags & V_ROOT) == 0) {
       vnode->flags |= V_FREE;
-      LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_entry);
+      LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
     }
   }
     
@@ -253,10 +259,14 @@ void vnode_discard(struct VNode *vnode)
   // TODO: assert that vnode lock is in DRAIN state
   // TODO: Remove from any lookup hash list
   // Reset the vnode lock;
+ 
+  vnode_hash_remove(vnode);
   
   vnode->flags = V_FREE;
-  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_entry);
+  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
   vnode->reference_cnt = 0;
+
+// sb->reference_cnt--;
 
   vn_lock_init(&vnode->vlock);
 
@@ -270,17 +280,60 @@ void vnode_discard(struct VNode *vnode)
  */
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
 {
-  int v;
+  struct VNode *vnode;
+  int h;
+  
+  KASSERT(sb != NULL);
 
-  for (v = 0; v < NR_VNODE; v++) {
-    if (/* FIXME:????? (vnode_table[v].flags & V_FREE) != V_FREE &&*/
-        vnode_table[v].superblock == sb &&
-        vnode_table[v].inode_nr == inode_nr) {
-      return &vnode_table[v];
+  h = calc_vnode_hash(sb, inode_nr);
+  vnode = LIST_HEAD(&vnode_hash[h]);
+  
+  while(vnode != NULL) {
+    if ((vnode->flags & V_VALID) && vnode->superblock == sb && vnode->inode_nr == inode_nr) {
+      return vnode;
     }
+    vnode = LIST_NEXT(vnode, hash_link);
   }
+
   return NULL;
 }
+
+
+/*
+ *
+ */
+int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr)
+{
+  return inode_nr % VNODE_HASH;
+}
+
+
+/* @brief   Place vnode in hash table for quicker lookups
+ *
+ * TODO;
+ */
+void vnode_hash_enter(struct VNode *vnode)
+{
+  KASSERT(vnode != NULL);
+
+  int h = vnode->inode_nr % VNODE_HASH;
+  LIST_ADD_HEAD(&vnode_hash[h], vnode, hash_link);
+}
+
+
+/*
+ *
+ */
+void vnode_hash_remove(struct VNode *vnode)
+{
+  KASSERT(vnode != NULL);
+
+  int h = vnode->inode_nr % VNODE_HASH;
+  
+  LIST_REM_ENTRY(&vnode_hash[h], vnode, hash_link);
+}
+
+
 
 
 /* @brief   VNode lock acquisition and release
@@ -289,6 +342,8 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
 int vn_lock(struct VNode *vnode, int flags)
 {
   int request;
+
+  KASSERT(vnode != NULL);
   
   request = flags & VN_LOCK_REQUEST_MASK;
   

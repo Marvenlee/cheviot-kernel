@@ -125,22 +125,20 @@ extern struct Socket *socket_table;
 /*
  * Filesystem
  */
-
-extern superblock_list_t free_superblock_list;
-
 extern int max_superblock;
 extern struct SuperBlock *superblock_table;
-
-extern filp_list_t filp_free_list;
-extern vnode_list_t vnode_free_list;
+extern superblock_list_t free_superblock_list;
 
 extern struct VNode *root_vnode;
 
 extern int max_vnode;
 extern struct VNode *vnode_table;
+extern vnode_list_t vnode_free_list;
+extern vnode_list_t vnode_hash[VNODE_HASH];
 
 extern int max_filp;
 extern struct Filp *filp_table;
+extern filp_list_t filp_free_list;
 
 extern int max_pipe;
 extern struct Pipe *pipe_table;
@@ -158,7 +156,6 @@ extern kqueue_list_t kqueue_free_list;
 extern int max_knote;
 extern struct KNote *knote_table;
 extern knote_list_t knote_free_list;
-
 extern knote_list_t knote_hash[KNOTE_HASH_SZ];
 
 
