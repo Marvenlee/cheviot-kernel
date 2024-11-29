@@ -169,23 +169,19 @@ extern struct DName dname_table[NR_DNAME];
 extern dname_list_t dname_lru_list;
 extern dname_list_t dname_hash[DNAME_HASH];
 
+/*
+ * VNode for syslog (TODO)
+ */
 extern struct VNode *logger_vnode;
 
 /*
  * File Cache
  */
-extern size_t cluster_size;
-extern int nclusters;
-extern struct Rendez buf_list_rendez;
-
 extern int max_buf;
-
 extern struct Buf *buf_table;
-
+extern struct Rendez buf_list_rendez;
 extern buf_list_t buf_hash[BUF_HASH];
 extern buf_list_t buf_avail_list;
-
-
 
 
 #endif

@@ -18,7 +18,7 @@
  * Kernel initialization.
  */
 
-#define KDEBUG  1
+//#define KDEBUG  1
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -168,21 +168,12 @@ void init_processes(void)
 
   thread_start(timer_thread);
 
-  // Can we not schedule a no-op bit of code if no threads running?
-  // Do we really need an idle thread in a separate address-space ? 
-  // Would need to WFI with interrupts enabled in scheduler.
-  // Or do WFI with interrupts disabled, the code then enables
-  // interrupts so that interrupt handler or IPI occurs, returns
-  // back into scheduler code where it disables interrupts and checks
-  // if there is now threads to run.
-
   cpu_table[0].idle_thread = do_create_thread(root_process, idle_task, NULL, 
                                    SCHED_IDLE, 0, 
                                    THREADF_KERNEL,
                                    0,
                                    &cpu_table[0],
                                    "idle-kt");
-
 
   cpu_table[0].idle_thread->state = THREAD_STATE_READY;
 
@@ -201,14 +192,7 @@ void start_scheduler(void)
   int q;
   
   Info("start_scheduler()");
-  
-#if 1
-  // Make a back of the root page directory (for debugging purposes)
-  for (int t=0; t< 4096; t++) {
-    root_pagedir_bu[t] = root_pagedir[t];
-  }
-#endif
-      
+        
   for (q = 31; q >= 0; q--) {
     if ((sched_queue_bitmap & (1 << q)) != 0) {
       break;

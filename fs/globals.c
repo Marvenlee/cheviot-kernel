@@ -49,11 +49,7 @@ struct SuperBlock pipe_sb;
  */ 
 int max_buf;
 struct Buf *buf_table;
-
-//size_t cluster_size;
-//int nclusters;    // FIXME: Different to max_buf ?
 struct Rendez buf_list_rendez;
-
 buf_list_t buf_hash[BUF_HASH];
 buf_list_t buf_avail_list;
 

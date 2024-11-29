@@ -26,26 +26,22 @@
 #include <kernel/types.h>
 #include <kernel/msg.h>
 
-static void InitFSLists(void);
-static void InitCache(void);
-
 
 /* @brief   Initialize the kernel's virtual filesystem
  */
-int init_vfs(void)
+void init_vfs(void)
 {  
-  InitFSLists();
-  InitCache();
-  InitPipes();
+  init_vfs_lists();
+  init_vfs_cache();
+  init_vfs_pipes();
   
   root_vnode = NULL;  
-  return 0;
 }
 
 
 /* @brief   Initialize tables and lists of VFS objects
  */
-static void InitFSLists(void)
+void init_vfs_lists(void)
 {
   LIST_INIT(&vnode_free_list);
   LIST_INIT(&filp_free_list);
@@ -102,22 +98,18 @@ static void InitFSLists(void)
 /* @brief   Initialize the VFS's file cache
  *
  */
-static void InitCache(void)
+void init_vfs_cache(void)
 {
-  vm_addr va;
-
   LIST_INIT(&buf_avail_list);
-
-  va = CACHE_BASE_VA;
 
   for (int t = 0; t < max_buf; t++) {
     InitRendez(&buf_table[t].rendez);
     buf_table[t].flags = 0;
     buf_table[t].vnode = NULL;
     buf_table[t].cluster_offset = 0;
-    buf_table[t].data = (void *)va;
-
-    va += CLUSTER_SZ;
+    buf_table[t].data = (void *)kmalloc_page();
+    
+    KASSERT(buf_table[t].data != NULL);
 
     LIST_ADD_TAIL(&buf_avail_list, &buf_table[t], free_link);
   }
@@ -131,7 +123,7 @@ static void InitCache(void)
 /*
  *
  */
-void InitPipes(void)
+void init_vfs_pipes(void)
 {
   struct Pipe *pipe;
   

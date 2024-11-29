@@ -459,7 +459,10 @@ int fini_fproc(struct Process *proc);
 int fork_process_fds(struct Process *newp, struct Process *oldp);
 
 /* fs/init.c */
-int init_vfs(void);
+void init_vfs(void);
+void init_vfs_lists(void);
+void init_vfs_cache(void);
+void init_vfs_pipes(void);
 
 /* fs/link.c */
 int sys_unlink(char *pathname);

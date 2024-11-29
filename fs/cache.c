@@ -194,6 +194,10 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
  * Do we need to map cached blocks into a certain area of the kernel?
  *
  * Do we need to write the entire cluster?  Is this handled by strategy params?
+ *
+ * TODO: Need better hash value than use file offset otherwise with lots of small
+ * files the lower hash table buckets will be highly populated and the higher
+ * hash table buckets will be almost empty.
  */
 struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)  // Rename to file_offset
 {
@@ -237,44 +241,9 @@ struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)  // Rename to f
       LIST_REM_HEAD(&buf_avail_list, free_link);
       buf->flags |= B_BUSY;
 
-      // FIXME: Reserve pool of pages for buffer data in advance
-      // make buf->data immutable.
-      
-      // Remove alloc_pageframe, free_pageframe, pmap_cache_enter and pmap_cache_remove.
-      // Allow 1/8 of memory to be cache.
-      
-      // TODO: Need better hash value that cluster_offset
-
       if (buf->flags & B_VALID) {
         LIST_REM_ENTRY(&buf_hash[buf->cluster_offset % BUF_HASH], buf, lookup_link);
-
-        pmap_cache_extract((vm_addr)buf->data, &pa);
-        pf = pmap_pa_to_pf(pa);
-        pmap_cache_remove((vm_addr)buf->data);
-        free_pageframe(pf);
       }
-
-/* 
-      if (cluster_offset >= vnode->size) {
-        cluster_size = 0;
-      } else if (vnode->size - cluster_offset < CLUSTER_SZ) {
-        cluster_size = ALIGN_UP(vnode->size - cluster_offset, PAGE_SIZE);
-      } else {
-        cluster_size = CLUSTER_SZ;
-      }
-*/
-
-      for (int t = 0; t < (CLUSTER_SZ / PAGE_SIZE); t++) {
-        pf = alloc_pageframe(PAGE_SIZE);
-        pmap_cache_enter((vm_addr)buf->data + t * PAGE_SIZE, pf->physical_addr);
-      }
-
-
-
-      pmap_flush_tlbs();
-
-// FIXME: End of changes needed
-
 
       buf->flags &= ~B_VALID;
       buf->vnode = vnode;

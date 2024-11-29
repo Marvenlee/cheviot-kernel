@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/board/peripheral_base.h>
@@ -59,6 +59,7 @@ void init_vm(void)
 {
   vm_addr pa;
 
+  root_pagedir = bootinfo->root_pagedir;
 
   init_memory_map();
 
@@ -209,52 +210,6 @@ void coalesce_free_pageframes(void)
           LIST_ADD_TAIL(&free_4k_pf_list, &pageframe_table[pa2 / PAGE_SIZE], link);
         }
       }
-    }
-  }
-}
-
-
-
-/*
- * FIXME: Remove fixed area of kernel for buffer cache, dynamically
- * allocate pages with alloc_page(page_size);
- */
-void init_buffer_cache_pagetables(void)
-{
-  uint32_t *phys_pt;
-  struct PmapVPTE *vpte;
-  struct PmapVPTE *vpte_base;
-  uint32_t *pt;
-  vm_addr va;
-  
-  root_pagedir = bootinfo->root_pagedir;
-
-  va = CACHE_BASE_VA;
-  
-  for (int t = 0; t < CACHE_PAGETABLES_CNT; t++) {
-    phys_pt = (uint32_t *)pmap_va_to_pa((vm_addr)(cache_pagetable + t * VPAGETABLE_SZ));
-    root_pagedir[CACHE_PAGETABLES_PDE_BASE + t] = (uint32_t)phys_pt | L1_TYPE_C;
-
-    pt = (uint32_t *)((vm_addr)(cache_pagetable + t * VPAGETABLE_SZ));
-
-    for (int pte_idx = 0; pte_idx < N_PAGETABLE_PTE; pte_idx++) {
-      vpte_base = (struct PmapVPTE *)((uint8_t *)pt + VPTE_TABLE_OFFS);
-      vpte = vpte_base + pte_idx;
-
-      pt[pte_idx] = L2_TYPE_INV;
-
-    	hal_dsb();
-	    hal_invalidate_tlb_va(va & ~0xfff);
-      hal_invalidate_branch();
-      hal_invalidate_icache();
-      hal_dsb();
-      hal_isb();
-
-      vpte->flags = 0;
-      vpte->link.prev = NULL;
-      vpte->link.next = NULL;
-      
-      va += PAGE_SIZE;
     }
   }
 }

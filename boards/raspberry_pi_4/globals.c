@@ -31,6 +31,7 @@
 #include <kernel/kqueue.h>
 #include <kernel/interrupt.h>
 
+
 /*
  * Boot args
  */
@@ -76,14 +77,9 @@ vm_addr boot_base;
 vm_addr boot_ceiling;
 
 uint32_t *root_pagedir;
-uint32_t *cache_pagetable;
-
-uint32_t *root_pagedir_bu;
 
 uint32_t *pagedir_table;
-
 struct PmapPagedir *pmappagedir_table;
-
 pmappagedir_list_t free_pmappagedir_list;
 
 

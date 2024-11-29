@@ -82,7 +82,7 @@ void Main(void)
   max_thread = NTHREAD;
   max_pageframe = mem_size / PAGE_SIZE;
   max_memregion = max_pageframe / 32;
-  max_buf = 4 * 1024;
+  max_buf = max_pageframe / 32;
   max_superblock = NR_SUPERBLOCK;
   max_filp = NR_FILP;
   max_vnode = NR_VNODE;
@@ -93,14 +93,9 @@ void Main(void)
   
   init_bootstrap_allocator();
 
-  cache_pagetable   = bootstrap_alloc(256 * 1024);  
   vector_table      = bootstrap_alloc(PAGE_SIZE);
-
-  root_pagedir_bu   = bootstrap_alloc(PAGE_SIZE * 4);
-
   pagedir_table     = bootstrap_alloc(max_process * PAGE_SIZE * 4);
   pmappagedir_table = bootstrap_alloc(max_process * sizeof(struct PmapPagedir));
-
   pageframe_table   = bootstrap_alloc(max_pageframe * sizeof(struct Pageframe));
   memregion_table   = bootstrap_alloc(max_memregion * sizeof(struct MemRegion));
   buf_table         = bootstrap_alloc(max_buf * sizeof(struct Buf));
@@ -128,10 +123,9 @@ void Main(void)
   Info ("kernel heap base : %08x", _heap_base);
   Info ("kernel heap top : %08x", _heap_current);
   
-  Info("Initializing kernel..."); 
+  Info("Initializing kernel...");
 
   InitDebug();
-  init_buffer_cache_pagetables();
   init_arm();
   init_vm();
   init_interrupt_controller();
