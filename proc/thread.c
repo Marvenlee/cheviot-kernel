@@ -86,7 +86,7 @@ int sys_thread_join(pid_t tid, intptr_t *_status)
   
   sc = do_join_thread(thread, &status);
   
-  if (sc == 0) {
+  if (sc == 0 && _status != NULL) {
     CopyOut(_status, &status, sizeof status);
   }
   
