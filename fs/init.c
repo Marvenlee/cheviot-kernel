@@ -106,7 +106,7 @@ void init_vfs_cache(void)
     InitRendez(&buf_table[t].rendez);
     buf_table[t].flags = 0;
     buf_table[t].vnode = NULL;
-    buf_table[t].cluster_offset = 0;
+    buf_table[t].file_offset = 0;
     buf_table[t].data = (void *)kmalloc_page();
     
     KASSERT(buf_table[t].data != NULL);

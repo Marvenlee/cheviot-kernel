@@ -30,7 +30,6 @@ struct VNode;
 struct Filp;
 struct VFS;
 struct DName;
-struct InterruptAPI;    // TODO: Remove, run interrupt in user-mode, change API.
 struct Buf;
 struct Msgport;
 struct ISRHandler;
@@ -84,21 +83,17 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 
 
 // Buffer size and number of hash table entries
-#define CACHE_PAGETABLES_CNT        256
-#define CACHE_PAGETABLES_PDE_BASE   3072
-#define CACHE_BASE_VA               0xC0000000
-#define CACHE_CEILING_VA            0xD0000000
+#define CACHE_PAGETABLES_CNT          256
+#define CACHE_PAGETABLES_PDE_BASE     3072
+#define CACHE_BASE_VA                 0xC0000000
+#define CACHE_CEILING_VA              0xD0000000
 
-#define CLUSTER_SZ      4096        // TODO: Enlarge back to 16K ?
-#define NBUF_HASH       128
+#define NBUF_HASH                     128
+#define MAX_ARGS_SZ                   0x10000 // Size of buffers for args and environment variables used during exec 
+#define PIPE_BUF_SZ                   4096    // Buffer size of pipes (should be same as page size)
 
-#define MAX_ARGS_SZ     0x10000   // Size of buffers for args and environment variables used during exec 
-
-#define PIPE_BUF_SZ     4096      // Buffer size of pipes (should be same as page size)
-
-
-#define DELWRI_DELAY_TICKS            500   // Time in ticks to delay a delayed-write
-#define SCHED_PRIO_CACHE_HANDLER      16    // Task priority of bdflush tasks.
+#define DELWRI_DELAY_TICKS            500     // Time in ticks to delay a delayed-write
+#define SCHED_PRIO_CACHE_HANDLER      16      // Task priority of bdflush tasks.
 
 #define MAX_RENAME_PATH_CHECK_DEPTH   128   /* Max directories to ascend when checking rename
                                                directory is now a subdirectory of new path */
@@ -112,7 +107,7 @@ struct Buf
   bits32_t flags;
   struct VNode *vnode;
 
-  off64_t cluster_offset;					// TODO: Rename to file_offset or just offset
+  off64_t file_offset;            // Offset within the file of the page-sized buffer that is cached
   void *data;                     // Address of the page-sized buffer holding cached file data
 
   buf_link_t free_link;           // Free list entry
@@ -366,14 +361,16 @@ ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t
 /* fs/cache.c */
 ssize_t read_from_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
 ssize_t write_to_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
-struct Buf *bread(struct VNode *vnode, off64_t cluster_base);
-struct Buf *bread_zero(struct VNode *vnode, off64_t cluster_base);
+struct Buf *bread(struct VNode *vnode, off64_t file_offset);
+struct Buf *bread_zero(struct VNode *vnode, off64_t file_offset);
 int bwrite(struct Buf *buf);
 int bawrite(struct Buf *buf);
 int bdwrite(struct Buf *buf);
 void brelse(struct Buf *buf);
-struct Buf *getblk(struct VNode *vnode, uint64_t cluster_base);
-struct Buf *findblk(struct VNode *vnode, uint64_t cluster_base);
+struct Buf *getblk(struct VNode *vnode, uint64_t file_offset);
+struct Buf *findblk(struct VNode *vnode, uint64_t file_offset);
+int bsync(struct VNode *vnode);
+int bsyncfs(struct SuperBlock *sb);
 int btruncate(struct VNode *vnode);
 size_t resize_cache(size_t free);
 int init_superblock_bdflush(struct SuperBlock *sb);
@@ -381,7 +378,6 @@ void fini_superblock_bdflush(struct SuperBlock *sb, int how);
 void bdflush_task(void *arg);
 struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now);
 struct Buf *get_pending_write_buf(struct SuperBlock *sb);
-int do_fsync(struct VNode *vnode);
 
 /* fs/char.c */
 int sys_isatty(int fd);

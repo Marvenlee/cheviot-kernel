@@ -111,7 +111,7 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 
   if (vnode->flags & V_VALID) {
     vn_lock(vnode, VL_EXCLUSIVE);
-    do_fsync(vnode);
+    bsync(vnode);
     vn_lock(vnode, VL_RELEASE);
     vnode->flags = 0;
   }

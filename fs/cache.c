@@ -63,11 +63,11 @@ ssize_t read_from_cache(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
   nbytes_to_read = (remaining_in_file < sz) ? remaining_in_file : sz;
 
   while (nbytes_total < nbytes_to_read) {  
-    cluster_base = ALIGN_DOWN(*offset, CLUSTER_SZ);
-    cluster_offset = *offset % CLUSTER_SZ;
+    cluster_base = ALIGN_DOWN(*offset, PAGE_SIZE);
+    cluster_offset = *offset % PAGE_SIZE;
 
     remaining_to_xfer = nbytes_to_read - nbytes_total;
-    remaining_in_cluster = CLUSTER_SZ - cluster_offset;
+    remaining_in_cluster = PAGE_SIZE - cluster_offset;
     nbytes_xfer = (remaining_to_xfer < remaining_in_cluster) ? remaining_to_xfer : remaining_in_cluster;
 		
     buf = bread(vnode, cluster_base);
@@ -129,11 +129,11 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
   nbytes_to_write = sz;
 
   while (nbytes_total < nbytes_to_write) {  
-    cluster_base = ALIGN_DOWN(*offset, CLUSTER_SZ);
-    cluster_offset = *offset % CLUSTER_SZ;
+    cluster_base = ALIGN_DOWN(*offset, PAGE_SIZE);
+    cluster_offset = *offset % PAGE_SIZE;
 
 		remaining_to_xfer = nbytes_to_write - nbytes_total;
-		remaining_in_cluster = CLUSTER_SZ - cluster_offset;
+		remaining_in_cluster = PAGE_SIZE - cluster_offset;
 		nbytes_xfer = (remaining_to_xfer < remaining_in_cluster) ? remaining_to_xfer : remaining_in_cluster;
 		
 		if (cluster_base < vnode->size) {
@@ -163,7 +163,7 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
       vnode->size = *offset;
     }
 
-    if ((*offset % CLUSTER_SZ) == 0) {
+    if ((*offset % PAGE_SIZE) == 0) {
       bawrite(buf);
     } else {
       bdwrite(buf);
@@ -177,7 +177,7 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
 /* @Brief   Get a cached block
  *
  * @param   vnode, file to get cached block of
- * @param   cluster_offset, offset within file to read
+ * @param   file_offset, offset within file to read (aligned to page size)
  * @return  buf on success, NULL if it cannot find or create a buf
  *
  * This cache operates at the file level and not the block level. As such it
@@ -199,7 +199,7 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
  * files the lower hash table buckets will be highly populated and the higher
  * hash table buckets will be almost empty.
  */
-struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)  // Rename to file_offset
+struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
 {
   struct Buf *buf;
   struct Pageframe *pf;
@@ -207,7 +207,7 @@ struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)  // Rename to f
   vm_addr pa;
 
   while (1) {
-    if ((buf = findblk(vnode, cluster_offset)) != NULL) {
+    if ((buf = findblk(vnode, file_offset)) != NULL) {
       if (buf->flags & B_BUSY) {
         TaskSleep(&buf->rendez);
         continue;
@@ -242,15 +242,14 @@ struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)  // Rename to f
       buf->flags |= B_BUSY;
 
       if (buf->flags & B_VALID) {
-        LIST_REM_ENTRY(&buf_hash[buf->cluster_offset % BUF_HASH], buf, lookup_link);
+        LIST_REM_ENTRY(&buf_hash[buf->file_offset % BUF_HASH], buf, lookup_link);
       }
 
       buf->flags &= ~B_VALID;
       buf->vnode = vnode;
-
-      buf->cluster_offset = cluster_offset;     // Rename to file offset ?
+      buf->file_offset = file_offset;
       
-      LIST_ADD_HEAD(&buf_hash[buf->cluster_offset % BUF_HASH], buf,
+      LIST_ADD_HEAD(&buf_hash[buf->file_offset % BUF_HASH], buf,
                     lookup_link);
 
       return buf;
@@ -266,9 +265,9 @@ struct Buf *getblk(struct VNode *vnode, uint64_t cluster_offset)  // Rename to f
 void brelse(struct Buf *buf)
 {
   if (buf->flags & (B_ERROR | B_DISCARD)) {
-    LIST_REM_ENTRY(&buf_hash[buf->cluster_offset % BUF_HASH], buf, lookup_link);
+    LIST_REM_ENTRY(&buf_hash[buf->file_offset % BUF_HASH], buf, lookup_link);
     buf->flags &= ~(B_VALID | B_ERROR);
-    buf->cluster_offset = -1;
+    buf->file_offset = 0;
     buf->vnode = NULL;
 
     if (buf->data != NULL) {
@@ -287,17 +286,17 @@ void brelse(struct Buf *buf)
 /* @brief   Find a specific file's block in the cache
  *
  * @param   vnode, file to find block of
- * @param   cluster_offset, offset within the file (aligned to cluster size)
+ * @param   file_offset, offset within the file (aligned to page size)
  * @return  buf on success, null if not present
  */
-struct Buf *findblk(struct VNode *vnode, uint64_t cluster_offset)
+struct Buf *findblk(struct VNode *vnode, uint64_t file_offset)
 {
   struct Buf *buf;
 
-  buf = LIST_HEAD(&buf_hash[cluster_offset % BUF_HASH]);
+  buf = LIST_HEAD(&buf_hash[file_offset % BUF_HASH]);
 
   while (buf != NULL) {
-    if (buf->vnode == vnode && buf->cluster_offset == cluster_offset)
+    if (buf->vnode == vnode && buf->file_offset == file_offset)
       return buf;
 
     buf = LIST_NEXT(buf, lookup_link);
@@ -310,7 +309,7 @@ struct Buf *findblk(struct VNode *vnode, uint64_t cluster_offset)
 /* @brief   Read a block from a file
  *
  * @param   vnode, vnode of file to read
- * @param   cluster_offset, reads a block from disk into the cache
+ * @param   file_offset, reads a block from disk into the cache (aligned to cluster size)
  * @return  Pointer to a Buf that represents a cached block or NULL on failure
  *
  * This searches for the block in the cache. if a block is not present
@@ -322,12 +321,12 @@ struct Buf *findblk(struct VNode *vnode, uint64_t cluster_offset)
  * file the remaining bytes after the end will be zero.
  *
  */
-struct Buf *bread(struct VNode *vnode, off64_t cluster_base)
+struct Buf *bread(struct VNode *vnode, off64_t file_offset)
 {
   struct Buf *buf;
   ssize_t xfered;
 
-  buf = getblk(vnode, cluster_base);
+  buf = getblk(vnode, file_offset);
 
   if (buf->flags & B_VALID) {
     return buf;
@@ -335,17 +334,17 @@ struct Buf *bread(struct VNode *vnode, off64_t cluster_base)
 
   buf->flags = (buf->flags | B_READ) & ~(B_WRITE | B_ASYNC);
 
-  xfered = vfs_read(vnode, KUCOPY, buf->data, CLUSTER_SZ, &cluster_base);
+  xfered = vfs_read(vnode, KUCOPY, buf->data, PAGE_SIZE, &file_offset);
 
-  if (xfered > CLUSTER_SZ) {
-    Error("bread > CLUSTER_SZ: %d", xfered);
+  if (xfered > PAGE_SIZE) {
+    Error("bread > PAGE_SIZE: %d", xfered);
   }
 
 	if (xfered <= 0) {
 		Error("bread error: %d", xfered);
 		buf->flags |= B_ERROR;
-	} else if (xfered != CLUSTER_SZ) {
-		memset(buf->data + xfered, 0, CLUSTER_SZ - xfered);				
+	} else if (xfered != PAGE_SIZE) {
+		memset(buf->data + xfered, 0, PAGE_SIZE - xfered);
   }
   
   if (buf->flags & B_ERROR) {
@@ -362,18 +361,18 @@ struct Buf *bread(struct VNode *vnode, off64_t cluster_base)
 /*
  *
  */
-struct Buf *bread_zero(struct VNode *vnode, off64_t cluster_base)
+struct Buf *bread_zero(struct VNode *vnode, off64_t file_offset)
 {
   struct Buf *buf;
 
-  buf = getblk(vnode, cluster_base);
+  buf = getblk(vnode, file_offset);
 
   if (buf->flags & B_VALID) {
     Warn("bzero ok (cached) ???");
     return buf;
   }
 
-  memset(buf->data, 0, CLUSTER_SZ);
+  memset(buf->data, 0, PAGE_SIZE);
 
   buf->flags = (buf->flags | B_VALID) & ~B_READ;
 
@@ -396,16 +395,16 @@ int bwrite(struct Buf *buf)
 {
   ssize_t xfered;
   struct VNode *vnode;
-  off64_t cluster_offset;
+  off64_t file_offset;
   
   buf->flags = (buf->flags | B_WRITE) & ~(B_READ | B_ASYNC);
   vnode = buf->vnode;
-  cluster_offset = buf->cluster_offset;
+  file_offset = buf->file_offset;
 
   // FIXME: Only write a partial cluster if this is last cluster
-  xfered = vfs_write(vnode, KUCOPY, buf->data, CLUSTER_SZ, &cluster_offset);
+  xfered = vfs_write(vnode, KUCOPY, buf->data, PAGE_SIZE, &file_offset);
 
-  if (xfered != CLUSTER_SZ) {
+  if (xfered != PAGE_SIZE) {
     buf->flags |= B_ERROR;
   }
   if (buf->flags & B_ERROR) {
@@ -609,7 +608,7 @@ void bdflush_task(void *arg)
     while ((buf = get_pending_write_buf(sb)) != NULL) {      
       if (buf) {
             
-        vfs_write(buf->vnode, KUCOPY, buf->data, CLUSTER_SZ, NULL);
+        vfs_write(buf->vnode, KUCOPY, buf->data, PAGE_SIZE, NULL);
         brelse(buf);      
       }
     }
@@ -662,15 +661,6 @@ struct Buf *get_pending_write_buf(struct SuperBlock *sb)
   }
   
   return NULL;
-}
-
-
-/*
- *
- */
-int do_fsync(struct VNode *vnode)
-{
-  return 0;
 }
 
 
