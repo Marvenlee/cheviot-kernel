@@ -28,14 +28,13 @@
 /* @brief   Resize an open file
  *
  */
-int sys_truncate(int fd, size_t sz) {
+int sys_truncate(int fd, size_t sz)
+{
   struct Process *current;
-  struct Filp *filp = NULL;
   struct VNode *vnode = NULL;
   int sc = 0;
 
   current = get_current_process();
-  filp = get_filp(current, fd);
   vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
@@ -62,7 +61,5 @@ int sys_truncate(int fd, size_t sz) {
 
   return 0;
 }
-
-
 
 

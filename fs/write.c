@@ -58,7 +58,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     return -EINVAL;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  vn_lock(vnode, VL_EXCLUSIVE);
   
   if (check_access(vnode, filp, W_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);
@@ -118,7 +118,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     return -EBADF;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  vn_lock(vnode, VL_EXCLUSIVE);
   
   if (check_access(vnode, filp, W_OK) != 0) {
     vn_lock(vnode, VL_RELEASE);

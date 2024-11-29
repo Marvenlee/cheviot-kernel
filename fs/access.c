@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -54,7 +54,6 @@ int sys_access(char *pathname, mode_t amode)
   sc = check_access(vnode, NULL, amode);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
-  vnode_put(vnode);
   lookup_cleanup(&ld);
 
   return sc;
@@ -95,6 +94,8 @@ int sys_chmod(char *_path, mode_t mode)
 
   vnode = ld.vnode;
 
+  vn_lock(vnode, VL_EXCLUSIVE);
+
   if (vnode->uid == current->uid || current->uid == SUPERUSER) {
     sc = vfs_chmod(vnode, mode);
     
@@ -105,9 +106,9 @@ int sys_chmod(char *_path, mode_t mode)
     sc = EPERM;
   }
 
-  knote(&vnode->knote_list, NOTE_ATTRIB);
-  
-  vnode_put(vnode);
+  vn_lock(vnode, VL_RELEASE);
+
+  knote(&vnode->knote_list, NOTE_ATTRIB);  
   lookup_cleanup(&ld);
   return sc;
 }
@@ -132,6 +133,8 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
 
   vnode = ld.vnode;
 
+  vn_lock(vnode, VL_EXCLUSIVE);
+
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     sc = vfs_chown(vnode, uid, gid);
     
@@ -143,8 +146,9 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
     sc = EPERM;
   }
 
+  vn_lock(vnode, VL_RELEASE);
+
   knote(&vnode->knote_list, NOTE_ATTRIB);
-  vnode_put(vnode);
   lookup_cleanup(&ld);
   return 0;
 }
@@ -166,6 +170,8 @@ int sys_fchmod(int fd, mode_t mode)
     return -EINVAL;
   }
 
+  vn_lock(vnode, VL_EXCLUSIVE);
+
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     sc = vfs_chmod(vnode, mode);
     
@@ -175,6 +181,8 @@ int sys_fchmod(int fd, mode_t mode)
   } else {
     sc = EPERM;
   }
+
+  vn_lock(vnode, VL_RELEASE);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   
@@ -200,6 +208,8 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     return -EINVAL;
   }
 
+  vn_lock(vnode, VL_EXCLUSIVE);
+
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     sc = vfs_chown(vnode, uid, gid);
     
@@ -211,6 +221,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     sc = EPERM;
   }
 
+  vn_lock(vnode, VL_RELEASE);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   vnode_put(vnode);

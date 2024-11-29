@@ -46,13 +46,14 @@ int sys_open(char *_path, int oflags, mode_t mode)
   struct lookupdata ld;
   int sc;
 
+  Info("sys_open()");
+
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     Error("Open - lookup failed, sc = %d", sc);
     return sc;
   }
 
   sc = do_open(&ld, oflags, mode);
-  
   lookup_cleanup(&ld);
   return sc;
 }
@@ -66,20 +67,21 @@ int kopen(char *_path, int oflags, mode_t mode)
   struct lookupdata ld;
   int sc;
 
+  Info("kopen()");
+
   if ((sc = lookup(_path, LOOKUP_PARENT | LOOKUP_KERNEL, &ld)) != 0) {
     Error("Kopen - lookup failed, sc = %d", sc);
     return sc;
   }
 
-  sc = do_open(&ld, oflags, mode);
-  
+  sc = do_open(&ld, oflags, mode);  
   lookup_cleanup(&ld);
   return sc;  
 }
 
 
 /*
- * TODO: Increment vnode references so that lookup_cleanup() doesn't free vnode.
+ * TODO: Set timestamps.
  */
 int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 {
@@ -88,7 +90,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   struct VNode *vnode = NULL;
   int fd = -1;
   struct Filp *filp = NULL;
-  int err = 0;
+  int sc = 0;
   struct stat stat;
   
   current = get_current_process();
@@ -96,84 +98,72 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   dvnode = ld->parent;
       
   if (vnode == NULL) {
-    if ((oflags & O_CREAT) && check_access(dvnode, W_OK) != 0) {
-      Error("SysOpen vnode_put O_CREAT");
-      vnode_put(dvnode);
+    if ((oflags & O_CREAT) && check_access(dvnode, NULL, W_OK) != 0) {
       return -ENOENT;
     }
 
     stat.st_mode = mode;
     stat.st_uid = current->uid;
     stat.st_gid = current->gid;
-
-		// TODO: Set timestamps.
 		
 		if (strcmp(".", ld->last_component) == 0 || strcmp("..", ld->last_component) == 0) {
       Error("Cannot create . or .. named files");
-      vnode_put(dvnode);      
-      return err;
+      return -ENOMEM;
     }
-
-
-    if ((err = vfs_create(dvnode, ld->last_component, oflags, &stat, &vnode)) != 0) {
+    
+    vn_lock(dvnode, VL_EXCLUSIVE);
+    
+    if ((sc = vfs_create(dvnode, ld->last_component, oflags, &stat, &vnode)) != 0) {
       Error("SysOpen vnode_put vfs_create");
       vnode_put(dvnode);      
-      return err;
+      return sc;
     }
-
-// TODO:   DNameEnter(dvnode, vnode, ld->last_component);
-  
-  } else {
-#if 0
-    // FIXME:   
-    if (vnode->vnode_mounted_here != NULL) {
-      vnode_put(vnode);
-      vnode = vnode->vnode_mounted_here;
-      vn_lock (vnode, VL_SHARED);
-    }
-#endif
+    
+    vn_lock(dvnode, VL_RELEASE);
   }
-
-  vnode_put(dvnode);    // TODO: Remove, can be dereferenced by lookup_cleanup.
-  ld->parent = NULL;
   
-  if (oflags & O_TRUNC) {
-    if (S_ISREG(vnode->mode)) {
-      if ((err = vfs_truncate(vnode, 0)) != 0) {
-        Error("SysOpen O_TRUNC failed");
-        vnode_put(vnode);
-        return err;
-      }
-    }
-  }
-
+  vn_lock(vnode, VL_EXCLUSIVE);
+   
   fd = alloc_fd_filp(current);
   
   if (fd < 0) {
-    err = -ENOMEM;
-    goto exit;
+    free_fd_filp(current, fd);
+    vn_lock(vnode, VL_RELEASE);
+    return -ENOMEM;
   }
 
   filp = get_filp(current, fd);
   filp->type = FILP_TYPE_VNODE;
   filp->u.vnode = vnode;
-  
-  if (oflags & O_APPEND)
-    filp->offset = vnode->size;
-  else
-    filp->offset = 0;
+  filp->flags = oflags;
 
-  // TODO: increment vnode reference count here to keep it open, lookup_cleanup will decrement it.
+  if (oflags & O_TRUNC) {
+    if (S_ISREG(vnode->mode)) {
+#if 0
+      if (check_access(vnode, filp, W_OK) != 0) {
+        free_fd_filp(current, fd);
+        vn_lock(vnode, VL_RELEASE);
+        return -EACCES;
+      }
+#endif
+      if ((sc = vfs_truncate(vnode, 0)) != 0) {
+        Error("SysOpen O_TRUNC failed, sc=%d", sc);
+        free_fd_filp(current, fd);
+        vn_lock(vnode, VL_RELEASE);
+        return sc;
+      }
+    }
+  }
+  
+  if (oflags & O_APPEND) {
+    filp->offset = vnode->size;
+  } else {
+    filp->offset = 0;
+  }
+
   vn_lock(vnode, VL_RELEASE);
-  return fd;
-  
-exit:
-  Error("DoOpen failed: %d", err);
-  free_fd_filp(current, fd);
-  
-  vnode_put(vnode);   // TODO: Remove, can be dereferenced by lookup_cleanup.
-  ld->vnode = NULL;
-  return err;
+  vnode_add_reference(vnode);
+  return fd;  
 }
 
 

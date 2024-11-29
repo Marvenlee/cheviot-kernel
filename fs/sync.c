@@ -48,21 +48,18 @@ int sys_sync(void)
  */
 int sys_fsync(int fd)
 { 
-  struct Filp *filp;
-  struct VNode *vnode;
-  ssize_t xfered;
   struct Process *current;
+  struct VNode *vnode;
   int sc;
   
   current = get_current_process();
-  filp = get_filp(current, fd);
   vnode = get_fd_vnode(current, fd);
 
   if (vnode == NULL) {
     return -EINVAL;
   }
 
-  if (check_access(vnode, W_OK) != 0) {
+  if (check_access(vnode, NULL, W_OK) != 0) {
     return -EACCES;
   }
   
@@ -87,4 +84,6 @@ int sys_sync2(int fd, bool unmount)
 {
   return -ENOSYS;
 }
+
+
 

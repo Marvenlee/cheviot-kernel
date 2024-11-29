@@ -19,7 +19,7 @@
  * Raspberry Pi interrupt handling functions.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/board/arm.h>
 #include <kernel/board/interrupt.h>
@@ -41,6 +41,8 @@
  */
 void init_interrupt_controller(void)
 {
+  Info("init_interrupt_controller()");
+  
   hal_mmio_write(&gic_dist_regs->enable, 0);
   hal_mmio_write(&gic_cpu_iface_regs->icontrol, 0);
 
@@ -64,7 +66,7 @@ void init_gicv2_distributor(void)
 {
   uint32_t type;
   uint32_t cpumask;
-  uint32_t gic_cpus;
+//  uint32_t gic_cpus;
   uint32_t nr_lines;
 
   cpumask = hal_mmio_read(&gic_dist_regs->targets[0]) & 0xFF;
@@ -73,13 +75,13 @@ void init_gicv2_distributor(void)
 
   type = hal_mmio_read(&gic_dist_regs->ic_type);
   nr_lines = 32 * ((type & GICD_TYPE_LINES) + 1);  
-  gic_cpus = 1 + ((type & GICD_TYPE_CPUS) >> 5);
+//  gic_cpus = 1 + ((type & GICD_TYPE_CPUS) >> 5);
 
   Info("GIC cpumask = %08x", cpumask);
   Info("GIC type = 0x%08x, %d dec", type, type);   
   Info("GIC cpu_if_ident = %08x", hal_mmio_read(&gic_cpu_iface_regs->cpu_if_ident));
   Info("GIC nr_lines: %d, NIRQ: %d", nr_lines, NIRQ);
-  Info("GIC cpus = %d", gic_cpus);  
+//  Info("GIC cpus = %d", gic_cpus);  
 
   KASSERT(nr_lines >= NIRQ);
 
@@ -179,10 +181,6 @@ void interrupt_handler(struct UserContext *context)
  */
 void interrupt_top_half(void)
 {
-  struct Process *current;
-  
-  current = get_current_process();
-
   uint32_t irq_ack_reg = hal_mmio_read(&gic_cpu_iface_regs->int_ack);
   uint32_t irq = irq_ack_reg & 0x3FF;
 

@@ -38,7 +38,6 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
   struct lookupdata ld;
   struct stat stat;
   int sc;  
-  struct VNode *vnode = NULL;
 
   Info("sys_mknod");
 
@@ -51,18 +50,23 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
   }
 
   if (ld.vnode != NULL) {    
-    vnode_put(ld.vnode);
-    vnode_put(ld.parent);
     lookup_cleanup(&ld);
     return -EEXIST;
   }
-    
-  sc = vfs_mknod(ld.parent, ld.last_component, &stat, &vnode);
 
-  vnode_put(vnode);
-  vnode_put(ld.parent);
+  vn_lock(ld.parent, VL_EXCLUSIVE);
+
+  sc = vfs_mknod(ld.parent, ld.last_component, &stat);
+
+  if (sc != 0) {
+    vn_lock(ld.parent, VL_RELEASE);    
+    lookup_cleanup(&ld);
+    return -ENOMEM;  
+  }
+
+  vn_lock(ld.parent, VL_RELEASE);
+
   lookup_cleanup(&ld);
-
   return sc;
 }
 

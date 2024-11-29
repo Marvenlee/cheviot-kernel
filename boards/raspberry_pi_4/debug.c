@@ -32,18 +32,15 @@
 #include <kernel/utility.h>
 #include <kernel/filesystem.h>
 #include <stdarg.h>
+#include <string.h>
+
 
 // Constants
 #define KLOG_WIDTH 256
 
-
 // Variables
-static uint32_t lcanary1 = 0xdeadbeef;
 static char klog_entry[KLOG_WIDTH + 1];
-static uint32_t lcanary2 = 0xcafef00d;
 static char debug_buf[256];
-static uint32_t lcanary3 = 0x5ea1dead;
-
 bool processes_initialized = false;
 bool debug_initialized = false;
 

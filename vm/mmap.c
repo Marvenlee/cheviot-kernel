@@ -192,9 +192,7 @@ int sys_mprotect(void *_addr, size_t len, int prot)
   uint64_t privileges;
   int flags;
   
-#if 1
-	return 0;		// FIXME: mprotect COW
-#endif	
+#if 0
 
   current = get_current_process();
 
@@ -212,9 +210,8 @@ int sys_mprotect(void *_addr, size_t len, int prot)
   addr = ALIGN_DOWN((vm_addr)_addr, PAGE_SIZE);
   len = ALIGN_UP(len, PAGE_SIZE);
 
-
-  memregion_splice(as, addr);
-  memregion_splice(as, addr + len);
+  memregion_split(as, addr);
+  memregion_split(as, addr + len);
 
   for (va = addr; va < addr + len; va += PAGE_SIZE) {
     if (pmap_is_page_present(as, va) == false) {
@@ -251,9 +248,9 @@ int sys_mprotect(void *_addr, size_t len, int prot)
   }
 
   pmap_flush_tlbs();
+#endif
   return 0;
 }
-
 
 
 /* @brief   Convert a user-mode virtual address to the page's physical address

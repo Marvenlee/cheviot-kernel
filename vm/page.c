@@ -48,10 +48,14 @@ void *kmalloc_page(void)
   pf = alloc_pageframe(PAGE_SIZE);
   
   if (pf == NULL) {
+    Error("kmalloc_page() failed");
     return NULL;
   }
   
   vaddr = (void *)pmap_pf_to_va(pf);
+
+  Info("kmalloc_page() vaddr:%08x", (uint32_t)vaddr);
+
   return vaddr;
 }
 

@@ -80,15 +80,16 @@ void init_arm(void)
   
   hal_set_vbar((vm_addr)vector_table);
 
-  uint32_t cpacr;
-  uint32_t fpexc;
-
+#if 0 // FIXME hal_set_cpacr
   Info("hal_set_cpacr()");  
-//  cpacr = hal_get_cpacr();
-//  cpacr |= (0x03 << 20);
-//  hal_set_cpacr(cpacr);
+  uint32_t cpacr;
+  cpacr = hal_get_cpacr();
+  cpacr |= (0x03 << 20);
+  hal_set_cpacr(cpacr);
+#endif
 
   Info("hal_set_fpexc()");  
+  uint32_t fpexc;
   fpexc = hal_get_fpexc();
   fpexc |= (1<<30);
   hal_set_fpexc(fpexc);

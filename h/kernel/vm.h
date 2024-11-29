@@ -155,10 +155,10 @@ int CopyInString(void *dst, const void *src, size_t max_sz);
 int pmap_create(struct AddressSpace *as);
 void pmap_destroy(struct AddressSpace *as);
 int pmap_supports_cache_policy(bits32_t flags);
-int pmap_enter(struct AddressSpace *as, vm_addr addr, vm_addr paddr, bits32_t flags);
+int pmap_enter(struct AddressSpace *as, vm_addr addr, vm_addr paddr, int flags);
 int pmap_remove(struct AddressSpace *as, vm_addr addr);
-int pmap_protect(struct AddressSpace *as, vm_addr addr, bits32_t flags);
-int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, bits32_t *flags);
+int pmap_protect(struct AddressSpace *as, vm_addr addr, int flags);
+int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, int *flags);
 
 // Could merge into PmapExtract, return a status flag, with -1 for no pte, -2
 // for no pde etc.

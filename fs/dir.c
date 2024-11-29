@@ -43,18 +43,17 @@ int sys_chdir(char *_path)
 
   current = get_current_process();
 
-
   if ((err = lookup(_path, 0, &ld)) != 0) {
     return err;
   }
 
   if (!S_ISDIR(ld.vnode->mode)) {
-    vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -ENOTDIR;
   }
 
   if (check_access(ld.vnode, NULL, R_OK) != 0) {
-    vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -EPERM;
   }
 
@@ -62,10 +61,11 @@ int sys_chdir(char *_path)
     vnode_put(current->fproc->current_dir);
   }
 
+  vnode_add_reference(ld.vnode);
   current->fproc->current_dir = ld.vnode;
 
   vn_lock(current->fproc->current_dir, VL_RELEASE);
-
+  lookup_cleanup(&ld);
   return 0;
 }
 
@@ -79,7 +79,6 @@ int sys_fchdir(int fd)
 {
   struct Process *current;
   struct VNode *vnode;
-
 
   current = get_current_process();
   vnode = get_fd_vnode(current, fd);
@@ -98,7 +97,7 @@ int sys_fchdir(int fd)
 
   vnode_put(current->fproc->current_dir);
   current->fproc->current_dir = vnode;
-  vnode_inc_ref(vnode);
+  vnode_add_reference(vnode);
   return 0;
 }
 
@@ -131,12 +130,12 @@ int sys_opendir(char *_path)
   }
 
   if (!S_ISDIR(ld.vnode->mode)) {
-    vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -EINVAL;
   }
 
   if (check_access(ld.vnode, NULL, R_OK) != 0) {
-    vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -EPERM;
   }
 
@@ -144,7 +143,7 @@ int sys_opendir(char *_path)
 
   if (fd < 0) {
     free_fd_filp(current, fd);
-    vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -ENOMEM;
   }
 
@@ -152,20 +151,10 @@ int sys_opendir(char *_path)
   filp->type = FILP_TYPE_VNODE;
   filp->u.vnode = ld.vnode;
   filp->offset = 0;
-  
-  vn_lock(filp->u.vnode, VL_RELEASE);
 
+  vnode_add_reference(ld.vnode);  
+  lookup_cleanup(&ld);
   return fd;
-}
-
-
-/*
- * TODO: Remove
- */
-void invalidate_dir(struct VNode *dvnode)
-{
-  // Call when creating or deleting entries in dvnode.
-  // Or deleting the actual directory itself.
 }
 
 
@@ -184,7 +173,7 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   off64_t cookie;
   struct Process *current;
 
-  if (sz < 512) {     // TODO: Ensure size is big enough for name_max + 1 + sizeof struct dirent.
+  if (sz < MIN_READDIR_BUF_SZ) {     // TODO: Ensure size is big enough for name_max + 1 + sizeof struct dirent.
     return -EINVAL;
   }
 
@@ -203,12 +192,11 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   cookie = filp->offset;
 
   vn_lock(vnode, VL_SHARED);
-  dirents_sz = vfs_readdir(vnode, dst, sz, &cookie);
   
+  dirents_sz = vfs_readdir(vnode, dst, sz, &cookie);
   filp->offset = cookie;
   
   vn_lock(vnode, VL_RELEASE);
-  
   return dirents_sz;
 }
 
@@ -251,54 +239,47 @@ int sys_rewinddir(int fd)
  */
 int sys_createdir(char *_path, mode_t mode)
 {
-  struct Process *current;
-  struct VNode *dvnode = NULL;
-  struct VNode *vnode = NULL;
-  struct Filp *filp = NULL;
-  int sc = 0;
   struct lookupdata ld;
   struct stat stat;
-
-  current = get_current_process();
+  struct VNode *dvnode;
+  int sc;
 
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     return sc;
   }
 
   if (check_access(ld.parent, NULL, R_OK) != 0) {
-    if (ld.vnode != NULL) {
-      vnode_put(ld.vnode);
-    }
-    
-    vnode_put(ld.parent);
+    lookup_cleanup(&ld);
     return -EPERM;
   }
-
-  vn_lock(dvnode, VL_UPGRADE);    // Exclusive lock to add entries to directory
-
-  vnode = ld.vnode;
+  
+  if (ld.vnode != NULL) {
+    // already exists, check if it is a directory
+    if (S_ISDIR(ld.vnode->mode)) {
+      lookup_cleanup(&ld);
+      return 0;
+    } else {
+      lookup_cleanup(&ld);
+      return -ENOTDIR;
+    }  
+  }
+  
   dvnode = ld.parent;
   
-  KASSERT(dvnode != NULL);
+  vn_lock(dvnode, VL_EXCLUSIVE);
 
-  if (vnode == NULL) {
-    sc = vfs_mkdir(dvnode, ld.last_component, &stat, &vnode);
-    if (sc != 0) {
-      vnode_put(dvnode);
-      return sc;
-    }
-  } else {
-    // already exists, check if it is a directory
-    if (!S_ISDIR(vnode->mode)) {
-      vnode_put(vnode);
-      vnode_put(dvnode);
-      return -ENOTDIR;
-    }
-  }
+  sc = vfs_mkdir(dvnode, ld.last_component, &stat);
+
+  if (sc != 0) {
+    vn_lock(dvnode, VL_RELEASE); 
+    lookup_cleanup(&ld);
+    return sc;
+  }    
 
   knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);
-  vnode_put(vnode);
-  vnode_put(dvnode);
+
+  vn_lock(dvnode, VL_RELEASE); 
+  lookup_cleanup(&ld);
   return 0;
 }
 
@@ -310,39 +291,36 @@ int sys_createdir(char *_path, mode_t mode)
  */
 int sys_rmdir(char *_path)
 {
+  struct lookupdata ld;
   struct VNode *vnode = NULL;
   struct VNode *dvnode = NULL;
   int sc = 0;
-  struct lookupdata ld;
 
   if ((sc = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
     return sc;
   }
-
-  vn_lock(dvnode, VL_UPGRADE);    // Exclusive lock to remove entries from directory
-  vn_lock(vnode, VL_UPGRADE);    // Exclusive lock to remove vnode from directory
   
   vnode = ld.vnode;
   dvnode = ld.parent;
 
   if (!S_ISDIR(vnode->mode)) {
-    vnode_put(vnode); // This should delete it
-    vnode_put(dvnode);
     lookup_cleanup(&ld);
     return -ENOTDIR;
   }
 
-  vnode->reference_cnt--;
+  vn_lock(dvnode, VL_EXCLUSIVE);    // Exclusive lock to remove entries from directory
+  vn_lock(vnode, VL_DRAIN);       // Drain lock to remove vnode from directory
 
-  if (vnode->reference_cnt == 0) {
-    vfs_rmdir(dvnode, ld.last_component);
+  sc = vfs_rmdir(dvnode, vnode, ld.last_component);   
+  
+  if (sc != 0) {
+    ld.vnode = NULL;
   }
 
-  knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);
-  vnode_put(vnode); // This should delete it
-  vnode_put(dvnode);
-  lookup_cleanup(&ld);
+  knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);  
 
+  vn_lock(dvnode, VL_RELEASE);
+  lookup_cleanup(&ld);
   return 0;
 }
 

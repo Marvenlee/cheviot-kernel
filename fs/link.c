@@ -32,11 +32,11 @@ int sys_unlink(char *_path)
 {
   struct VNode *vnode = NULL;
   struct VNode *dvnode = NULL;
-  int err = 0;
   struct lookupdata ld;
+  int sc;
 
-  if ((err = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
-    return err;
+  if ((sc = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
+    return sc;
   }
 
   vnode = ld.vnode;
@@ -47,35 +47,25 @@ int sys_unlink(char *_path)
    */
 
   if (!S_ISREG(vnode->mode)) {
-    err = -EINVAL;  // FIXME: possibly ENOTFILE, EISDIR  ??
-    goto exit;
+    lookup_cleanup(&ld);
+    return -EINVAL;  // FIXME: possibly ENOTFILE, EISDIR  ??
   }
   
-  // FIXME: Check vnode reference count and nlink count before
-  // calling vfs_unlink() to remove file. 
+  vn_lock(dvnode, VL_EXCLUSIVE);  // Exclusive lock to remove entries from directory
+  vn_lock(vnode, VL_DRAIN);       // Drain lock to remove vnode from directory  
 
-  // TODO: If nlink is 0 and file is deleted send knote NOTE_DELETE
-  // Need to set a flag to delete the file on last file handle close
-  // if nlink is 0.  
+  sc = vfs_unlink(dvnode, vnode, ld.last_component);
 
-  vnode->nlink --;
-  vfs_unlink(dvnode, ld.last_component);  
-   
-  knote(&vnode->knote_list, NOTE_LINK);
-
-  // TODO: Need to invalidate vnode if file is deleted (not vnode_put)
-
-  vnode_put(vnode);
-  vnode_put(dvnode);
-  return 0;
+  if (sc == 0) {
+    ld.vnode = NULL;
+  }
   
-exit:
-  vnode_put(vnode);
-  vnode_put(dvnode);
+  knote(&dvnode->knote_list,  NOTE_WRITE | NOTE_ATTRIB);    // Can't knote deleted vnode
+
+  vn_lock(dvnode, VL_RELEASE);
+  
   lookup_cleanup(&ld);
-  return err;
+  return 0;  
 }
-
-
 
 

@@ -43,8 +43,6 @@
 int lookup(char *_path, int flags, struct lookupdata *ld)
 {
   int rc;
-
-  Info("lookup: %s", _path);
   
   if ((rc = init_lookup(_path, flags, ld)) != 0) {
     Error("Lookup init failed");
@@ -81,8 +79,8 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
 
       ld->parent = NULL;
       ld->vnode = root_vnode;
-      vnode_inc_ref(ld->vnode);
-      vn_lock(ld->vnode, VL_SHARED);
+      vnode_add_reference(ld->vnode);
+//      vn_lock(ld->vnode, VL_SHARED);
       return 0;
     }
 
@@ -108,15 +106,35 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
   }
 }
 
-
 /*
  * TODO: lookup_cleanup - add to dir operations and others
- */ 
+ */
 void lookup_cleanup(struct lookupdata *ld)
 {
+  Info("lookup_cleanup()");
+  
+  if (ld->path != NULL) {
+    kfree_page(ld->path);
+    ld->path = NULL;
+    Info("..path freed");
+  }
+  
+  if (ld->vnode != NULL) {
+    Info("..ld->vnode put");
+    vnode_put(ld->vnode);
+    ld->vnode = NULL;
+  }
 
+  if (ld->parent != NULL) {
+    Info("..ld->parent put");
+    vnode_put(ld->parent);
+    ld->parent = NULL;
+  }
+
+  ld->last_component = NULL;
+  ld->position = NULL;
+  ld->start_vnode = NULL;     // FIXME: Do we need to dereference it? and reference it in init_lookup?
 }
-
 
 
 /* @brief Initialize the state for performing a pathname lookup
@@ -137,23 +155,40 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   
   ld->vnode = NULL;
   ld->parent = NULL;
-  ld->position = ld->path;
+  ld->position = NULL;
   ld->last_component = NULL;
   ld->flags = flags;
-  ld->path[0] = '\0';
+  
+  ld->path = kmalloc_page();
+  
+  if (ld->path == NULL) {
+    Error("init_lookup() - Failed to alloc page for pathname");
+    return -1;
+  }
+  
+  ld->path[0] = '\0';  
 
   if (flags & LOOKUP_KERNEL) {
     StrLCpy(ld->path, _path, sizeof ld->path);
-  } else if (CopyInString(ld->path, _path, sizeof ld->path) == -1) {
+  } else if (CopyInString(ld->path, _path, PAGE_SIZE) == -1) {
     Error("init_lookup -EFAULT");
+    Error("ld->path:%08x, _path:%08x", (uint32_t)ld->path, (uint32_t)_path);
+    kfree_page(ld->path);
+    ld->path = NULL;   
     return -EFAULT; // FIXME:  Could be ENAMETOOLONG 
   }
 
   path_len = StrLen(ld->path);
 
+  Info("init_lookup, path:%s", ld->path);
+
+  // Remove any trailing separators
+  
   for (size_t i = path_len; i > 0 && ld->path[i] == '/'; i--) {
     ld->path[i] = '\0';
   }
+  
+  // FIXME: Do we need to increment reference count of ld->start_vnode ?
   
   ld->start_vnode = (ld->path[0] == '/') ? root_vnode : current->fproc->current_dir;    
 
@@ -163,9 +198,11 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
 
   if (!S_ISDIR(ld->start_vnode->mode)) {
     Error("init_lookup start vnode -ENOTDIR");
+    kfree_page(ld->path);
     return -ENOTDIR;
   }
 
+  ld->position = ld->path;
   return 0;
 }
 
@@ -180,18 +217,19 @@ int lookup_path(struct lookupdata *ld)
   struct VNode *vnode;
   int rc;
   
-//  Info ("lookup_path");
+  Info ("lookup_path");
   
   KASSERT(ld->start_vnode != NULL);
 
   ld->parent = NULL;
   ld->vnode = ld->start_vnode;
 
-  vnode_inc_ref(ld->vnode);
-  vn_lock(ld->vnode, VL_SHARED);
+  vnode_add_reference(ld->vnode);
+//  vn_lock(ld->vnode, VL_SHARED);
   
   while(1) {    
     ld->last_component = path_token(ld);
+
 
     if (ld->last_component == NULL) {
       Error("lookup_path last_component NULL");
@@ -199,7 +237,7 @@ int lookup_path(struct lookupdata *ld)
       break;
     }
 
-//    Info ("lookup_path last_component %s", ld->last_component);
+    Info ("lookup_path last_component:%s", ld->last_component);
     
     if (ld->parent != NULL) {
       vnode_put(ld->parent);
@@ -346,6 +384,8 @@ int walk_component(struct lookupdata *ld)
   struct VNode *vnode_mounted_here;
   int rc;
 
+  Info("walk_component()");
+
   KASSERT(ld != NULL);
   KASSERT(ld->parent != NULL);
   KASSERT(ld->vnode == NULL);
@@ -353,11 +393,11 @@ int walk_component(struct lookupdata *ld)
   
   if (!S_ISDIR(ld->parent->mode)) {
     Error("ld->parent is not a directory");
-    return -ENOTDIR;   
+    return -ENOTDIR;
  
   } else if (StrCmp(ld->last_component, ".") == 0) {    
     Info("walk_comp - last comp is .");    
-    vnode_inc_ref(ld->parent);    
+    vnode_add_reference(ld->parent);    
     ld->vnode = ld->parent;
     return 0;
   
@@ -365,12 +405,12 @@ int walk_component(struct lookupdata *ld)
     Info("walk_comp - last comp is ..");    
 
     if (ld->parent == root_vnode) {
-      vnode_inc_ref(root_vnode);
+      vnode_add_reference(root_vnode);
       ld->vnode = root_vnode;
       return 0;
  
     } else if (ld->parent->vnode_covered != NULL) {
-      vnode_inc_ref(ld->parent->vnode_covered);
+      vnode_add_reference(ld->parent->vnode_covered);
   
       vnode_put(ld->parent);
       ld->parent = ld->parent->vnode_covered;
@@ -380,6 +420,7 @@ int walk_component(struct lookupdata *ld)
   KASSERT(ld->parent != NULL);
 
   if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
+    Info("last_component vfs_lookup rc:%d", rc);
     return rc;
   }
 
@@ -420,14 +461,14 @@ int walk_component(struct lookupdata *ld)
 
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
-      vnode_inc_ref(ld->vnode);
-      vn_lock(ld->vnode, VL_SHARED);
+      vnode_add_reference(ld->vnode);
+//      vn_lock(ld->vnode, VL_SHARED);
       
     } else {
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
-      vnode_inc_ref(ld->vnode);
-      vn_lock(ld->vnode, VL_SHARED);
+      vnode_add_reference(ld->vnode);
+//      vn_lock(ld->vnode, VL_SHARED);
     }    
   }  
 

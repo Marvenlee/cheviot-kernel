@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
+ * --
  * File pointer handling.
  *
- * A file pointer is an intermediate structure between an integer file descriptor
- * and a vnode. It can be shared by multiple file descriptors from the same or
- * multiple processes.  It contains the current seek position and file oflags access type.
+ * A file pointer (filp) is an intermediate structure between an integer file
+ * descriptor and a vnode. It can be shared by multiple file descriptors from
+ * the same or multiple processes.  It contains the current seek position and
+ * file oflags access type.
  */
 
 //#define KDEBUG

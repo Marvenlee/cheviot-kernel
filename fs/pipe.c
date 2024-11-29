@@ -90,7 +90,6 @@ int sys_pipe(int *_fd)
   struct Pipe *pipe = NULL;  
   struct VNode *vnode = NULL;
   struct Process *current;
-  int error;
   
   Info("sys_pipe");
   
@@ -99,40 +98,41 @@ int sys_pipe(int *_fd)
   pipe = alloc_pipe();
 
   if (pipe == NULL) {
-    error = -ENOMEM;
-    goto exit;
+    return -ENOMEM;
   }
 
   // FIXME: Unique inode nr for each pipe we create
   static int pipe_inode_nr;
   pipe_inode_nr++;
-  vnode = vnode_new(&pipe_sb, pipe_inode_nr);
-
-  // FIXME: Do we need an exclusive lock?   Is it locked by vnode_new ?
-
+  vnode = vnode_new(&pipe_sb);
 
   if (vnode == NULL) {
-    error = -ENOMEM;
-    goto exit;
+    free_pipe(pipe);
+    return -ENOMEM;
   }
-
+  
+  vn_lock(vnode, VL_EXCLUSIVE);
 
   fd[0] = alloc_fd_filp(current);
 
   if (fd[0] < 0) {
-    error = -ENOMEM;
-    goto exit;
+    vn_lock(vnode, VL_DRAIN);
+    vnode_discard(vnode);
+    free_pipe(pipe);
+    return -ENOMEM;
   }
   
   fd[1] = alloc_fd_filp(current);
   if (fd[1] < 0) {
-    error = -ENOMEM;
-    goto exit;
+    free_fd_filp(current, fd[0]);
+    vn_lock(vnode, VL_DRAIN);
+    vnode_discard(vnode);
+    free_pipe(pipe);
+    return -ENOMEM;
   }
   
   Info ("sys_pipe alloced fds: %d, %d", fd[0], fd[1]);
-  
-  
+    
   filp0 = get_filp(current, fd[0]);
   filp0->type = FILP_TYPE_VNODE;
   filp0->offset = 0;
@@ -150,39 +150,27 @@ int sys_pipe(int *_fd)
   
   vnode->pipe = pipe;
   vnode->mode = _IFIFO | 0777;
-  
+  vnode->inode_nr = pipe_inode_nr;
+  vnode->flags = V_VALID;
+  vnode_hash(vnode);
+    
   vn_lock(vnode, VL_RELEASE);
 
   if (CopyOut(_fd, fd, sizeof fd) != 0) {
     Info("Pipe, failed, EFAULT");
-    error = -EFAULT;
-    goto exit;
+    close(fd[0]);
+    close(fd[1]);
+    return -EFAULT;
   }
 
-  Info ("sys_pipe success, fd[0] = %d, fd[1] = %d", fd[0], fd[1]);
-  
+  Info ("sys_pipe success, fd[0] = %d, fd[1] = %d", fd[0], fd[1]);  
   return 0;
-  
-exit:
-
-  // TODO: Need to check these aren't null or -1 when freeing
-  Info ("Pipe failed error = %d", error);
-  
-/*  free_pipe(pipe);
-  vnode_Free(vnode);
-  FreeFilp(filp1);
-  FreeFilp(filp0);
-  free_fd_filp(fd[1], current);
-  free_fd_filp(fd[0], current);
-*/
-  return error;
 }
 
 
 /*
  * Do we use same code for pipes as well as socketpair devices?
  */
-
 ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
 {
   uint8_t *dst = (uint8_t *)_dst;
@@ -256,7 +244,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     dst += nbytes_to_copy;
     nbytes_read += nbytes_to_copy;
    
-    TaskWakeupAll (&pipe->rendez);
+    TaskWakeupAll(&pipe->rendez);
   }
 
   Info ("..Pipe read, read:%d, st:%d", nbytes_read, status);    

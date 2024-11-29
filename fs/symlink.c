@@ -24,31 +24,38 @@
 /* @brief   Create a symbolic link in the file system
  *
  */
-int sys_symlink(char *_path, char *_link) {
+int sys_symlink(char *_path, char *_link)
+{
   struct lookupdata ld;
-  int status;
+  int sc;
 
-  if ((status = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
-    return status;
+  if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
+    return sc;
   }
 
   if (ld.vnode != NULL) {
-    vnode_put(ld.parent);
-    vnode_put(ld.vnode);
+    lookup_cleanup(&ld);
     return -EEXIST;
   }
 
-  //    status = vfs_mklink(ld.parent, ld.last_component, _link);
-  vnode_put(ld.parent);
+  vn_lock(ld.parent, VL_EXCLUSIVE);
+
+  // TODO:  sc = vfs_mklink(ld.parent, ld.last_component, _link);
+
+  // knote that directory has changed
+
+  vn_lock(ld.parent, VL_RELEASE);
+
   lookup_cleanup(&ld);
-  return status;
+  return 0;
 }
 
 
 /* @brief   Get the path a symbolic link points to
  *
  */
-int sys_readlink(char *_path, char *_link, size_t link_size) {
+int sys_readlink(char *_path, char *_link, size_t link_size)
+{
   struct lookupdata ld;
   int status;
   
@@ -63,13 +70,16 @@ int sys_readlink(char *_path, char *_link, size_t link_size) {
 
   // TODO, check if vnode is a symlink.
   if (!S_ISLNK(ld.vnode->mode)) {
-    vnode_put(ld.vnode);
     lookup_cleanup(&ld);
     return -ENOLINK;
   }
 
+  vn_lock(ld.parent, VL_SHARED);
+
   // TODO:   status = vfs_readlink(ld.vnode, _link, link_size);
-  vnode_put(ld.vnode);
+
+  vn_lock(ld.parent, VL_RELEASE);
+
   lookup_cleanup(&ld);
   return status;
 }

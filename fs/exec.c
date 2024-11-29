@@ -76,30 +76,29 @@ int sys_exec(char *_path, struct execargs *_args)
   vnode = get_fd_vnode(current_proc, fd);
 
   if (vnode == NULL) {
+    lookup_cleanup(&ld);
     sys_close(fd);
     return -EINVAL;
   }  
 
   if (check_access(vnode, NULL, R_OK | X_OK) != 0) {
-      sys_close(fd);
       lookup_cleanup(&ld);
+      sys_close(fd);
       return -EPERM;
   }
 
   // TODO: Kill all other threads
 
   sc = do_exec(fd, ld.last_component, _args);
-  
+
+  lookup_cleanup(&ld);  
   sys_close(fd);
   
   if (sc == -ENOMEM) {
     Error("Exec failed to exec, sc = %d", sc);
-    lookup_cleanup(&ld);
-    sys_exit(-1);
+    sys_exit(-1);   // TODO: exit code for exec() failure?
   }
 
-  lookup_cleanup(&ld);    
-  
   exec_privileges(current_proc);
 
   return sc; 
@@ -117,7 +116,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
   struct Process *current;
   struct Thread *current_thread;
   struct execargs args;
-  int8_t *pool;
+  char *pool;
     
   Info("do_exec");
   

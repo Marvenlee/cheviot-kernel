@@ -538,8 +538,6 @@ struct Session *alloc_session(void)
  */
 void free_session(struct Session *session)
 {
-  struct VNode *vnode;
-  
   if (session->controlling_tty != NULL) {
     session->controlling_tty->tty_sid = INVALID_PID;    
   }
@@ -564,7 +562,6 @@ struct Pgrp *alloc_pgrp(void)
     memset(pgrp, 0, sizeof *pgrp);
     LIST_INIT(&pgrp->process_list);
   }
-
   
   return pgrp;
 }
@@ -645,12 +642,12 @@ void remove_from_pgrp(struct Process *proc)
 }
 
 
+/*
+ * this will set proc_session_pd->session to NULL
+ */
 void remove_from_session(struct Process *proc)
 {
-  // this will set proc_session_pd->session to NULL
-
   struct PidDesc *session_pd;
-  struct Pgrp *pgrp;
   struct Session *session;
   
   session_pd = pid_to_piddesc(proc->sid);

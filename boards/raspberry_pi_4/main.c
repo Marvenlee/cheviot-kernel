@@ -137,7 +137,10 @@ void Main(void)
   init_interrupt_controller();
   init_timer_registers();
   init_vfs();
-  init_processes();    
+  init_processes();
+  
+  Info("Calling start scheduler");
+  
   start_scheduler();
 
   // Catch fence, will not get here

@@ -70,27 +70,29 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   }
   
   if (reply.args.lookup.inode_nr == dvnode->inode_nr) {
-    vnode_inc_ref(dvnode);
+    vnode_add_reference(dvnode);  // Will this happen?  Onlu if "." or if root ".."
     vnode = dvnode;
   } else {
     vnode = vnode_get(dvnode->superblock, reply.args.lookup.inode_nr);
   }
 
   if (vnode == NULL) {
-    vnode = vnode_new(sb, reply.args.lookup.inode_nr);
+    vnode = vnode_new(sb);
 
     if (vnode == NULL) {
       Info("vfs_lookup, vnode_new -ENOMEM");
+      *result = NULL;
       return -ENOMEM;
     }
 
-    vnode->nlink = 1;           // FIXME: Need to get nlink.
-    vnode->reference_cnt = 1;
+    vnode->nlink = reply.args.lookup.nlink;           // FIXME: Need to get nlink.
     vnode->size = reply.args.lookup.size;      
     vnode->uid = reply.args.lookup.uid;  
     vnode->gid = reply.args.lookup.gid;
     vnode->mode = reply.args.lookup.mode;
+    vnode->inode_nr = reply.args.lookup.inode_nr;
     vnode->flags = V_VALID;
+    vnode_hash(vnode);        
   } 
 
   *result = vnode;
@@ -100,7 +102,7 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
 
 /* @brief   Create a file
  *
- * TODO: Merge with lookup.
+ * TODO: create needs to populate vnode->nlink
  */
 int vfs_create(struct VNode *dvnode, char *name, int oflags,
                              struct stat *stat, struct VNode **result)
@@ -138,21 +140,27 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
     *result = NULL;
     return sc;
   }
-  
-  vnode = vnode_new(sb, reply.args.create.inode_nr);
+
+
+  vnode = vnode_new(sb);
 
   if (vnode == NULL) {
-    Error("vfs_create, vnode_new -ENOMEM");
+    *result = NULL;
     return -ENOMEM;
   }
 
+  // TODO: Update nlink of vnode and dvnode
+  // dvnode->nlink = reply.args.create.parent_nlink;      
+  // vnode->nlink = reply.args.create.inode_nlink;
   vnode->nlink = 1;           // FIXME: Need to get nlink. 
   vnode->reference_cnt = 1;
   vnode->size = reply.args.create.size;      
   vnode->uid = reply.args.create.uid;  
   vnode->gid = reply.args.create.gid;
   vnode->mode = reply.args.create.mode;
+  vnode->inode_nr = reply.args.create.inode_nr;
   vnode->flags = V_VALID;
+  vnode_hash(vnode);
 
   *result = vnode;
   return 0;
@@ -300,14 +308,16 @@ int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
 /*
  * FIXME: Need to allocate vnode but not set INODE nr, then send message to server.
  * Otherwise could fail to allocate after sending.
+ *
+ * TODO: Needs to update nlink
  */
-int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat, struct VNode **result)
+int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
 {
+  struct SuperBlock *sb;
+  struct VNode *vnode;
   iorequest_t req = {0};
   ioreply_t reply = {0};
-  struct SuperBlock *sb;
   msgiov_t siov[1];
-  struct VNode *vnode = NULL;
   int sc;
 
   sb = dvnode->superblock;
@@ -331,35 +341,44 @@ int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat, struct VNode 
     return sc;
   }
 
-  vnode = vnode_new(sb, reply.args.mknod.inode_nr);
+  vnode = vnode_new(sb);
 
   if (vnode == NULL) {
     return -ENOMEM;
   }
 
+  // TODO: Update nlink of vnode and dvnode
+  // dvnode->nlink = reply.args.mknod.parent_nlink;
+  // vnode->nlink = reply.args.mknod.inode_nlink;
+
   vnode->nlink = 1;      
+
   vnode->reference_cnt = 1;
   vnode->size = reply.args.mknod.size;      
   vnode->uid = reply.args.mknod.uid;  
   vnode->gid = reply.args.mknod.gid;
   vnode->mode = reply.args.mknod.mode;
+  vnode->inode_nr = reply.args.mknod.inode_nr;
   vnode->flags = V_VALID;
+  vnode_hash(vnode);
 
-  *result = vnode;
-  return sc;
+  vnode_put(vnode);
+
+  return 0;
 }
 
 
 /*
  *
+ * TODO: Needs to update nlink
  */
-int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat, struct VNode **result)
+int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat)
 {
+  struct SuperBlock *sb;
+  struct VNode *vnode;
   iorequest_t req = {0};
   ioreply_t reply = {0};
-  struct SuperBlock *sb;
   msgiov_t siov[1];
-  struct VNode *vnode = NULL;
   int sc;
 
   sb = dvnode->superblock;
@@ -383,29 +402,38 @@ int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat, struct VNode 
     return sc;
   }
 
-  vnode = vnode_new(sb, reply.args.mkdir.inode_nr);
+  vnode = vnode_new(sb);
 
   if (vnode == NULL) {
     return -ENOMEM;
   }
 
-  vnode->nlink = 1;      
-  vnode->reference_cnt = 1;
-  vnode->size = reply.args.mknod.size;      
-  vnode->uid = reply.args.mknod.uid;  
-  vnode->gid = reply.args.mknod.gid;
-  vnode->mode = reply.args.mknod.mode;
-  vnode->flags = V_VALID;
+  // TODO: Update nlink of vnode and dvnode
+  // dvnode->nlink = reply.args.mkdir.parent_nlink;      
+  // vnode->nlink = reply.args.mkdir.inode_nlink;      
 
-  *result = vnode;
-  return sc;
+  vnode->nlink = 1;
+  
+  vnode->reference_cnt = 1;
+  vnode->size = reply.args.mkdir.size;      
+  vnode->uid = reply.args.mkdir.uid;  
+  vnode->gid = reply.args.mkdir.gid;
+  vnode->mode = reply.args.mkdir.mode;
+  vnode->inode_nr = reply.args.mkdir.inode_nr;
+  vnode->flags = V_VALID;
+  vnode_hash(vnode);
+
+  vnode_put(vnode);
+
+  return 0;
 }
 
 
 /*
  *
+ * TODO: Needs to update nlink
  */
-int vfs_rmdir(struct VNode *dvnode, char *name)
+int vfs_rmdir(struct VNode *dvnode, struct VNode *vnode, char *name)
 {
   iorequest_t req = {0};
   struct SuperBlock *sb;
@@ -422,6 +450,15 @@ int vfs_rmdir(struct VNode *dvnode, char *name)
   siov[0].size = req.args.rmdir.name_sz;
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
+
+  // TODO: Need to update nlink of vnode and parent directory
+  vnode->nlink--;     // for .
+  dvnode->nlink --;   // for ..
+
+  if (vnode->nlink == 0) {
+    vnode_discard(vnode);
+  } 
+
   return sc;
 }
 
@@ -434,9 +471,9 @@ int vfs_truncate(struct VNode *vnode, size_t size)
   iorequest_t req = {0};
   struct SuperBlock *sb;
   int sc;
-  int sz;
 
-  Info("vfs_truncate, size:%u", size);
+  Info("vfs_truncate, size:%u, ino_nr:%u", size, (uint32_t)vnode->inode_nr);
+
   sb = vnode->superblock;
 
   req.cmd = CMD_TRUNCATE;
@@ -444,12 +481,15 @@ int vfs_truncate(struct VNode *vnode, size_t size)
   req.args.truncate.size = size;
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req,  NULL, 0, NULL, 0, NULL);
+
+  Info("vfs_truncate, sc:%d", sc);
   return sc;
 }
 
 
 /*
  *
+ * TODO: Needs to update nlink of parent directories?
  */
 int vfs_rename(struct VNode *src_dvnode, char *src_name,
                struct VNode *dst_dvnode, char *dst_name)
@@ -474,6 +514,9 @@ int vfs_rename(struct VNode *src_dvnode, char *src_name,
   siov[1].size = req.args.rename.dst_name_sz;
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
+
+  // TODO: should we update parent dvnode nlinks here ?
+
   return sc;
 }
 
@@ -523,8 +566,10 @@ int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid)
  * Does this call vnode_put, or is it higher layer 
  * is the put done after the vfs_unlink ?  We should be the only reference
  * when this is called.
+ *
+ * TODO: Needs to update nlink 
  */
-int vfs_unlink(struct VNode *dvnode, char *name)
+int vfs_unlink(struct VNode *dvnode, struct VNode *vnode, char *name)
 {
   iorequest_t req = {0};
   struct SuperBlock *sb;
@@ -541,12 +586,22 @@ int vfs_unlink(struct VNode *dvnode, char *name)
   siov[0].size = req.args.unlink.name_sz;
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);
+
+  // TODO: Need to update nlink of vnode and parent directory
+  vnode->nlink--;     // for .
+  dvnode->nlink --;   // for ..
+
+  if (vnode->nlink == 0) {
+    vnode_discard(vnode);
+  } 
+
   return sc;
 }
 
 
 /*
  *
+ * TODO: Needs to update nlink
  */
 int vfs_mklink(struct VNode *dvnode, char *name, char *link, struct stat *stat)
 {

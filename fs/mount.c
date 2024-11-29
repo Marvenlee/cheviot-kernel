@@ -40,54 +40,56 @@
  */
 int sys_pivotroot(char *_new_root, char *_old_root)
 {
-  struct lookupdata ld;
+  struct lookupdata new_ld, old_ld;
   struct VNode *new_root_vnode;
   struct VNode *old_root_vnode;
   struct VNode *current_root_vnode;
   int sc;
-
 	
-  if ((sc = lookup(_old_root, 0, &ld)) != 0) {
+  if ((sc = lookup(_old_root, 0, &old_ld)) != 0) {
     Error("PivotRoot lookup _old_root failed");
     return sc;
   }
 
-  old_root_vnode = ld.vnode;
-  lookup_cleanup(&ld);
-
-
-  if ((sc = lookup(_new_root, 0, &ld)) != 0) {
-    Error("PivotRoot lookup _new_root failed");
-    return sc;
-  }
-
-  new_root_vnode = ld.vnode;
-  lookup_cleanup(&ld);
-
-  if (new_root_vnode == NULL) {
-    Error("PivotRoot failed new_root -ENOENT");
-    return -ENOENT;
-  }
+  old_root_vnode = old_ld.vnode;
 
   if (old_root_vnode == NULL) {
     Error("PivotRoot lookup _old_root -ENOENT");
-    vnode_put(new_root_vnode);
+    lookup_cleanup(&old_ld);
     return -ENOENT;
   }
 
+  vnode_add_reference(old_root_vnode);
+
+  if ((sc = lookup(_new_root, 0, &new_ld)) != 0) {
+    Error("PivotRoot lookup _new_root failed");
+    vnode_put(old_root_vnode);
+    lookup_cleanup(&old_ld);
+    return sc;
+  }
+
+  new_root_vnode = new_ld.vnode;
+
+  if (new_root_vnode == NULL) {
+    Error("PivotRoot failed new_root -ENOENT");
+    vnode_put(old_root_vnode);
+    lookup_cleanup(&old_ld);
+    lookup_cleanup(&new_ld);
+    return -ENOENT;
+  }
+
+  vnode_add_reference(new_root_vnode);
+
   current_root_vnode = root_vnode;
-  
   old_root_vnode->vnode_mounted_here = current_root_vnode;
   current_root_vnode->vnode_covered = old_root_vnode;
-
   root_vnode = new_root_vnode;
   new_root_vnode->vnode_covered = root_vnode;
-
-  // TODO: Do we need to do any reference counting tricks, esp for current_vnode?
   
-//  dname_purge_all();     FIXME:
-  vnode_put (old_root_vnode);
-  vnode_put (new_root_vnode);
+  vnode_put(old_root_vnode);
+
+  lookup_cleanup(&old_ld);
+  lookup_cleanup(&new_ld);
   return 0;
 }
 
@@ -99,40 +101,45 @@ int sys_pivotroot(char *_new_root, char *_old_root)
  */
 int sys_renamemount(char *_new_path, char *_old_path)
 {
-  struct lookupdata ld;
+  struct lookupdata old_ld;
+  struct lookupdata new_ld;
   struct VNode *new_vnode;
   struct VNode *old_vnode;
   struct VNode *covered_vnode;
-  int error;
+  int sc;
   
-  if ((error = lookup(_new_path, 0, &ld)) != 0) {
+  if ((sc = lookup(_new_path, 0, &new_ld)) != 0) {
     Error("Failed to find new path");
-    goto exit;
+    return sc;
   }
 
-  new_vnode = ld.vnode;
+  new_vnode = new_ld.vnode;
   
   if (new_vnode->vnode_mounted_here != NULL) {
     Error("new vnode already has mount\n");
-    goto exit;
+    lookup_cleanup(&new_ld);
+    return -EEXIST;
   }
 
-  if ((error = lookup(_old_path, 0, &ld)) != 0) {
+  if ((sc = lookup(_old_path, 0, &old_ld)) != 0) {
     Error("Failed to find old path");
-    goto exit;
+    lookup_cleanup(&new_ld);
+    return sc;
   }
 
-  old_vnode = ld.vnode;
+  old_vnode = old_ld.vnode;
     
   if (old_vnode->vnode_mounted_here == NULL) {
     if (old_vnode->vnode_covered == NULL) {
 	    Error("old vnode not a mount point\n");
-	    goto exit;
+      lookup_cleanup(&new_ld);
+      lookup_cleanup(&old_ld);
+      return -EINVAL;
 	  }
 	  
 	  covered_vnode = old_vnode->vnode_covered;
 
-	  vnode_inc_ref(covered_vnode);
+	  vnode_add_reference(covered_vnode);
 	  vnode_put(old_vnode);
 	  old_vnode = covered_vnode;
   }
@@ -145,17 +152,9 @@ int sys_renamemount(char *_new_path, char *_old_path)
   new_vnode->vnode_mounted_here->vnode_covered = new_vnode;  
   old_vnode->vnode_mounted_here = NULL;
     
-//  dname_purge_all();     FIXME:
-
-  vnode_put (old_vnode);   // release 
-  vnode_put (new_vnode);   // release
-  lookup_cleanup(&ld);
-  return 0;
-  
-exit:
-  Error("renamemsgport failed: %d", error);
-  lookup_cleanup(&ld);
-  return error;
+  lookup_cleanup(&new_ld);
+  lookup_cleanup(&old_ld);
+  return 0;  
 }
 
 
@@ -166,10 +165,8 @@ int sys_ismount(char *_path)
 {
   struct lookupdata ld;
   int sc;  
-  struct VNode *vnode = NULL;
 
   Info("sys_ismount");
-
 
   if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
     Error("sys_ismount lookup failed: %d", sc);
@@ -182,11 +179,8 @@ int sys_ismount(char *_path)
     return -ENOENT;
   }
   
-  vnode = ld.vnode;
-  
-  sc = is_mountpoint(vnode);
+  sc = is_mountpoint(ld.vnode);
 
-  vnode_put(vnode);
   lookup_cleanup(&ld);  
   return sc;  
 }
@@ -206,7 +200,6 @@ int sys_unmount(char *_path, uint32_t flags)
  */
 bool is_mountpoint(struct VNode *vnode)
 {
-
   if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {
     return true;
   } else {

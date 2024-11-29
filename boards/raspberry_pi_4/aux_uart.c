@@ -37,7 +37,7 @@
  */
 void aux_uart_init(void)
 {
-  int baud = AUX_UART_BAUD;
+  // Nothing to do.  Aux UART initialized in bootloader
 }
 
 

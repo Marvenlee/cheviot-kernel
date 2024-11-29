@@ -43,6 +43,8 @@ int sys_stat(char *_path, struct stat *_stat) {
   if ((sc = lookup(_path, 0, &ld)) != 0) {
     return sc;
   }
+
+//  vn_lock(ld.vnode, VL_SHARED);
   
   stat.st_dev = ld.vnode->superblock->dev;
   stat.st_ino = ld.vnode->inode_nr;
@@ -60,6 +62,7 @@ int sys_stat(char *_path, struct stat *_stat) {
 	// Update these on reads, writes or truncate operations.
 	// special case return zeros for char and other non-block devices?
 
+
 	if (ld.vnode->superblock->block_size != 0) {
 		stat.st_blocks = ld.vnode->size / ld.vnode->superblock->block_size;
 		stat.st_blksize = ld.vnode->superblock->block_size;
@@ -68,7 +71,7 @@ int sys_stat(char *_path, struct stat *_stat) {
 		stat.st_blksize = 0;
 	}
 
-  vnode_put(ld.vnode);
+//  vn_lock(ld.vnode, VL_RELEASE);
 
   if (CopyOut(_stat, &stat, sizeof stat) != 0) {
     sc = -EFAULT;
@@ -106,9 +109,6 @@ int sys_fstat(int fd, struct stat *_stat) {
 
   vn_lock(vnode, VL_SHARED);
   
-  // FIXME: Should have vnodehold  when we know the vnode
-  // But we don't acquire it , so no need for hold/put here.
-
   stat.st_dev = vnode->superblock->dev;
   stat.st_ino = vnode->inode_nr;
   stat.st_mode = vnode->mode;  

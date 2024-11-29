@@ -64,11 +64,12 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define FD_FLAG_CLOEXEC   (1 << 0)
 
 // Sizes
-#define MAX_SYMLINK     32     // Limit of number of symlinks that can be followed
+#define MAX_SYMLINK         32    // Limit of number of symlinks that can be followed
+#define NR_DNAME            64    // Number of entries in directory name lookup cache (DNLC)
+#define DNAME_SZ            64
+#define DNAME_HASH          32
 
-#define NR_DNAME        64     // Number of entries in directory name lookup cache (DNLC)
-#define DNAME_SZ        64
-#define DNAME_HASH      32
+#define MIN_READDIR_BUF_SZ  512   // Minimum readdir buffer size
 
 
 // Static table sizes (TODO: Adjust based on RAM size)
@@ -162,7 +163,8 @@ struct VLock
 {
   struct Rendez rendez;
   int share_cnt;
-  int exclusive_cnt;  
+  int exclusive_cnt;
+  int is_draining;
 };
 
 // vn_lock flags masks
@@ -320,10 +322,10 @@ struct FProcess
   struct VNode *current_dir;
   struct VNode *root_dir;
 
-  fd_set fd_close_on_exec_set;        // Newlib defines size of 
+  fd_set fd_close_on_exec_set;    // FIXME: Should we use fd_set for close_on_exec and in-use tracking?
   fd_set fd_in_use_set;
 
-  struct Filp *fd_table[OPEN_MAX];          // OPEN_MAX and FD_SETSIZE should be equal
+  struct Filp *fd_table[OPEN_MAX];
 
 };
 
@@ -335,7 +337,7 @@ struct lookupdata
   struct VNode *start_vnode;
   struct VNode *vnode;
   struct VNode *parent;
-  char path[1024];        // FIXME: URGENT! PATH_MAX, allocate path on separate page, release lookup buffer
+  char *path;
   char *last_component;   // at end of FS function.  We now have 4K kernel stacks, not 8K.
   char *position;
   char separator;
@@ -352,7 +354,7 @@ int sys_access(char *path, mode_t amode);
 mode_t sys_umask(mode_t mode);
 int sys_chmod(char *_path, mode_t mode);
 int sys_chown(char *_path, uid_t uid, gid_t gid);
-int is_allowed(struct VNode *node, mode_t mode);
+int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access);
 bool match_supplementary_group(struct Process *proc, gid_t gid);
 
 // fs/block.c
@@ -364,8 +366,8 @@ ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t
 /* fs/cache.c */
 ssize_t read_from_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
 ssize_t write_to_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
-struct Buf *bread(struct VNode *vnode, uint64_t cluster_base);
-struct Buf *bread_zero(struct VNode *vnode, uint64_t cluster_base);
+struct Buf *bread(struct VNode *vnode, off64_t cluster_base);
+struct Buf *bread_zero(struct VNode *vnode, off64_t cluster_base);
 int bwrite(struct Buf *buf);
 int bawrite(struct Buf *buf);
 int bdwrite(struct Buf *buf);
@@ -379,6 +381,7 @@ void fini_superblock_bdflush(struct SuperBlock *sb, int how);
 void bdflush_task(void *arg);
 struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now);
 struct Buf *get_pending_write_buf(struct SuperBlock *sb);
+int do_fsync(struct VNode *vnode);
 
 /* fs/char.c */
 int sys_isatty(int fd);
@@ -463,6 +466,7 @@ int sys_unlink(char *pathname);
 
 /* fs/lookup.c */
 int lookup(char *_path, int flags, struct lookupdata *ld);
+void lookup_cleanup(struct lookupdata *ld);
 int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld);
 int lookup_path(struct lookupdata *ld);
 int lookup_last_component(struct lookupdata *ld);
@@ -533,33 +537,34 @@ int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov,
                     int riov_cnt, msgiov_t *riov, size_t sbuf_total_sz, size_t rbuf_total_sz);
 ssize_t vfs_read(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
 ssize_t vfs_write(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
-
 int vfs_readdir(struct VNode *vnode, void *buf, size_t bytes, off64_t *cookie);
 int vfs_lookup(struct VNode *dir, char *name, struct VNode **result);
 int vfs_create(struct VNode *dvnode, char *name, int oflags, struct stat *stat, struct VNode **result);                             
-int vfs_unlink(struct VNode *dvnode, char *name);
+int vfs_unlink(struct VNode *dvnode, struct VNode *vnode, char *name);
 int vfs_truncate(struct VNode *vnode, size_t sz);
-int vfs_mknod(struct VNode *dir, char *name, struct stat *stat, struct VNode **result);                            
+int vfs_mknod(struct VNode *dir, char *name, struct stat *stat);                            
 int vfs_mklink(struct VNode *dvnode, char *name, char *link, struct stat *stat);
 int vfs_rdlink(struct VNode *vnode, char *buf, size_t sz);
-int vfs_rmdir(struct VNode *dir, char *name);
-int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat, struct VNode **result);
+int vfs_rmdir(struct VNode *dir, struct VNode *vnode, char *name);
+int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat);
 int vfs_rename(struct VNode *src_dvnode, char *src_name, struct VNode *dst_dvnode, char *dst_name);
 int vfs_chmod(struct VNode *vnode, mode_t mode);
 int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid);
 int vfs_fsync(struct VNode *vnode);
 int vfs_isatty(struct VNode *vnode);
+
 ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset);
 ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset);
 
 /* fs/vnode.c */
 struct VNode *get_fd_vnode(struct Process *proc, int fd);
 int close_vnode(struct Process *proc, int fd);
-struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr);
+struct VNode *vnode_new(struct SuperBlock *sb);
+void vnode_hash(struct VNode *vnode);
 struct VNode *vnode_get(struct SuperBlock *sb, int vnode_nr);
 void vnode_put(struct VNode *vnode);
-void vnode_inc_ref(struct VNode *vnode);    // Why not just vnode->ref_cnt++;
-void vnode_free(struct VNode *vnode);      // Delete a vnode from cache and disk
+void vnode_add_reference(struct VNode *vnode);
+void vnode_discard(struct VNode *vnode);      // Delete a vnode from cache ???
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 int vn_lock(struct VNode *vnode, int flags);
 int vn_lock_init(struct VLock *vlock);

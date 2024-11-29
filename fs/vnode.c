@@ -77,11 +77,8 @@ int close_vnode(struct Process *proc, int fd)
   if (vnode == NULL) {
     return -EINVAL;  
   }
-  
-  vn_lock(vnode, VL_EXCLUSIVE);     // TODO: Make it VL_DRAIN, deny access to it
-  
+
   vnode_put(vnode);
-  
   free_fd_filp(proc, fd);
   
   return 0;
@@ -93,10 +90,16 @@ int close_vnode(struct Process *proc, int fd)
  * Allocate a new vnode object, assign an inode_nr to it and lock it.
  * A call to vnode_find() should be called prior to this to see if the vnode
  * already exists.
+ *
+ * If there are no vnodes available this returns NULL.
+ *
+ * This may block while freeing existing vnode and flushing its blocks to disk.
  */
-struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr)
+struct VNode *vnode_new(struct SuperBlock *sb)
 {
   struct VNode *vnode;
+
+  Info("vnode_new(sb:%08x)", (uint32_t)sb);
 
   vnode = LIST_HEAD(&vnode_free_list);
 
@@ -106,35 +109,34 @@ struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr)
 
   LIST_REM_HEAD(&vnode_free_list, vnode_entry);
 
-  // Remove existing vnode from DNLC and file cache
-  // DNamePurgeVNode(vnode);
-  // BSync(vnode)
-  // TODO: Need to handle case if vnode is not in cache and no free slot availble,
-  // release any existing vnode (remember to flush buf cache of file) and reuse it.    
-
+  if (vnode->flags & V_VALID) {
+    vn_lock(vnode, VL_EXCLUSIVE);
+    do_fsync(vnode);
+    vn_lock(vnode, VL_RELEASE);
+    vnode->flags = 0;
+  }
+  
   sb->reference_cnt++;
   
   InitRendez(&vnode->rendez);
 
   vn_lock_init(&vnode->vlock);
   
-  vn_lock(vnode, VL_SHARED);
-
-  vnode->char_read_busy = false;
-  vnode->char_write_busy = false;
+  vnode->inode_nr = -1;
+  vnode->reference_cnt = 1;
 
   vnode->superblock = sb;
   vnode->flags = 0;
-  vnode->reference_cnt = 1;
+
+  vnode->char_read_busy = false;
+  vnode->char_write_busy = false;
     
   vnode->vnode_mounted_here = NULL;
   vnode->vnode_covered = NULL;
   vnode->pipe = NULL;
   
   vnode->tty_sid = INVALID_PID;
-  
-  vnode->inode_nr = inode_nr;
-  
+    
   vnode->mode = 0;
   vnode->uid = 9999;
   vnode->gid = 9999;
@@ -156,6 +158,15 @@ struct VNode *vnode_new(struct SuperBlock *sb, int inode_nr)
 }
 
 
+/* @brief   Place vnode in hash table for quicker lookups
+ *
+ * TODO;
+ */
+void vnode_hash(struct VNode *vnode)
+{
+}
+
+
 /* @brief   Find an existing vnode
  */
 struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
@@ -174,8 +185,6 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
       LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_entry);
     }
 
-    vn_lock(vnode, VL_SHARED);
-
     return vnode;
   
   } else {
@@ -187,8 +196,9 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 /*
  * Used to increment reference count of existing VNode.  Used within FChDir so
  * that proc->current_dir counts as reference.
+ *
  */
-void vnode_inc_ref(struct VNode *vnode)
+void vnode_add_reference(struct VNode *vnode)
 {
   vnode->reference_cnt++;
   vnode->superblock->reference_cnt++;
@@ -205,50 +215,50 @@ void vnode_inc_ref(struct VNode *vnode)
 void vnode_put(struct VNode *vnode)
 {
   KASSERT(vnode != NULL);
+ 
+  Info("vnode_put() - sb:%08x", (uint32_t)vnode->superblock);
+
   KASSERT(vnode->superblock != NULL);
+
+  // Assert it is not locked.
   
   vnode->reference_cnt--;  
   vnode->superblock->reference_cnt--;
   
   if (vnode->reference_cnt == 0) {
+    
+#if 0
+    if (vnode->nlink == 0) {
     // FIXME: IF vnode->link_count == 0,  delete entries in cache.
     // FIXME: Do any special cleanup of file, dir, fifo ?
-    
-    /*
-    if (vnode->nlink == 0) {
-      
-      // Thought we removed vnode->vfs ??????????
-      vnode->vfs->remove(vnode);
+    // TODO: Mark vnode as free/invalid    
     }  
-    */
+#endif
 
     if ((vnode->flags & V_ROOT) == 0) {
       vnode->flags |= V_FREE;
       LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_entry);
     }
   }
-
-  vn_lock(vnode, VL_RELEASE);
     
   TaskWakeupAll(&vnode->rendez);
 }
 
 
-/* 
- * FIXME:  Needed? Used to destroy anonymous vnodes such as pipes/queues
- * Will be needed if VFS is unmounted to remove all vnodes belonging to VFS
+/* @brief   Discard a vnode, put it on the free list and mark it as invalid.
  */
-void vnode_free(struct VNode *vnode)
+void vnode_discard(struct VNode *vnode)
 {
-  if (vnode == NULL) {
-    return;
-  }
-
+  // TODO: assert vnode is not null
+  // TODO: assert that vnode lock is in DRAIN state
+  // TODO: Remove from any lookup hash list
+  // Reset the vnode lock;
+  
   vnode->flags = V_FREE;
   LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_entry);
   vnode->reference_cnt = 0;
 
-  vn_lock(vnode, VL_RELEASE);
+  vn_lock_init(&vnode->vlock);
 
   TaskWakeupAll(&vnode->rendez);
 }
@@ -284,22 +294,42 @@ int vn_lock(struct VNode *vnode, int flags)
   
   switch(request) {
     case VL_EXCLUSIVE:
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
+      }
+
       while (vnode->vlock.exclusive_cnt != 0 || vnode->vlock.share_cnt != 0) {
         TaskSleep(&vnode->vlock.rendez);
+      }
+
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
       }
       
       vnode->vlock.exclusive_cnt = 1;
       break;
 
     case VL_SHARED:
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
+      }
+
       while (vnode->vlock.exclusive_cnt == 1) {
         TaskSleep(&vnode->vlock.rendez);
+      }
+
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
       }
       
       vnode->vlock.share_cnt++;
       break;
 
     case VL_UPGRADE:
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
+      }
+
       if (vnode->vlock.exclusive_cnt == 1) {
         return -EINVAL;
       }
@@ -310,6 +340,10 @@ int vn_lock(struct VNode *vnode, int flags)
             
       while(vnode->vlock.share_cnt != 0 || vnode->vlock.exclusive_cnt != 0) {
         TaskSleep(&vnode->vlock.rendez);
+      }
+
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
       }
 
       vnode->vlock.exclusive_cnt = 1;
@@ -337,6 +371,11 @@ int vn_lock(struct VNode *vnode, int flags)
       break;
 
     case VL_DRAIN:
+      if (vnode->vlock.is_draining == true) {
+        return -EINVAL;
+      }
+      
+      vnode->vlock.is_draining = true;
       while(vnode->vlock.exclusive_cnt != 0 && vnode->vlock.share_cnt != 0) {
         TaskSleep(&vnode->vlock.rendez);
       }
@@ -355,6 +394,7 @@ int vn_lock(struct VNode *vnode, int flags)
  */
 int vn_lock_init(struct VLock *vlock)
 {
+  vlock->is_draining = false;
   vlock->share_cnt = 0;
   vlock->exclusive_cnt = 0;
   InitRendez(&vlock->rendez);  

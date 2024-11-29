@@ -142,6 +142,8 @@ int sys_close(int fd)
 {
   struct Process *current;
   
+  Info("sys_close(fd:%d)", fd);
+  
   current = get_current_process();
   return do_close(current, fd);
 }
@@ -154,6 +156,8 @@ int do_close(struct Process *proc, int fd)
   struct Filp *filp;
   struct VNode *vnode;
   struct Pipe *pipe;
+
+  Info("do_close(fd:%d)", fd);
   
   filp = get_filp(proc, fd);
   
@@ -183,7 +187,6 @@ int do_close(struct Process *proc, int fd)
         }
       }
     }
-
 
     switch (filp->type) {
         case FILP_TYPE_VNODE:

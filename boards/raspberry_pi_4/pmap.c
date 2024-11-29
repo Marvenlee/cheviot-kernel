@@ -40,7 +40,7 @@
 /*
  *
  */
-static uint32_t pmap_calc_pa_bits(bits32_t flags)
+static uint32_t pmap_calc_pa_bits(int flags)
 {
   uint32_t pa_bits;
 
@@ -132,7 +132,7 @@ void pmap_write_l2(uint32_t *pt, int i, uint32_t data)
  * 4k page tables,  1k real PTEs,  3k virtual-page linked list and flags (packed
  * 12 bytes)
  */
-int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, bits32_t flags)
+int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, int flags)
 {
   struct Pmap *pmap;
   uint32_t *pt, *phys_pt;
@@ -260,7 +260,7 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
 /*
  * Change protections on a page
  */
-int pmap_protect(struct AddressSpace *as, vm_addr va, bits32_t flags)
+int pmap_protect(struct AddressSpace *as, vm_addr va, int flags)
 {
   struct Pmap *pmap;
   uint32_t *pt, *phys_pt;
@@ -309,7 +309,7 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, bits32_t flags)
 /*
  * Extract the physical address and flags associates with a virtual address
  */
-int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *flags)
+int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, int *flags)
 {
   struct Pmap *pmap;
   uint32_t *pt, *phys_pt;
@@ -728,7 +728,7 @@ int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, v
 {
   vm_addr bvaddr;
   vm_addr bpaddr;
-  uint32_t flags;
+  int flags;
   bool fault = false;
   uint32_t page_offset;
   

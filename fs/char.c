@@ -46,11 +46,8 @@
  */
 ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
 {
-  struct Process *current;
   ssize_t xfered = 0;
   int sc;
-  
-  current = get_current_process();
 
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
     return sc;
@@ -82,14 +79,11 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
  */
 ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
 {
-  struct Process *current;
   size_t remaining;
   ssize_t xfered = 0;
   ssize_t total_xfered = 0;  
   int sc;
   
-  current = get_current_process();
-
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
     return sc;
   }
@@ -147,6 +141,7 @@ int sys_isatty(int fd)
     return -EINVAL;
   }
 
+
   if (check_access(vnode, filp, R_OK) != 0) {
     return -EACCES;
   }
@@ -154,7 +149,7 @@ int sys_isatty(int fd)
   vn_lock(vnode, VL_SHARED);
 
   if (S_ISCHR(vnode->mode)) {
-    sc = vfs_isatty (vnode);    
+    sc = vfs_isatty(vnode);    
   } else {
   	sc = 0;
   }
@@ -237,13 +232,15 @@ int ioctl_tiocsctty(int fd, int arg)
 
   KASSERT(session->sid != INVALID_PID);
 
+  if (session->controlling_tty != NULL) {
+    vnode_put(session->controlling_tty);
+    session->controlling_tty = NULL;
+  }
+
   vnode->tty_sid = session->sid;
   session->controlling_tty = vnode;
   session->foreground_pgrp = current->pgid;
-  vnode_inc_ref(vnode);
-  
-  vnode_put(vnode);
-
+  vnode_add_reference(vnode);
   return 0;
 }
 
@@ -377,6 +374,7 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   }
 
   pgid = session->foreground_pgrp;
+
   vnode_put(vnode);
           
   if (CopyOut(_pgid, &pgid, sizeof *_pgid) != 0) {

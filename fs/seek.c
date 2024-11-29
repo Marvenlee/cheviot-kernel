@@ -33,7 +33,8 @@
  * FIXME: Limit block seeks to stat.block size multiples?
  * filp will need to either atomically set seek position or need locking if we remove BKL
  */
-off_t sys_lseek(int fd, off_t pos, int whence) {
+off_t sys_lseek(int fd, off_t pos, int whence)
+{
   struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;

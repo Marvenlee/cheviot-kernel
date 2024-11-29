@@ -106,13 +106,13 @@ int fork_process_fds(struct Process *newp, struct Process *oldp)
   new_fproc->current_dir = old_fproc->current_dir;
     
   if (new_fproc->current_dir != NULL) {
-    vnode_inc_ref(new_fproc->current_dir);
+    vnode_add_reference(new_fproc->current_dir);
   }
 
   new_fproc->root_dir = old_fproc->root_dir;
 
   if (new_fproc->root_dir != NULL) {
-    vnode_inc_ref(new_fproc->root_dir);
+    vnode_add_reference(new_fproc->root_dir);
   }
 
   for (int fd = 0; fd < OPEN_MAX; fd++) {          

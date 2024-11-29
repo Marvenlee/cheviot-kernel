@@ -51,10 +51,8 @@ void exec_root(void *arg)
   void *stack_pointer;
   void *stack_base;
   struct execargs args;
-  int8_t *pool;
-  void *ifs_base;
+  char *pool;
   void *ifs_exe_base;
-  struct AddressSpace *as;
 
   Info ("exec_root ...");
 
@@ -66,8 +64,6 @@ void exec_root(void *arg)
 
   current = get_current_process();
   current_thread = get_current_thread();
-  
-  as = &current->as;
 
   if ((pool = alloc_arg_pool()) == NULL) {
     Info("Root alloc arg pool failed");
@@ -127,7 +123,6 @@ int load_root_elf(void *file_base, void **entry_point)
   int32_t phdr_cnt;
   off_t phdr_offs, sec_offs;
   void *sec_addr;
-  void *sec_paddr;
   int32_t sec_file_sz;
   vm_size sec_mem_sz;
   uint32_t sec_prot;
@@ -289,17 +284,13 @@ int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_
   args->argv = argv;
   args->envv = envv;
   return 0;
-
-exit:
-  Info ("CopyInArgv failed");
-  return -EFAULT;
 }
 
 
 /*
  *
  */
-ssize_t read_ifs (void *base, off_t offset, void *vaddr, size_t sz)
+ssize_t read_ifs(void *base, off_t offset, void *vaddr, size_t sz)
 {
   memcpy(vaddr, base+offset, sz);
   

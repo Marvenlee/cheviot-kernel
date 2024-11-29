@@ -31,6 +31,10 @@
  * @param   oldpath, the path of the file or directory to rename
  * @param   newpath, the path to rename the file or directory to
  * @return  0 on success, negative errno on failure.
+ *
+ * TODO: Need to lookup both old and new directories.
+ * Need to lookup old last component vnode.
+ * Neeed to lookup old last component vnode in new directory
  */
 int sys_rename(char *oldpath, char *newpath)
 {
@@ -46,25 +50,19 @@ int sys_rename(char *oldpath, char *newpath)
   }
 
   if (is_mountpoint(oldl.vnode)) {
-	  vnode_put(oldl.vnode);
-	  vnode_put(oldl.parent);
+    lookup_cleanup(&oldl);
 	  return -EBUSY;
   }
 
   // TODO: check if sticky bit is set, only owner or root is allowed to rename
   
   if ((sc = lookup(newpath, LOOKUP_PARENT, &newl)) != 0) {
-    vnode_put(oldl.vnode);
-    vnode_put(oldl.parent);
+    lookup_cleanup(&oldl);
     return sc;
   }
 
   // Fail if vnode of new path already exists
   if (newl.vnode != NULL) {
-    vnode_put(oldl.vnode);
-    vnode_put(oldl.parent);
-    vnode_put(newl.parent);
-    vnode_put(newl.vnode);
     lookup_cleanup(&oldl);
     lookup_cleanup(&newl);
     return -EEXIST;
@@ -72,9 +70,6 @@ int sys_rename(char *oldpath, char *newpath)
 
   // Fail if not on the same device
   if (newl.parent->superblock != oldl.vnode->superblock) {
-    vnode_put(oldl.vnode);
-    vnode_put(oldl.parent);
-    vnode_put(newl.parent);
     lookup_cleanup(&oldl);
     lookup_cleanup(&newl);
     return -EXDEV;
@@ -85,7 +80,7 @@ int sys_rename(char *oldpath, char *newpath)
 	 */  	 
 	if (S_ISDIR(oldl.vnode->mode) && (oldl.parent != newl.parent)) {
     super_dvnode = newl.parent;
-    vnode_inc_ref(super_dvnode);    
+    vnode_add_reference(super_dvnode);    
 
     sc = 0;
     depth = 0;
@@ -130,13 +125,13 @@ int sys_rename(char *oldpath, char *newpath)
     if (newl.parent->nlink >= LINK_MAX) {
       sc = -EMLINK;
     }    
-	
+	  
+	  // FIXME: Do we need to vnode_put() super_dvnode or next_super_dvnode ?
+	  
 	  if (sc != 0) {
-      vnode_put(oldl.vnode);
-      vnode_put(oldl.parent);
-      vnode_put(newl.parent);
       lookup_cleanup(&oldl);
       lookup_cleanup(&newl);
+      return sc;
 	  }
 	}
 	
@@ -144,7 +139,8 @@ int sys_rename(char *oldpath, char *newpath)
 
   // If same dvnode, ensure only a single exclusive lock is held.
   // FIXME: I'm sure it's possible to deadlock this with multiple rename commands.
-  
+  // Do we need to lock the vnodes in kernel address order ?
+    
   if (oldl.parent == newl.parent) {
     vn_lock(newl.parent, VL_RELEASE);
     vn_lock(oldl.parent, VL_UPGRADE);
@@ -163,13 +159,9 @@ int sys_rename(char *oldpath, char *newpath)
   }
 
   vn_lock(oldl.vnode, VL_RELEASE);
-
-  vnode_put(oldl.vnode);
-  vnode_put(oldl.parent);
-  vnode_put(newl.parent);
+  
   lookup_cleanup(&oldl);
   lookup_cleanup(&newl);
-
   return sc;
 }
 

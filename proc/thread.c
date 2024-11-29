@@ -467,7 +467,6 @@ void free_thread_struct(struct Thread *thread)
  */ 
 void thread_reaper_task(void *arg)
 {
-  (void *)arg;
   struct Thread *thread;
   struct Process *proc;
 
