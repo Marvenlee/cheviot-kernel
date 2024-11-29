@@ -205,6 +205,7 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
   struct Pageframe *pf;
   struct SuperBlock *sb;
   vm_addr pa;
+  int h;
 
   while (1) {
     if ((buf = findblk(vnode, file_offset)) != NULL) {
@@ -242,15 +243,16 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
       buf->flags |= B_BUSY;
 
       if (buf->flags & B_VALID) {
-        LIST_REM_ENTRY(&buf_hash[buf->file_offset % BUF_HASH], buf, lookup_link);
+        h = calc_buf_hash(buf->vnode->inode_nr, buf->file_offset);
+        LIST_REM_ENTRY(&buf_hash[h], buf, hash_link);
       }
 
       buf->flags &= ~B_VALID;
       buf->vnode = vnode;
       buf->file_offset = file_offset;
       
-      LIST_ADD_HEAD(&buf_hash[buf->file_offset % BUF_HASH], buf,
-                    lookup_link);
+      h = calc_buf_hash(vnode->inode_nr, file_offset);
+      LIST_ADD_HEAD(&buf_hash[h], buf, hash_link);
 
       return buf;
     }
@@ -264,8 +266,12 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
  */
 void brelse(struct Buf *buf)
 {
+  int h;
+  
   if (buf->flags & (B_ERROR | B_DISCARD)) {
-    LIST_REM_ENTRY(&buf_hash[buf->file_offset % BUF_HASH], buf, lookup_link);
+    h = calc_buf_hash(buf->vnode->inode_nr, buf->file_offset);
+  
+    LIST_REM_ENTRY(&buf_hash[h], buf, hash_link);
     buf->flags &= ~(B_VALID | B_ERROR);
     buf->file_offset = 0;
     buf->vnode = NULL;
@@ -292,17 +298,28 @@ void brelse(struct Buf *buf)
 struct Buf *findblk(struct VNode *vnode, uint64_t file_offset)
 {
   struct Buf *buf;
-
-  buf = LIST_HEAD(&buf_hash[file_offset % BUF_HASH]);
+  int h;
+  
+  h = calc_buf_hash(vnode->inode_nr, file_offset);
+  buf = LIST_HEAD(&buf_hash[h]);
 
   while (buf != NULL) {
     if (buf->vnode == vnode && buf->file_offset == file_offset)
       return buf;
 
-    buf = LIST_NEXT(buf, lookup_link);
+    buf = LIST_NEXT(buf, hash_link);
   }
 
   return NULL;
+}
+
+
+/*
+ *
+ */
+int calc_buf_hash(ino_t inode_nr, off64_t file_offset)
+{
+  return (inode_nr + (file_offset / PAGE_SIZE)) % BUF_HASH;
 }
 
 

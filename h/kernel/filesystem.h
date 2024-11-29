@@ -111,7 +111,7 @@ struct Buf
   void *data;                     // Address of the page-sized buffer holding cached file data
 
   buf_link_t free_link;           // Free list entry
-  buf_link_t lookup_link;         // Hash table entry
+  buf_link_t hash_link;         // Hash table entry
 
   buf_link_t async_link;          // bawrite or bdflush LRU list entry  
 
@@ -353,14 +353,14 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access);
 bool match_supplementary_group(struct Process *proc, gid_t gid);
 
 // fs/block.c
-ssize_t read_from_block (struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
-ssize_t write_to_block (struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
+ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
+ssize_t write_to_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
 ssize_t read_from_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
 ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
 
 /* fs/cache.c */
-ssize_t read_from_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
-ssize_t write_to_cache (struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
+ssize_t read_from_cache(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
+ssize_t write_to_cache(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
 struct Buf *bread(struct VNode *vnode, off64_t file_offset);
 struct Buf *bread_zero(struct VNode *vnode, off64_t file_offset);
 int bwrite(struct Buf *buf);
@@ -369,6 +369,7 @@ int bdwrite(struct Buf *buf);
 void brelse(struct Buf *buf);
 struct Buf *getblk(struct VNode *vnode, uint64_t file_offset);
 struct Buf *findblk(struct VNode *vnode, uint64_t file_offset);
+int calc_buf_hash(ino_t inode_nr, off64_t file_offset);
 int bsync(struct VNode *vnode);
 int bsyncfs(struct SuperBlock *sb);
 int btruncate(struct VNode *vnode);
