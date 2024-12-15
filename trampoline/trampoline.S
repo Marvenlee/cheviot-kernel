@@ -158,6 +158,7 @@
 .equ ACT_IOV_OUT_SZ             48
 .equ SIZEOF_ACTIVATION,         52    
 
+// TODO: Align this up to cache line size so that 2 CPUs don't share the same cache lines.
 .equ SIZEOF_CPU,                (CPU_ACTIVATION + (NUM_PL * SIZEOF_ACTIVATION))
 
 

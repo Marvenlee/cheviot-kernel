@@ -14,7 +14,7 @@
  * limitations under the License.
  *
  * --
- * Open a file
+ * Open or create a file
  */
 
 //#define KDEBUG
@@ -101,6 +101,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       
   if (vnode == NULL) {
     if ((oflags & O_CREAT) && check_access(dvnode, NULL, W_OK) != 0) {
+      Error("Cannot O_CREAT, no write acces to directory");
       return -ENOENT;
     }
 
@@ -113,24 +114,24 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       return -ENOMEM;
     }
     
-    vn_lock(dvnode, VL_EXCLUSIVE);
+    rwlock(&dvnode->lock, LK_EXCLUSIVE);
     
     if ((sc = vfs_create(dvnode, ld->last_component, oflags, &stat, &vnode)) != 0) {
       Error("SysOpen vnode_put vfs_create");
-      vnode_put(dvnode);      
+      rwlock(&dvnode->lock, LK_RELEASE);
       return sc;
     }
     
-    vn_lock(dvnode, VL_RELEASE);
+    rwlock(&dvnode->lock, LK_RELEASE);
   }
   
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
    
   fd = alloc_fd_filp(current);
   
   if (fd < 0) {
     free_fd_filp(current, fd);
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(&vnode->lock, LK_RELEASE);
     return -ENOMEM;
   }
 
@@ -144,14 +145,14 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 #if 0
       if (check_access(vnode, filp, W_OK) != 0) {
         free_fd_filp(current, fd);
-        vn_lock(vnode, VL_RELEASE);
+        rwlock(&vnode->lock, LK_RELEASE);
         return -EACCES;
       }
 #endif
       if ((sc = vfs_truncate(vnode, 0)) != 0) {
         Error("SysOpen O_TRUNC failed, sc=%d", sc);
         free_fd_filp(current, fd);
-        vn_lock(vnode, VL_RELEASE);
+        rwlock(&vnode->lock, LK_RELEASE);
         return sc;
       }
     }
@@ -163,7 +164,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
     filp->offset = 0;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   vnode_add_reference(vnode);
   return fd;  
 }

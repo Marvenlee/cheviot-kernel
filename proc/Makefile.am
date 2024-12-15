@@ -7,6 +7,7 @@ kernel_SOURCES +=         \
   proc/privileges.c       \
   proc/proc.c             \
   proc/reboot.c           \
+  proc/rwlock.c           \
   proc/sched.c            \
   proc/signal.c           \
   proc/sleep_wakeup_bkl.c \

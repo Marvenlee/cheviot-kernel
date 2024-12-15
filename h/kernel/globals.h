@@ -128,6 +128,8 @@ extern struct Socket *socket_table;
 extern int max_superblock;
 extern struct SuperBlock *superblock_table;
 extern superblock_list_t free_superblock_list;
+extern superblock_list_t mounted_superblock_list;
+extern struct RWLock mounted_sb_list_lock;
 
 extern struct VNode *root_vnode;
 

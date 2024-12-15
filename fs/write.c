@@ -58,10 +58,10 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     return -EINVAL;
   }
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
   
   if (check_access(vnode, filp, W_OK) != 0) {
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(&vnode->lock, LK_RELEASE);
     return -EACCES;
   }
     
@@ -78,7 +78,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     xfered = -EINVAL;
   }  
   
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   return xfered;
 }
 
@@ -118,10 +118,10 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     return -EBADF;
   }
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
   
   if (check_access(vnode, filp, W_OK) != 0) {
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(&vnode->lock, LK_RELEASE);
     return -EACCES;
   }
 
@@ -135,7 +135,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     xfered = -EBADF;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   
   return xfered;
 }

@@ -581,11 +581,11 @@ int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cn
     return -EACCES;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(&vnode->lock, LK_SHARED);
 
   sc = vfs_sendmsg(vnode, subclass, siov_cnt, siov, riov_cnt, riov, sbuf_total_sz, rbuf_total_sz);
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   
   return sc;
 }

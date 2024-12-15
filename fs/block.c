@@ -68,6 +68,8 @@ ssize_t write_to_block(struct VNode *vnode, void *src, size_t sz, off64_t *offse
 {
 	size_t total_xfered = 0;
 
+  Info("write_to_block() inode_nr:%u, sz:%u", (uint32_t)vnode->inode_nr, (uint32_t)sz);
+
   while (total_xfered < sz) {
     size_t remaining = sz - total_xfered;
     ssize_t xfered = vfs_write(vnode, IPCOPY, src, remaining, offset);      

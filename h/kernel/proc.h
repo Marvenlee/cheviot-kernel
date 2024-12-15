@@ -270,7 +270,6 @@ int sys_getgroups(int gidsetsize, gid_t *grouplist);
 void init_ids(struct Process *proc);
 void fork_ids(struct Process *new_proc, struct Process *old_proc);
 
-
 // proc/pid.c
 pid_t sys_getpid(void);
 pid_t sys_getppid(void);
@@ -328,6 +327,10 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
 void free_process(struct Process *proc);
 struct Process *alloc_process_struct(void);
 void free_process_struct(struct Process *proc);
+
+// proc/rwlock.c
+int rwlock(struct RWLock *lock, int flags);
+int rwlock_init(struct RWLock *lock);
 
 // proc/sched.c
 void SchedLock(void);

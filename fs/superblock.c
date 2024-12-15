@@ -52,7 +52,8 @@ struct SuperBlock *get_superblock(struct Process *proc, int fd)
 }
 
 
-/*
+/* @brief   Allocate a file descriptor and superblock
+ *
  * Allocates a handle structure.  Checks to see that free_handle_cnt is
  * non-zero should already have been performed prior to calling alloc_fd().
  */
@@ -80,7 +81,8 @@ int alloc_fd_superblock(struct Process *proc)
 }
 
 
-/*
+/* @brief   Free a file descriptor and associated superblock
+ * 
  * Returns a handle to the free handle list.
  */
 int free_fd_superblock(struct Process *proc, int fd)
@@ -99,8 +101,10 @@ int free_fd_superblock(struct Process *proc, int fd)
 }
 
 
-/*
+/* @brief   Allocate a superblock structure
  *
+ * TODO: This places the superblock on the mounted superblock list.  We should have the
+ * mounted superblock list locked prior to do calling this.
  */
 struct SuperBlock *alloc_superblock(void)
 {
@@ -113,18 +117,24 @@ struct SuperBlock *alloc_superblock(void)
     return NULL;
   }
 
-  sb->reference_cnt = 1;
-
   LIST_REM_HEAD(&free_superblock_list, link);
+
   memset(sb, 0, sizeof *sb);
-  InitRendez (&sb->rendez);
-  
+ 
+  sb->reference_cnt = 1;
   sb->dev = 0xdead;
+  sb->flags = 0;
+  
+  InitRendez(&sb->bdflush_rendez);
+  rwlock_init(&sb->lock);
+
+  LIST_ADD_TAIL(&mounted_superblock_list, sb, link);
+
   return sb;
 }
 
 
-/*
+/* @brief   Free a superblock structure
  *
  */
 void free_superblock(struct SuperBlock *sb)
@@ -135,6 +145,9 @@ void free_superblock(struct SuperBlock *sb)
   
   if (sb->reference_cnt == 0) {
     // TODO: Wakeup anything block on rendez ?
+    // TODO: Upgrade lock to a "drain" lock.
+
+    LIST_REM_ENTRY(&mounted_superblock_list, sb, link);  
     LIST_ADD_TAIL(&free_superblock_list, sb, link);
   }
 }

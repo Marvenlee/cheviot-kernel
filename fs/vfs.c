@@ -101,6 +101,8 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode_hash_enter(vnode);
   } 
 
+  Info("vfs_lookup success: vnode:%08x, ino_nr:%u", (uint32_t)vnode, (uint32_t)vnode->inode_nr);
+
   *result = vnode;
   return 0;
 }
@@ -124,6 +126,8 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   KASSERT(dvnode != NULL);
   KASSERT(name != NULL);
   KASSERT(result != NULL);  
+
+  Info("vfs_create(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
   
   sb = dvnode->superblock;
   name_sz = StrLen(name) + 1;
@@ -147,10 +151,10 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
     return sc;
   }
 
-
   vnode = vnode_new(sb);
 
   if (vnode == NULL) {
+    Error("vfs_create, vnode_new -ENOMEM");
     *result = NULL;
     return -ENOMEM;
   }
@@ -168,6 +172,8 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   vnode->flags = V_VALID;
   vnode_hash_enter(vnode);
 
+  Error("vfs_create success, vnode:%08x, ino_nr:%u", (uint32_t)vnode, (uint32_t)vnode->inode_nr);
+    
   *result = vnode;
   return 0;
 }

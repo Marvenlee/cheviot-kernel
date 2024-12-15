@@ -61,10 +61,10 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
     return -EBADF;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(&vnode->lock, LK_SHARED);
   
   if (check_access(vnode, filp, R_OK) != 0) {
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(&vnode->lock, LK_RELEASE);
     return -EACCES;
   }
   
@@ -84,7 +84,7 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
     xfered = -EBADF;
   }
   
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   return xfered;
 }
 
@@ -113,10 +113,10 @@ ssize_t kread(int fd, void *dst, size_t sz)
     return -EBADF;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(&vnode->lock, LK_SHARED);
   
   if (check_access(vnode, filp, R_OK) != 0) {
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(&vnode->lock, LK_RELEASE);
     return -EACCES;
   }
   
@@ -126,7 +126,7 @@ ssize_t kread(int fd, void *dst, size_t sz)
     xfered = -EBADF;
   }
     
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   return xfered;
 }
 
@@ -166,10 +166,10 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     return -EBADF;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(&vnode->lock, LK_SHARED);
 
   if (check_access(vnode, filp, R_OK) != 0) {
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(&vnode->lock, LK_RELEASE);
     return -EACCES;
   }
 
@@ -183,7 +183,7 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     xfered = -EBADF;
   }
     
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   return xfered;
 }
 

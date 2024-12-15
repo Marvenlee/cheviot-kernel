@@ -43,7 +43,7 @@
  *    Efficient Implementation of a Timer Facility" by G Varghese & T,Lauck
  */
 
-#define KDEBUG 1
+//#define KDEBUG 1
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>

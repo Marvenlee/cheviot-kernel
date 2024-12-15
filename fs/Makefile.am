@@ -5,6 +5,7 @@ kernel_SOURCES += \
   fs/block.c \
   fs/cache.c \
   fs/char.c \
+  fs/close.c \
   fs/dir.c \
   fs/dnlc.c \
   fs/exec.c \

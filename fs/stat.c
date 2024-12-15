@@ -44,7 +44,7 @@ int sys_stat(char *_path, struct stat *_stat) {
     return sc;
   }
 
-//  vn_lock(ld.vnode, VL_SHARED);
+//  rwlock(ld.vnode, LK_SHARED);
   
   stat.st_dev = ld.vnode->superblock->dev;
   stat.st_ino = ld.vnode->inode_nr;
@@ -71,7 +71,7 @@ int sys_stat(char *_path, struct stat *_stat) {
 		stat.st_blksize = 0;
 	}
 
-//  vn_lock(ld.vnode, VL_RELEASE);
+//  rwlock(ld.vnode, LK_RELEASE);
 
   if (CopyOut(_stat, &stat, sizeof stat) != 0) {
     sc = -EFAULT;
@@ -107,7 +107,7 @@ int sys_fstat(int fd, struct stat *_stat) {
     return -EINVAL;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(vnode, LK_SHARED);
   
   stat.st_dev = vnode->superblock->dev;
   stat.st_ino = vnode->inode_nr;
@@ -133,7 +133,7 @@ int sys_fstat(int fd, struct stat *_stat) {
 		stat.st_blksize = 0;
 	}
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(vnode, LK_RELEASE);
 
   if (_stat == NULL || CopyOut(_stat, &stat, sizeof stat) != 0) {
     return -EFAULT;

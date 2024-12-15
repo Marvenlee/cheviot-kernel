@@ -146,7 +146,7 @@ int sys_isatty(int fd)
     return -EACCES;
   }
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(&vnode->lock, LK_SHARED);
 
   if (S_ISCHR(vnode->mode)) {
     sc = vfs_isatty(vnode);    
@@ -154,7 +154,7 @@ int sys_isatty(int fd)
   	sc = 0;
   }
   
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   return sc;
 }

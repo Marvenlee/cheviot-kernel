@@ -286,8 +286,16 @@ swi_vector:
     MEnableInterrupts
     
     ldr lr, [sp, #CONTEXT_PC]
-    ldr r7, [lr, #-4]                   // Get syscall nr and check range  (possible to fault, hence getting lock beforehand
-    bic r7,r7, #0xff000000              // Eventually handle thumb mode.
+    ldr r7, [lr, #-4]                   // FIXME: Get syscall nr and check range  
+                                        // We're accessing the SWI instruction in user space,
+                                        // It is possible to fault and we don't have a safe
+                                        // way of catching this. This can happen if we are
+                                        // preempted and the mapping is removed. That is not
+                                        // currently possible as we grab the kernel lock.
+                                        // We would have also caused a prefetch fault from user
+                                        // space if the page with the swi instruction was not mapped.
+                                        // Prefer to use another register as the syscall index.                        
+    bic r7,r7, #0xff000000              // Assumes non-thumb, eventually handle thumb mode.
 
     cmp r7, #MAX_SYSCALL
     movgt r7, #UNKNOWN_SYSCALL

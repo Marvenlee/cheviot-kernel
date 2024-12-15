@@ -220,7 +220,7 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
         buf->flags &= ~(B_ASYNC);
         sb = buf->vnode->superblock;
   
-        LIST_REM_ENTRY(&sb->pendwri_buf_list, buf, async_link);
+        LIST_REM_ENTRY(&vnode->pendwri_buf_list, buf, async_link);
       }
 
 
@@ -228,7 +228,7 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
         buf->flags &= ~(B_DELWRI);
         sb = buf->vnode->superblock;
   
-        LIST_REM_ENTRY(&sb->delwri_buf_list, buf, async_link);
+        LIST_REM_ENTRY(&vnode->delwri_buf_list, buf, async_link);
       }
       
       return buf;
@@ -242,6 +242,7 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
       LIST_REM_HEAD(&buf_avail_list, free_link);
       buf->flags |= B_BUSY;
 
+      // Buf is valid, not dirty
       if (buf->flags & B_VALID) {
         h = calc_buf_hash(buf->vnode->inode_nr, buf->file_offset);
         LIST_REM_ENTRY(&buf_hash[h], buf, hash_link);
@@ -272,7 +273,7 @@ void brelse(struct Buf *buf)
     h = calc_buf_hash(buf->vnode->inode_nr, buf->file_offset);
   
     LIST_REM_ENTRY(&buf_hash[h], buf, hash_link);
-    buf->flags &= ~(B_VALID | B_ERROR);
+    buf->flags = 0;
     buf->file_offset = 0;
     buf->vnode = NULL;
 
@@ -336,7 +337,6 @@ int calc_buf_hash(ino_t inode_nr, off64_t file_offset)
  * In the current implementation the cache's block size is 4 Kb.
  * A block read will be of this size. If the block is at the end of the
  * file the remaining bytes after the end will be zero.
- *
  */
 struct Buf *bread(struct VNode *vnode, off64_t file_offset)
 {
@@ -401,29 +401,30 @@ struct Buf *bread_zero(struct VNode *vnode, off64_t file_offset)
  * 
  * @param   buf, buffer to write
  * @return  0 on success, negative errno on failure
- *
- * FIXME: Work out file size here.  Send only upto file size.
- *
- * FIXME:File size is sent with the command, so it can write less than a cluster_sz to disk
- * Or we keep track of physical block size and how many physical blocks are valid
- * in cache block.  Harder for sparse files unless we have a bitmap.
  */
 int bwrite(struct Buf *buf)
 {
   ssize_t xfered;
   struct VNode *vnode;
   off64_t file_offset;
+  off_t nbytes_to_write;
   
   buf->flags = (buf->flags | B_WRITE) & ~(B_READ | B_ASYNC);
   vnode = buf->vnode;
   file_offset = buf->file_offset;
 
-  // FIXME: Only write a partial cluster if this is last cluster
-  xfered = vfs_write(vnode, KUCOPY, buf->data, PAGE_SIZE, &file_offset);
+  if ((vnode->size - buf->file_offset) < PAGE_SIZE) {
+    nbytes_to_write = vnode->size % PAGE_SIZE;
+  } else {
+    nbytes_to_write = PAGE_SIZE;
+  }
 
-  if (xfered != PAGE_SIZE) {
+  xfered = vfs_write(vnode, KUCOPY, buf->data, nbytes_to_write, &file_offset);
+
+  if (xfered != nbytes_to_write) {
     buf->flags |= B_ERROR;
   }
+  
   if (buf->flags & B_ERROR) {
     brelse(buf);
     return -1;
@@ -446,8 +447,8 @@ int bwrite(struct Buf *buf)
  * This is called when a write will reaches the end of a block
  * with the expectation that further writes will be in another block.
  *
- * This is placed on the superblock's bawrite list and will be sent
- * to the driver by the superblock's flush task.  It will also
+ * This is placed on the superblock's pending write list and will be sent
+ * to the driver by the superblock's bdflush task.  It will also
  * be released by the sb_flush task.
  */
 int bawrite(struct Buf *buf)
@@ -461,7 +462,7 @@ int bawrite(struct Buf *buf)
   buf->flags = (buf->flags | B_WRITE | B_ASYNC) & ~(B_READ | B_DELWRI);
 
   buf->expiration_time = get_hardclock();  
-  LIST_ADD_TAIL(&sb->pendwri_buf_list, buf, async_link);
+  LIST_ADD_TAIL(&vnode->pendwri_buf_list, buf, async_link);
   TaskWakeup(&sb->bdflush_rendez);
   return 0;
 }
@@ -476,55 +477,25 @@ int bawrite(struct Buf *buf)
  * to be written again soon so schedule it to be written out after a
  * short delay.
  *
- * A bdwrite block is released immediately so that further writes
- * can happen.
- *
+ * A bdwrite block is marked as dirty but is released immediately so
+ * that further writes can happen.  The block is placed on the vnode's
+ * list of dirty buffers. This list is periodically scanned by the
+ * superblock's bdflush task and written to disk.
  */
 int bdwrite(struct Buf *buf)
 {
-  struct SuperBlock *sb;
   struct VNode *vnode;
   
   vnode = buf->vnode;
-  sb = vnode->superblock;
 
   buf->flags = (buf->flags | B_WRITE | B_DELWRI) & ~(B_READ | B_ASYNC);
 
   buf->expiration_time = get_hardclock() + DELWRI_DELAY_TICKS;
 
-  LIST_ADD_TAIL(&sb->delwri_buf_list, buf, async_link);
+  LIST_ADD_TAIL(&vnode->delwri_buf_list, buf, async_link);
   brelse(buf);
   
   return 0;
-}
-
-
-/* @brief   Write out all cached blocks of a file
- *
- * @param   vnode, file to write dirty cached blocks to disk
- * @return  0 on success, negative errno on failure.
- */
-int bsync(struct VNode *vnode)
-{
-  // Find all blocks in cache belonging to file, immediately write out.
-  // What if blocks are busy, wait?
-  
-  // Do we notify the bdflush_task ?
-  
-  return -ENOSYS;
-}
-
-
-/* @brief   Write out all cached blocks of a mounted filesystem.
- * 
- * @param   sb, superblock of mounted filesystem to sync contents of
- * @return  0 on success, negative errno on failure
- */
-int bsyncfs(struct SuperBlock *sb)
-{
-  // Do we notify the bdflush_task ?
-
-  return -ENOSYS;
 }
 
 
@@ -533,30 +504,221 @@ int bsyncfs(struct SuperBlock *sb)
  * @param   vnode, file to resize
  * @return  0 on success, negative errno on failure
  *
- * The new size must already be set within the vnode structure
- * Delete bufs if needed. Erase partial buf of last block to avoid
- * leakage of past data.  
+ * Removes any buffers in the cache whose offset is beyond the current file size.
+ * If the end of the file is partially within a buffer then the buffer is kept but
+ * the remainder of the buffer is wiped clean.
+ * 
+ * The new size must already be set within the vnode structur and the vnode
+ * should already have an exclusive lock.
  */
 int btruncate(struct VNode *vnode)
 {
-  return -ENOSYS;
+  struct Buf *buf;
+  struct Buf *next;
+  
+  Info("btruncate() inode_nr:%u, size:%u", (uint32_t)vnode->inode_nr, (uint32_t)vnode->size);
+  
+  buf = LIST_HEAD(&vnode->buf_list);
+  
+  while(buf != NULL) {
+    // vnode is locked, does this mean all bufs are NOT BUSY ?
+    // FIXME: do we need to take_buf() so that we have a lock on it ?????
+  
+    next = LIST_NEXT(buf, vnode_link); 
+  
+    if (vnode->size <= buf->file_offset) {
+      // Remove buf from file, mark as free
+      bdiscard(buf);
+    } else if ((vnode->size - buf->file_offset) < PAGE_SIZE) {
+      // Clear partial buf at end of file, mark as dirty
+      off_t cluster_offset = vnode->size - buf->file_offset;
+      off_t remaining = PAGE_SIZE - cluster_offset;
+      
+      memset(buf->data + cluster_offset, 0, remaining);
+      bawrite(buf);
+    }
+      
+    buf = next;
+  }  
+
+  return 0;
 }
 
 
-/* @brief   Dynamically change the size of the filesystem cache
- */
-size_t resize_cache(size_t free)
-{
-  // Find out how much we need
-  // while (cache_shrink_busy)
-  // cond_wait();
-
-  return -ENOSYS;
-}
-
-
-/*
+/* @brief   Discard a buffer in the cache, removing it from a vnode
  *
+ * @param   buf, buffer to discard
+ * @return  0 on success, negative errno on failure
+ *
+ * TODO: Remove buffer from any vnode lists it is on.
+ */
+int bdiscard(struct Buf *buf)
+{
+  buf->flags |= B_DISCARD;
+  brelse(buf);
+  return 0;
+}
+ 
+
+/* @brief   Write out all cached blocks of a file
+ *
+ * @param   vnode, file to write dirty cached blocks to disk
+ * @param   now, write out blocks that have an expiry time less than 'now' ticks
+ * @return  0 on success, negative errno on failure.
+ *
+ * Find all dirty blocks in cache belonging to file, immediately write out.
+ *
+ * The vnode must be exclusive locked prior to performing bsync
+ * so that the dirty buf list cannot be modified by other tasks.
+ * 
+ * There are 2 queues:
+ *
+ * delayed_writes   - blocks to be written out at a later time. These are
+ *                    blocks written with bdwrite and are expected to be
+ *                    written again soon. Blocks can be removed from this
+ *                    and written again.
+ *                    bsync() removes a number of blocks from this list
+ *                    that have been dirty for several seconds and places
+ *                    them on the pending_writes list.
+ *
+ * pending_writes   - buffers queued for writing out to disk. Blocks cannot
+ *                    be removed from this list. All async bawrite() buffers 
+ *                    are placed immediately at the end of this list. Delayed
+ *                    bdwrite() buffers are placed on this list by the
+ *                    call to bsync().
+ *
+ * All bawrite blocks are written out as they will all have expired.  A
+ * number of dirty blocks from bdwrite() that have not been written for
+ * a few seconds will be written out and marked as not-dirty.
+ *
+ * TODO: We could do some processing in here to sort blocks and write out
+ * larger runs of blocks as a multipart IOV message.
+ * 
+ * If a block is on the dirty buffer list then by definition it is not busy
+ */
+int bsync(struct VNode *vnode, uint64_t now)
+{
+  int saved_sc = 0;
+  struct Buf *buf;
+  off_t nbytes_to_write;
+      
+  while((buf = bgetdirtybuf(vnode, now)) != NULL) {
+    LIST_ADD_TAIL(&vnode->pendwri_buf_list, buf, async_link);
+
+    buf->flags &= ~B_DELWRI;  
+    buf->flags |= B_BUSY | B_ASYNC | B_WRITE;
+  }
+    
+  while ((buf = LIST_HEAD(&vnode->pendwri_buf_list)) != NULL) {  
+    LIST_REM_HEAD(&vnode->pendwri_buf_list, async_link);
+    if ((vnode->size - buf->file_offset) < PAGE_SIZE) {
+      nbytes_to_write = vnode->size % PAGE_SIZE;
+    } else {
+      nbytes_to_write = PAGE_SIZE;
+    }
+
+    int sc = vfs_write(vnode, KUCOPY, buf->data, nbytes_to_write, NULL);
+
+    if (sc != 0 && saved_sc == 0) {
+      saved_sc = sc;
+    }
+
+    brelse(buf);
+  }
+    
+  return saved_sc;
+}
+
+
+/* @brief   Write out all cached blocks of a mounted filesystem.
+ * 
+ * @param   sb, superblock of mounted filesystem to sync contents of
+ * @param   now, write out blocks that have an expiry time less than 'now' ticks
+ * @return  0 on success, negative errno on failure
+ *
+ * Goes through the superblock's list of vnodes and writes out dirty
+ * blocks of each vnode tha .
+ */
+int bsyncfs(struct SuperBlock *sb, uint64_t now)
+{
+  int saved_sc = 0;  
+  struct VNode *vnode;
+  
+  rwlock(&sb->lock, LK_EXCLUSIVE);             //For locking vnode mount list
+                                                // But does it also protect vnode->buf_list ?
+  vnode = LIST_HEAD(&sb->vnode_list);
+  
+  while (vnode != NULL) {
+    rwlock(&vnode->lock, LK_EXCLUSIVE);
+    int sc = bsync(vnode, now);
+    rwlock(&vnode->lock, LK_RELEASE);
+    
+    if (sc != 0 && saved_sc == 0) {
+      saved_sc = sc;
+    }
+    
+    vnode = LIST_NEXT(vnode, vnode_link);
+  }
+  
+  rwlock(&sb->lock, LK_RELEASE);
+
+  TaskWakeupAll(&sb->bdflush_rendez);
+  
+  return saved_sc;
+}
+
+
+/* @brief   Per-Superblock kernel task for flushing async and delayed writes to disk
+ *
+ * @param   arg, pointer to the superblock
+ */
+void bdflush_task(void *arg)
+{
+	struct SuperBlock *sb;
+  uint64_t now;
+  struct timespec timeout;
+  
+	sb = (struct SuperBlock *)arg;
+	
+  while((sb->flags & SF_ABORT) == 0) {
+  	now = get_hardclock();  	
+    bsyncfs(sb, now);
+
+    timeout.tv_sec = 1;
+    timeout.tv_nsec = 0;
+    TaskSleepInterruptible(&sb->bdflush_rendez, &timeout, INTRF_NONE);
+  }  
+}
+
+
+/* @brief   Get a block marked as dirty for the current vnode.
+ *
+ * @param   vnode, vnode to get a dirty block from
+ * @param   now, get a block with an expiry time less than 'now' ticks
+ * @return  A buffer that is dirty or NULL if no buffers due to expire
+ */
+struct Buf *bgetdirtybuf(struct VNode *vnode, uint64_t now)
+{
+  struct Buf *buf;
+  
+  buf = LIST_HEAD(&vnode->delwri_buf_list);
+  
+  if (buf != NULL) {
+    if (buf->expiration_time <= now) {
+      LIST_REM_HEAD(&vnode->delwri_buf_list, async_link);
+            
+      buf->flags |= B_BUSY | B_WRITE;
+      buf->flags &= ~B_DELWRI;
+      return buf;
+    }
+  }
+
+  return NULL;
+}
+
+
+/* @brief   Create a kernel task to periodically flush a filesystem's dirty blocks
+ * 
  */
 int init_superblock_bdflush(struct SuperBlock *sb)
 {
@@ -570,115 +732,28 @@ int init_superblock_bdflush(struct SuperBlock *sb)
     Info("bd_flush initialization failed");
     return -ENOMEM;
   }
-
-  Info("bd_flush initialization OK");
   
   return 0;
 }
 
 
-/*
+/* @brief   Shutdown the bdflush kernel task of a filesystem
  *
+ * @param   sb, superblock of the bdflush task to stop
+ * @param   how, option to control how the task is stopped
+ *
+ * TODO: Set how this should be shutdown, flush all or abort immediately.
  */
 void fini_superblock_bdflush(struct SuperBlock *sb, int how)
 { 
-  // TODO: Set how this should be shutdown, flush all or abort immediately.
+  sb->flags |= SF_ABORT;
   TaskWakeup(&sb->bdflush_rendez);
-  
-  // TODO: wait for bdflush thread to exit.
-}
 
-
-
-/* @brief   Per-Superblock kernel task for flushing async and delayed writes to disk
- *
- * TODO: Maybe have some fair share between async writes and delwri blocks?
- *
- * pending_writes   - anything that is expired is placed on this
- *                  - all async writes are placed on end of this  (do not brelse these in bawrite)
- *
- * delayed_writes   - blocks to be written out at a later time (already brelsed)
-    // Either fixed rate timeout or dynamic based on next delwrite buf.
-    // Maybe a minimum delay.  Handle cases if timeout is negative.
-    // Initially try fixed rate.
-    
-
- */
-void bdflush_task(void *arg)
-{
-	struct SuperBlock *sb;
-	struct Buf *buf;
-  uint64_t now;
-  struct timespec timeout;
-  
-  Info("bdflush_task started");
-  
-	sb = (struct SuperBlock *)arg;
-	
-  while((sb->flags & S_ABORT) == 0) {
-  	now = get_hardclock();
-  
-    while ((buf = get_bdwrite_buf(sb, now)) != NULL) {      
-      LIST_ADD_TAIL(&sb->pendwri_buf_list, buf, async_link);
-    }
-      
-    while ((buf = get_pending_write_buf(sb)) != NULL) {      
-      if (buf) {
-            
-        vfs_write(buf->vnode, KUCOPY, buf->data, PAGE_SIZE, NULL);
-        brelse(buf);      
-      }
-    }
-
-    timeout.tv_sec = 1;
-    timeout.tv_nsec = 0;
-    
-    TaskSleepInterruptible(&sb->bdflush_rendez, &timeout, INTRF_NONE);
-  }
-}
-
-
-/*
- *
- */
-struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now)
-{
-  struct Buf *buf;
-  
-  buf = LIST_HEAD(&sb->delwri_buf_list);
-  
-  if (buf != NULL) {
-    if (buf->expiration_time <= now) {
-      LIST_REM_HEAD(&sb->delwri_buf_list, async_link);
-      buf->flags |= B_BUSY | B_WRITE;
-      buf->flags &= ~B_DELWRI;
-      return buf;
-    }
-  }
-
-  return NULL;
-}
-
-
-/*
- *
- */
-struct Buf *get_pending_write_buf(struct SuperBlock *sb)
-{
-  struct Buf *buf;
-  
-  buf = LIST_HEAD(&sb->pendwri_buf_list);
-  
-  if (buf != NULL) {
-    LIST_REM_HEAD(&sb->pendwri_buf_list, async_link);
-    buf->flags |= B_BUSY | B_WRITE;
-    buf->flags &= ~(B_ASYNC | B_DELWRI);
-
-    return buf;
+  if (sb->bdflush_thread != NULL) {
+    do_join_thread(sb->bdflush_thread, NULL);
   }
   
-  return NULL;
+  sb->bdflush_thread = NULL;
 }
-
 
 

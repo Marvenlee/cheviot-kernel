@@ -54,7 +54,7 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
     return -EINVAL;
   }
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
   
   switch (cmd)
   {
@@ -111,7 +111,7 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
       break;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   Error("iotctl - returned %d", sc);
   return sc;

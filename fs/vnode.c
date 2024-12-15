@@ -38,7 +38,7 @@ struct VNode *get_fd_vnode(struct Process *proc, int fd)
 {
   struct Filp *filp;
 
-  Info("get_fd_vnode(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+//  Info("get_fd_vnode(proc:%08x, fd:%d)", (uint32_t)proc, fd);
 
   KASSERT(proc != NULL);
 
@@ -86,6 +86,20 @@ int close_vnode(struct Process *proc, int fd)
     return -EINVAL;  
   }
 
+  if (S_ISREG(vnode->mode)) {
+    Info("sync on close");
+    bsync(vnode, BSYNC_ALL_NOW);
+    
+    
+  } else if (S_ISFIFO(vnode->mode)) {
+    pipe = vnode->pipe;
+    if (filp->flags & O_RDONLY) {
+      pipe->reader_cnt--;
+    } else {
+      pipe->writer_cnt--;
+    }
+  }
+  
   vnode_put(vnode);
   free_fd_filp(proc, fd);
   
@@ -120,9 +134,9 @@ struct VNode *vnode_new(struct SuperBlock *sb)
   LIST_REM_HEAD(&vnode_free_list, vnode_link);
 
   if (vnode->flags & V_VALID) {
-    vn_lock(vnode, VL_EXCLUSIVE);
-    bsync(vnode);
-    vn_lock(vnode, VL_RELEASE);
+    rwlock(vnode, LK_EXCLUSIVE);
+    bsync(vnode, BSYNC_ALL_NOW);
+    rwlock(vnode, LK_RELEASE);
     vnode->flags = 0;
   }
   
@@ -130,7 +144,7 @@ struct VNode *vnode_new(struct SuperBlock *sb)
   
   InitRendez(&vnode->rendez);
 
-  vn_lock_init(&vnode->vlock);
+  rwlock_init(&vnode->lock);
   
   vnode->inode_nr = -1;
   vnode->reference_cnt = 1;
@@ -160,8 +174,12 @@ struct VNode *vnode_new(struct SuperBlock *sb)
   vnode->nlink = 0;  // hard links count
     
   LIST_INIT(&vnode->buf_list);
-  LIST_INIT(&vnode->vnode_list);
-  LIST_INIT(&vnode->directory_list);
+  LIST_INIT(&vnode->pendwri_buf_list);
+  LIST_INIT(&vnode->delwri_buf_list);
+
+  LIST_INIT(&vnode->dname_list);
+  LIST_INIT(&vnode->directory_dname_list);
+
   LIST_INIT(&vnode->knote_list);
   
   return vnode;
@@ -174,11 +192,11 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
 
-  Info("vnode_get(sb:%08x, fd:%d)", (uint32_t)sb, fd);
+//  Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
 
   KASSERT(sb != NULL);
 
-  if (sb->flags & S_ABORT) {
+  if (sb->flags & SF_ABORT) {
     return NULL;
   }
   
@@ -221,7 +239,7 @@ void vnode_add_reference(struct VNode *vnode)
  */
 void vnode_put(struct VNode *vnode)
 {
-  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
+//  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
 
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
@@ -268,7 +286,7 @@ void vnode_discard(struct VNode *vnode)
 
 // sb->reference_cnt--;
 
-  vn_lock_init(&vnode->vlock);
+  rwlock_init(&vnode->lock);
 
   TaskWakeupAll(&vnode->rendez);
 }
@@ -335,124 +353,4 @@ void vnode_hash_remove(struct VNode *vnode)
 
 
 
-
-/* @brief   VNode lock acquisition and release
- *
- */
-int vn_lock(struct VNode *vnode, int flags)
-{
-  int request;
-
-  KASSERT(vnode != NULL);
-  
-  request = flags & VN_LOCK_REQUEST_MASK;
-  
-  switch(request) {
-    case VL_EXCLUSIVE:
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-
-      while (vnode->vlock.exclusive_cnt != 0 || vnode->vlock.share_cnt != 0) {
-        TaskSleep(&vnode->vlock.rendez);
-      }
-
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-      
-      vnode->vlock.exclusive_cnt = 1;
-      break;
-
-    case VL_SHARED:
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-
-      while (vnode->vlock.exclusive_cnt == 1) {
-        TaskSleep(&vnode->vlock.rendez);
-      }
-
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-      
-      vnode->vlock.share_cnt++;
-      break;
-
-    case VL_UPGRADE:
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-
-      if (vnode->vlock.exclusive_cnt == 1) {
-        return -EINVAL;
-      }
-    
-      if (vnode->vlock.share_cnt > 0) {
-        vnode->vlock.share_cnt--;
-      }
-            
-      while(vnode->vlock.share_cnt != 0 || vnode->vlock.exclusive_cnt != 0) {
-        TaskSleep(&vnode->vlock.rendez);
-      }
-
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-
-      vnode->vlock.exclusive_cnt = 1;
-      break;
-
-    case VL_DOWNGRADE:
-      if (vnode->vlock.exclusive_cnt == 1) {
-        vnode->vlock.exclusive_cnt = 0;
-        vnode->vlock.share_cnt++;
-      } else {
-        return -EINVAL;
-      }            
-      break;
-
-    case VL_RELEASE:
-      if (vnode->vlock.share_cnt > 0) {
-        vnode->vlock.share_cnt--;
-      } else if (vnode->vlock.exclusive_cnt == 1) {
-        vnode->vlock.exclusive_cnt = 0;
-      }
-      
-      if (vnode->vlock.exclusive_cnt == 0 || vnode->vlock.share_cnt == 0) {
-        TaskWakeupAll(&vnode->vlock.rendez);
-      }
-      break;
-
-    case VL_DRAIN:
-      if (vnode->vlock.is_draining == true) {
-        return -EINVAL;
-      }
-      
-      vnode->vlock.is_draining = true;
-      while(vnode->vlock.exclusive_cnt != 0 && vnode->vlock.share_cnt != 0) {
-        TaskSleep(&vnode->vlock.rendez);
-      }
-      break;
-
-    default:
-      return -EINVAL;      
-  }
-  
-  return 0;
-}
-
-
-/* @brief   VNode lock initialization
- *
- */
-int vn_lock_init(struct VLock *vlock)
-{
-  vlock->is_draining = false;
-  vlock->share_cnt = 0;
-  vlock->exclusive_cnt = 0;
-  InitRendez(&vlock->rendez);  
-  return 0;
-}
 

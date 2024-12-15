@@ -158,8 +158,11 @@ int sys_renamemount(char *_new_path, char *_old_path)
 }
 
 
-/*
+/* @brief   Check if a filesystem path is a mount point.
  *
+ * @return  1 if it is a mount point
+ *          0 if it is not a mount point
+ *          negative errno on failure
  */
 int sys_ismount(char *_path)
 {
@@ -186,17 +189,12 @@ int sys_ismount(char *_path)
 }
 
 
-/*
+/* @brief   Check if a vnode is a mount point for a filesystem or device
  *
- */
-int sys_unmount(char *_path, uint32_t flags)
-{
-  return -ENOSYS;
-}
-
-
-/*
+ * @return  true if it is a mount point, false otherwise
  *
+ * This checks if either the vnode is mounted on top of another or if
+ * another vnode is mounted on top of this vnode.
  */
 bool is_mountpoint(struct VNode *vnode)
 {

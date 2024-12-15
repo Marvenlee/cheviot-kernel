@@ -54,17 +54,17 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
     return -EEXIST;
   }
 
-  vn_lock(ld.parent, VL_EXCLUSIVE);
+  rwlock(&ld.parent->lock, LK_EXCLUSIVE);
 
   sc = vfs_mknod(ld.parent, ld.last_component, &stat);
 
   if (sc != 0) {
-    vn_lock(ld.parent, VL_RELEASE);    
+    rwlock(&ld.parent->lock, LK_RELEASE);    
     lookup_cleanup(&ld);
     return -ENOMEM;  
   }
 
-  vn_lock(ld.parent, VL_RELEASE);
+  rwlock(&ld.parent->lock, LK_RELEASE);
 
   lookup_cleanup(&ld);
   return sc;

@@ -108,12 +108,12 @@ int sys_pipe(int *_fd)
     return -ENOMEM;
   }
   
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
 
   fd[0] = alloc_fd_filp(current);
 
   if (fd[0] < 0) {
-    vn_lock(vnode, VL_DRAIN);
+    rwlock(&vnode->lock, LK_DRAIN);
     vnode_discard(vnode);
     free_pipe(pipe);
     return -ENOMEM;
@@ -122,7 +122,7 @@ int sys_pipe(int *_fd)
   fd[1] = alloc_fd_filp(current);
   if (fd[1] < 0) {
     free_fd_filp(current, fd[0]);
-    vn_lock(vnode, VL_DRAIN);
+    rwlock(&vnode->lock, LK_DRAIN);
     vnode_discard(vnode);
     free_pipe(pipe);
     return -ENOMEM;
@@ -151,7 +151,7 @@ int sys_pipe(int *_fd)
   vnode->flags = V_VALID;
   vnode_hash_enter(vnode);
     
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   if (CopyOut(_fd, fd, sizeof fd) != 0) {
     Info("Pipe, failed, EFAULT");

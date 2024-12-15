@@ -29,6 +29,9 @@ struct VNode *root_vnode;
 int max_superblock;
 struct SuperBlock *superblock_table;
 superblock_list_t free_superblock_list;
+superblock_list_t mounted_superblock_list;
+struct RWLock mounted_sb_list_lock;
+
 
 int max_vnode;
 struct VNode *vnode_table;

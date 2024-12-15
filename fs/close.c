@@ -22,43 +22,63 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <poll.h>
 #include <string.h>
 
-/* @brief   Resize an open file
+
+/* @brief   close system call
  *
  */
-int sys_truncate(int fd, size_t sz)
+int sys_close(int fd)
 {
   struct Process *current;
-  struct VNode *vnode = NULL;
-  int sc = 0;
-
-  current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
-
-  if (vnode == NULL) {
-    return -EINVAL;
-  }
-
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
   
-  if (!S_ISREG(vnode->mode)) {
-    Error("truncate: vnode is not reg file!");
-    rwlock(&vnode->lock, LK_RELEASE);
+  Info("sys_close(fd:%d)", fd);
+  
+  current = get_current_process();
+  return do_close(current, fd);
+}
+
+
+/* @brief   close a file descriptor in a specific process
+ */
+int do_close(struct Process *proc, int fd)
+{
+  struct Filp *filp;
+  struct VNode *vnode;
+  struct Pipe *pipe;
+
+  Info("do_close(fd:%d)", fd);
+
+  
+  filp = get_filp(proc, fd);
+  
+  if (filp == NULL) {
     return -EINVAL;
   }
-
-  if ((sc = vfs_truncate(vnode, 0)) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return sc;
+  
+  filp->reference_cnt--;  
+  
+  KASSERT(filp->reference_cnt >= 0);
+  
+  if (filp->reference_cnt == 0) {  
+    switch (filp->type) {
+        case FILP_TYPE_VNODE:
+        close_vnode(proc, fd);
+        break;
+      case FILP_TYPE_SUPERBLOCK:
+        close_msgport(proc, fd);
+        break;
+      case FILP_TYPE_KQUEUE:
+        close_kqueue(proc, fd);
+        break;
+      default:
+        KernelPanic();
+    }
   }
 
-  // TODO: Check if size has gone up or down.
-  knote(&vnode->knote_list, NOTE_EXTEND | NOTE_ATTRIB);
-
-  rwlock(&vnode->lock, LK_RELEASE);
-
+  
+  free_fd(proc, fd);
+  
   return 0;
 }
 

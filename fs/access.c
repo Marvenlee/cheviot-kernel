@@ -94,7 +94,7 @@ int sys_chmod(char *_path, mode_t mode)
 
   vnode = ld.vnode;
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
 
   if (vnode->uid == current->uid || current->uid == SUPERUSER) {
     sc = vfs_chmod(vnode, mode);
@@ -106,7 +106,7 @@ int sys_chmod(char *_path, mode_t mode)
     sc = EPERM;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);  
   lookup_cleanup(&ld);
@@ -133,7 +133,7 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
 
   vnode = ld.vnode;
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
 
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     sc = vfs_chown(vnode, uid, gid);
@@ -146,7 +146,7 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
     sc = EPERM;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   lookup_cleanup(&ld);
@@ -170,7 +170,7 @@ int sys_fchmod(int fd, mode_t mode)
     return -EINVAL;
   }
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
 
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     sc = vfs_chmod(vnode, mode);
@@ -182,7 +182,7 @@ int sys_fchmod(int fd, mode_t mode)
     sc = EPERM;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   
@@ -208,7 +208,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     return -EINVAL;
   }
 
-  vn_lock(vnode, VL_EXCLUSIVE);
+  rwlock(&vnode->lock, LK_EXCLUSIVE);
 
   if (vnode->uid == current->euid || current->euid == SUPERUSER) {
     sc = vfs_chown(vnode, uid, gid);
@@ -221,7 +221,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     sc = EPERM;
   }
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   vnode_put(vnode);
@@ -244,7 +244,7 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   mode_t perm_bits;
   int shift;
   struct Process *current;
-
+  
   current = get_current_process();
   
   if (current->euid == SUPERUSER) {
@@ -252,6 +252,10 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   }
   
   desired_access &= (R_OK | W_OK | X_OK);
+
+  if ((desired_access & W_OK) && (vnode->superblock->flags & SF_READONLY)) {
+    return -EPERM;
+  }
 
   if (filp != NULL) {
     int access_mode = (filp->flags & O_ACCMODE);

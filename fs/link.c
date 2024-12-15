@@ -51,8 +51,8 @@ int sys_unlink(char *_path)
     return -EINVAL;  // FIXME: possibly ENOTFILE, EISDIR  ??
   }
   
-  vn_lock(dvnode, VL_EXCLUSIVE);  // Exclusive lock to remove entries from directory
-  vn_lock(vnode, VL_DRAIN);       // Drain lock to remove vnode from directory  
+  rwlock(&dvnode->lock, LK_EXCLUSIVE);  // Exclusive lock to remove entries from directory
+  rwlock(&vnode->lock, LK_DRAIN);       // Drain lock to remove vnode from directory  
 
   sc = vfs_unlink(dvnode, vnode, ld.last_component);
 
@@ -62,7 +62,7 @@ int sys_unlink(char *_path)
   
   knote(&dvnode->knote_list,  NOTE_WRITE | NOTE_ATTRIB);    // Can't knote deleted vnode
 
-  vn_lock(dvnode, VL_RELEASE);
+  rwlock(&dvnode->lock, LK_RELEASE);
   
   lookup_cleanup(&ld);
   return 0;  

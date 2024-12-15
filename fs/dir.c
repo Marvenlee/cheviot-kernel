@@ -64,7 +64,6 @@ int sys_chdir(char *_path)
   vnode_add_reference(ld.vnode);
   current->fproc->current_dir = ld.vnode;
 
-  vn_lock(current->fproc->current_dir, VL_RELEASE);
   lookup_cleanup(&ld);
   return 0;
 }
@@ -191,12 +190,12 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   
   cookie = filp->offset;
 
-  vn_lock(vnode, VL_SHARED);
+  rwlock(&vnode->lock, LK_SHARED);
   
   dirents_sz = vfs_readdir(vnode, dst, sz, &cookie);
   filp->offset = cookie;
   
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   return dirents_sz;
 }
 
@@ -266,19 +265,19 @@ int sys_createdir(char *_path, mode_t mode)
   
   dvnode = ld.parent;
   
-  vn_lock(dvnode, VL_EXCLUSIVE);
+  rwlock(&dvnode->lock, LK_EXCLUSIVE);
 
   sc = vfs_mkdir(dvnode, ld.last_component, &stat);
 
   if (sc != 0) {
-    vn_lock(dvnode, VL_RELEASE); 
+    rwlock(&dvnode->lock, LK_RELEASE); 
     lookup_cleanup(&ld);
     return sc;
   }    
 
   knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);
 
-  vn_lock(dvnode, VL_RELEASE); 
+  rwlock(&dvnode->lock, LK_RELEASE); 
   lookup_cleanup(&ld);
   return 0;
 }
@@ -308,8 +307,8 @@ int sys_rmdir(char *_path)
     return -ENOTDIR;
   }
 
-  vn_lock(dvnode, VL_EXCLUSIVE);    // Exclusive lock to remove entries from directory
-  vn_lock(vnode, VL_DRAIN);       // Drain lock to remove vnode from directory
+  rwlock(&dvnode->lock, LK_EXCLUSIVE);    // Exclusive lock to remove entries from directory
+  rwlock(&vnode->lock, LK_DRAIN);       // Drain lock to remove vnode from directory
 
   sc = vfs_rmdir(dvnode, vnode, ld.last_component);   
   
@@ -319,7 +318,7 @@ int sys_rmdir(char *_path)
 
   knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);  
 
-  vn_lock(dvnode, VL_RELEASE);
+  rwlock(&dvnode->lock, LK_RELEASE);
   lookup_cleanup(&ld);
   return 0;
 }

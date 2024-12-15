@@ -104,6 +104,9 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     vnode_covered = NULL; 
   }
 
+
+  // TODO: rw_lock(&superblock_mount_list_lock, LK_EXCLUSIVE);
+
   fd = alloc_fd_superblock(current);
   
   if (fd < 0) {
@@ -130,15 +133,12 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     return -ENOMEM;
   }
 
-  InitRendez(&sb->rendez);
-
   init_msgport(&sb->msgport);
   sb->msgport.context = sb;
 
   sb->root = mount_root_vnode;
   sb->flags = flags;
   sb->reference_cnt = 1;
-  sb->busy = false;
 
   sb->dev = stat.st_dev;
    
@@ -151,14 +151,14 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 
   vnode_hash_enter(mount_root_vnode);
 
-  // TODO: Read-only filesystems don't need delayed writes
-  if (S_ISDIR(mount_root_vnode->mode)) {
+  if (S_ISDIR(mount_root_vnode->mode) && (sb->flags & SF_READONLY) == 0) {
     if (init_superblock_bdflush(sb) != 0) {
       vnode_discard(mount_root_vnode);
       free_fd_superblock(current, fd);
       lookup_cleanup(&ld);
       return -ENOMEM;
     }
+
   }
 
   Info("b mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
@@ -193,34 +193,68 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     knote(&vnode_covered->knote_list, NOTE_ATTRIB);
 
     vnode_add_reference(vnode_covered);
-    vn_lock(vnode_covered, VL_RELEASE);
+    // FIXME:   rwlock(&vnode_covered->lock, LK_RELEASE);
   }
 
   Info("e mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
 
   vnode_add_reference(mount_root_vnode);
-  vn_lock(mount_root_vnode, VL_RELEASE);
+    // FIXME rwlock(&mount_root_vnode->lock, LK_RELEASE);
 
   Info("f mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
 
   Info("createmsgport calling lookup_cleanup");
+
+
+  // TODO: rw_lock(&superblock_mount_list_lock, LK_RELEASE);
+
 
   if (do_lookup_cleanup) {
     lookup_cleanup(&ld);
   }
   
   Info("g mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
-  
   Info("createmsgport returning fd:%d", fd);
   return fd;
 }
 
+
+/* @brief   Unmount a filesystem or device
+ *
+ * @param   _path, pathname to the filesystem to unmount
+ * @param   flags, options to control how the filesystem is unmounted
+ * @return  0 on success, negative errno on failure
+ */
+int sys_unmount(char *_path, uint32_t flags)
+{
+  // TODO:  Lookup pathname,
+  // flag this volume for unmounting, prevent further use.
+
+  // TODO: rw_lock(&superblock_mount_list_lock, LK_EXCLUSIVE);
+
+  // TODO: Should this wait, with a timeout ?
+  // If reference count is zero, remove detach from mount point
+  
+  // Call syncfs() ?   BLOCKING ?
+  
+  // Common code with close_msgport
+  // Free all buffers
+  // Free all vnodes
+  // Free superblock
+
+  // TODO: rw_lock(&superblock_mount_list_lock, LK_RELEASE);
+  
+  return -ENOSYS;
+}
 
 
 /*
  * Need to have separate function to sync the device,
  * flush all pending delayed writes and anything in message queue
  * Prevent further access
+ *
+ * Do we leave it to close_vnode() to check if the superblock needs cleaning
+ * up if there is no servers referencing it?
  */ 
 int close_msgport(struct Process *proc, int fd)
 {
@@ -237,28 +271,12 @@ int close_msgport(struct Process *proc, int fd)
     return -EINVAL;
   }
 
-  /* FIXME: Check refernce count is zero when finally freeing
+  // TODO: Close the message port, if there are no vnodes active free the superblock
+  // and unmount.
   
-  vnode_covered = sb->vnode_covered;
-
-  vnode_mounted_here = ;
+  // TODO: Read-only filesystems don't need delayed writes so no need to sync
+  // or stop bdflush task.
   
-  invalidate_superblock_blks(sb);
-  invalidate_dnlc_entries(sb);
-  invalidate_vnodes(sb);
-
-  // TODO: Read-only filesystems don't need delayed writes
-
-  if (S_ISDIR(vnode_mounted_here->mode)) {
-    fini_superblock_bdflush(sb);
-  }
-
-  vnode_covered->vnode_mounted_here = NULL;
-
-  */
-  
-  free_fd_superblock(proc, fd);
-
   return 0;
 }
 

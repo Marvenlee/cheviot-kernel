@@ -281,7 +281,7 @@ int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, 
   
   vnode = vnode_get(sb, ino_nr);
   
-  vn_lock(vnode, VL_SHARED);    // May not be needed if knote doesn't block
+  rwlock(&vnode->lock, LK_SHARED);    // May not be needed if knote doesn't block
   
   if (vnode == NULL) {
     return -EINVAL;
@@ -289,7 +289,7 @@ int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, 
     
   knote(&vnode->knote_list, hint);  
 
-  vn_lock(vnode, VL_RELEASE);
+  rwlock(&vnode->lock, LK_RELEASE);
   vnode_put(vnode);
   return 0;
 }

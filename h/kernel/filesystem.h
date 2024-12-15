@@ -112,8 +112,8 @@ struct Buf
   void *data;                     // Address of the page-sized buffer holding cached file data
 
   buf_link_t free_link;           // Free list entry
-  buf_link_t hash_link;         // Hash table entry
-
+  buf_link_t hash_link;           // Hash table entry
+  buf_link_t vnode_link;          // List of all blocks belonging to a file
   buf_link_t async_link;          // bawrite or bdflush LRU list entry  
 
   uint64_t expiration_time;       // Time that a delayed-write block should be flushed
@@ -135,6 +135,9 @@ struct Buf
 #define B_DELWRI    (1 << 9)  // Hint to FS Handler that block may be written again soon
 #define B_READAHEAD (1 << 10)  // Hint to FS Handler to read additional blocks after this block has been read.
 
+// 
+#define BSYNC_ALL_NOW   (0xFFFFFFFFFFFFFFFF)
+
 
 /* @brief   Pipe state
  */
@@ -153,39 +156,16 @@ struct Pipe
 };
 
 
-/* @brief   VNode Lock
- *
- */
-struct VLock
-{
-  struct Rendez rendez;
-  int share_cnt;
-  int exclusive_cnt;
-  int is_draining;
-};
-
-// vn_lock flags masks
-#define VN_LOCK_REQUEST_MASK  0x0000000F
-
-// Lock Request types for vn_lock()
-#define VL_EXCLUSIVE    1
-#define VL_SHARED       2
-#define VL_UPGRADE      3
-#define VL_DOWNGRADE    4
-#define VL_RELEASE      5
-#define VL_DRAIN        6
-
-
 /* @brief   VNode state representing a file, directory, pipe or special device.
  */
 struct VNode
 {
-  struct VLock vlock;
+  struct RWLock lock;
   
-  struct Rendez rendez;           // Non-lock related rendez
+  struct Rendez rendez;       // Non-lock related rendez, events
 
-  bool char_read_busy;     // Allow only a single read to progress
-  bool char_write_busy;     // Allow only a single write to progress
+  bool char_read_busy;        // Allow only a single read to progress
+  bool char_write_busy;       // Allow only a single write to progress
 
   struct SuperBlock *superblock;
 
@@ -198,31 +178,32 @@ struct VNode
   struct Pipe *pipe;      // FIXME Perhaps a union of different specialist objects?
                           // Will we need something for sockets and socketpair ?
                           // Or will we have a FS handler for those?
-  // bool isatty;  // FIXME: set isatty in mount()  or set in flags
-  pid_t tty_sid;  // Session of a controlling TTY
+  // bool isatty;         // FIXME: set isatty in mount()  or set in flags
+  pid_t tty_sid;          // Session of a controlling TTY
   
-  ino_t inode_nr; // inode number
-  mode_t mode;    // file type, protection, etc
-  uid_t uid;      // user id of the file's owner
-  gid_t gid;      // group id
-  off64_t size;   // file size in bytes
+  ino_t inode_nr;         // inode number
+  mode_t mode;            // file type, protection, etc
+  uid_t uid;              // user id of the file's owner
+  gid_t gid;              // group id
+  off64_t size;           // file size in bytes
   time_t atime;
   time_t mtime;
   time_t ctime;
   int blocks;
   int blksize;
   int rdev;
-  int nlink;
+  int nlink;              // Number of hard links to inode
   
+  vnode_link_t hash_link;               // hash table lookup link    
+  vnode_link_t vnode_link;              // Free list or in use link
   
-  vnode_link_t hash_link;
-    
-  vnode_link_t vnode_link;         // Free list or in use link
+  buf_list_t buf_list;                  // TODO: All buffers belonging to a file
+  buf_list_t pendwri_buf_list;          // List of blocks whose expiration time has expired
+  buf_list_t delwri_buf_list;           // List of blocks on the delayed write list
   
-  buf_list_t buf_list;              // TODO: All buffers belonging to a file
-  
-  dname_list_t vnode_list;          // List of all dname entries pointing to this vnode
-  dname_list_t directory_list;      // List of all entries within this directory
+  dname_list_t dname_list;              // List of all dname entries pointing to this vnode
+  dname_list_t directory_dname_list;    // List of all entries within this directory
+
   knote_list_t knote_list;
 };
 
@@ -237,33 +218,32 @@ struct VNode
  */
 struct SuperBlock
 {
-  struct Rendez rendez;
-  bool busy;
+  struct RWLock lock;
 
   dev_t dev;
   
   struct MsgPort msgport;
 
   off64_t size;
-  int block_size;     // start sector needs to be aligned with block size
+  int block_size;                       // start sector needs to be aligned with block size
 
-  struct VNode *root; // Could replace with a flag to indicate root?  (what
-                      // about rename path ascension?)
+  struct VNode *root;                   // Could replace with a flag to indicate root?  (what
+                                        // about rename path ascension?)
   uint32_t flags;
+
   int reference_cnt;
 
   superblock_link_t link;
+  vnode_list_t  vnode_list;
   
   struct Thread *bdflush_thread;
-  struct Rendez bdflush_rendez;  
-  
-  buf_list_t pendwri_buf_list;    // List of blocks whose expiration time has expired
-  buf_list_t delwri_buf_list;    // List of blocks on the delayed write list       
+  struct Rendez bdflush_rendez;       
 };
 
 // SuperBlock.flags
-#define S_ABORT     (1 << 0)
-#define S_READONLY  (1 << 1)
+#define SF_ABORT     (1 << 0)
+#define SF_READONLY  (1 << 1)
+#define SF_WRITETHRU (1 << 2)
 
 // Sepcial-case SuperBlock.dev major/minor numbers
 #define DEV_T_DEV_TTY   0x0500
@@ -279,8 +259,8 @@ struct DName {
   
   dname_link_t lru_link;
   dname_link_t hash_link;
-  dname_link_t vnode_link;      // Hard links to vnode
-  dname_link_t directory_link;  // Vnodes within DName's directory
+  dname_link_t vnode_link;              // Hard links to vnode
+  dname_link_t directory_link;          // Vnodes within DName's directory
 };
 
 
@@ -297,10 +277,10 @@ struct Filp
   } u;
   
   off64_t offset;
-  mode_t mode;        // TODO: Need to set the access mode on file open or fcntl
-  uint32_t flags;     // Access flags, e.g. O_READ, O_WRITE
+  mode_t mode;                          // TODO: Need to set the access mode on file open or fcntl
+  uint32_t flags;                       // Access flags, e.g. O_READ, O_WRITE
   int reference_cnt;
-  filp_link_t filp_entry;   // VNode link
+  filp_link_t filp_entry;               // VNode link
 };
 
 // Filp.type
@@ -321,7 +301,7 @@ struct FProcess
   struct VNode *current_dir;
   struct VNode *root_dir;
 
-  fd_set fd_close_on_exec_set;    // FIXME: Should we use fd_set for close_on_exec and in-use tracking?
+  fd_set fd_close_on_exec_set;          // FIXME: Should we use fd_set for close_on_exec and in-use tracking?
   fd_set fd_in_use_set;
 
   struct Filp *fd_table[OPEN_MAX];
@@ -336,8 +316,8 @@ struct lookupdata
   struct VNode *start_vnode;
   struct VNode *vnode;
   struct VNode *parent;
-  char *path;
-  char *last_component;   // at end of FS function.  We now have 4K kernel stacks, not 8K.
+  char *path;                           // Page-sized buffer to hold copy of path to look up.
+  char *last_component;                 // filename of last component found.
   char *position;
   char separator;
   int flags;
@@ -374,15 +354,14 @@ void brelse(struct Buf *buf);
 struct Buf *getblk(struct VNode *vnode, uint64_t file_offset);
 struct Buf *findblk(struct VNode *vnode, uint64_t file_offset);
 int calc_buf_hash(ino_t inode_nr, off64_t file_offset);
-int bsync(struct VNode *vnode);
-int bsyncfs(struct SuperBlock *sb);
+int bsync(struct VNode *vnode, uint64_t now);
+int bsyncfs(struct SuperBlock *sb, uint64_t now);
 int btruncate(struct VNode *vnode);
-size_t resize_cache(size_t free);
+int bdiscard(struct Buf *buf);
 int init_superblock_bdflush(struct SuperBlock *sb);
 void fini_superblock_bdflush(struct SuperBlock *sb, int how);
 void bdflush_task(void *arg);
-struct Buf *get_bdwrite_buf(struct SuperBlock *sb, uint64_t now);
-struct Buf *get_pending_write_buf(struct SuperBlock *sb);
+struct Buf *bgetdirtybuf(struct VNode *vnode, uint64_t now);
 
 /* fs/char.c */
 int sys_isatty(int fd);
@@ -486,11 +465,11 @@ int sys_mknod2(char *_handlerpath, uint32_t flags, struct stat *stat);
 int sys_pivotroot(char *_new_root, char *_old_root);
 int sys_renamemount(char *_new_path, char *_old_path);
 int sys_ismount(char *_path);
-int sys_unmount(char *_path, uint32_t flags);
 bool is_mountpoint(struct VNode *vnode);
 
 /* fs/msgport.c */
 int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat);
+int sys_unmount(char *_path, uint32_t flags);
 int close_msgport(struct Process *proc, int fd);
  
 /* fs/open.c */
@@ -530,6 +509,7 @@ struct SuperBlock *get_superblock(struct Process *proc, int fd);
 int alloc_fd_superblock(struct Process *proc);
 int free_fd_superblock(struct Process *proc, int fd);
 struct SuperBlock *alloc_superblock(void);
+void register_mounted_superblock(struct SuperBlock *sb);
 void free_superblock(struct SuperBlock *sb);
 
 /* fs/sync.c */
@@ -572,8 +552,6 @@ void vnode_put(struct VNode *vnode);
 void vnode_add_reference(struct VNode *vnode);
 void vnode_discard(struct VNode *vnode);      // Delete a vnode from cache ???
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
-int vn_lock(struct VNode *vnode, int flags);
-int vn_lock_init(struct VLock *vlock);
 
 /* fs/write.c */
 ssize_t sys_write(int fd, void *buf, size_t count);

@@ -38,13 +38,13 @@ int sys_symlink(char *_path, char *_link)
     return -EEXIST;
   }
 
-  vn_lock(ld.parent, VL_EXCLUSIVE);
+  rwlock(&ld.parent->lock, LK_EXCLUSIVE);
 
   // TODO:  sc = vfs_mklink(ld.parent, ld.last_component, _link);
 
   // knote that directory has changed
 
-  vn_lock(ld.parent, VL_RELEASE);
+  rwlock(&ld.parent->lock, LK_RELEASE);
 
   lookup_cleanup(&ld);
   return 0;
@@ -74,11 +74,11 @@ int sys_readlink(char *_path, char *_link, size_t link_size)
     return -ENOLINK;
   }
 
-  vn_lock(ld.parent, VL_SHARED);
+  rwlock(&ld.parent->lock, LK_SHARED);
 
   // TODO:   status = vfs_readlink(ld.vnode, _link, link_size);
 
-  vn_lock(ld.parent, VL_RELEASE);
+  rwlock(&ld.parent->lock, LK_RELEASE);
 
   lookup_cleanup(&ld);
   return status;
