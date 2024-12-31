@@ -269,6 +269,7 @@ int sys_setgroups(int ngroups, const gid_t *grouplist);
 int sys_getgroups(int gidsetsize, gid_t *grouplist);
 void init_ids(struct Process *proc);
 void fork_ids(struct Process *new_proc, struct Process *old_proc);
+bool is_superuser(struct Process *proc);
 
 // proc/pid.c
 pid_t sys_getpid(void);

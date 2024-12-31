@@ -439,3 +439,12 @@ void fork_ids(struct Process *new_proc, struct Process *old_proc)
 }
 
 
+/*
+ *
+ */
+ 
+bool is_superuser(struct Process *proc)
+{
+  return (proc->uid == SUPERUSER) ? true : false;
+}
+

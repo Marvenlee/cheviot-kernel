@@ -14,28 +14,42 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
-#include <kernel/board/elf.h>
+#include <kernel/arch.h>
+#include <kernel/board/boot.h>
+#include <kernel/board/globals.h>
+#include <kernel/board/init.h>
 #include <kernel/dbg.h>
-#include <kernel/error.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
-#include <kernel/signal.h>
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
+#include <kernel/kqueue.h>
 #include <string.h>
-#include <sys/execargs.h>
-#include <sys/wait.h>
+#include <kernel/board/peripheral_base.h>
 
 
-/*
- * @brief   Reboot or shutdown the OS
+/* @brief   Shutdown of the OS
+ *
+ * Hardware-Specific shutdown routine that turns off power, halts or reboots the system.
+ * This can only be performed by the superuser.  It is up to the sysinit process
+ * to cleanly shut down the rest of the OS before calling this function.
  */
-int sys_reboot(int how)
+int sys_shutdown_os(int how)
 {
-  return -ENOSYS;
+  struct Process *current;
+  
+  current = get_current_process();
+  
+  if (is_superuser(current) == false) {
+    return -EPERM;  
+  }
+  
+  DisableInterrupts();
+  
+  while(1);
 }
 

@@ -35,8 +35,10 @@ void init_vfs(void)
   init_vfs_cache();
   init_vfs_pipes();
  
-  rwlock_init(&mounted_sb_list_lock); 
-  root_vnode = NULL;  
+  rwlock_init(&superblock_list_lock); 
+  rwlock_init(&vnode_list_lock);
+  rwlock_init(&cache_lock);
+  root_vnode = NULL;
 }
 
 

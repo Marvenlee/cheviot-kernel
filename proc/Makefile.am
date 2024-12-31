@@ -6,7 +6,6 @@ kernel_SOURCES +=         \
   proc/pid.c              \
   proc/privileges.c       \
   proc/proc.c             \
-  proc/reboot.c           \
   proc/rwlock.c           \
   proc/sched.c            \
   proc/signal.c           \

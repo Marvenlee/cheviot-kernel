@@ -560,10 +560,40 @@ int bdiscard(struct Buf *buf)
 }
  
 
+/*
+ *
+ */
+int bsync(struct VNode *vnode, uint64_t now)
+{
+  return do_bsync(vnode, now, BS_SYNC);
+}
+
+
+/*
+ *
+ */
+int bsync_and_invalidate(struct VNode *vnode)
+{
+  return do_bsync(vnode, BSYNC_ALL_NOW, BS_SYNC_INVALIDATE);
+}
+
+
+/*
+ *
+ */
+int binvalidate(struct VNode *vnode)
+{
+  return do_bsync(vnode, BSYNC_ALL_NOW, BS_INVALIDATE);
+}
+
+
 /* @brief   Write out all cached blocks of a file
  *
  * @param   vnode, file to write dirty cached blocks to disk
- * @param   now, write out blocks that have an expiry time less than 'now' ticks
+ * @param   action, action to perform on all blocks:
+ *                BS_SYNC - sync block to disk, keep in cache
+ *                BS_SYNC_INVALIDATE, sync block to disk, remove from cache
+ *                BS_INVALIDATE, remove from cache without syncing
  * @return  0 on success, negative errno on failure.
  *
  * Find all dirty blocks in cache belonging to file, immediately write out.
@@ -580,12 +610,15 @@ int bdiscard(struct Buf *buf)
  *                    bsync() removes a number of blocks from this list
  *                    that have been dirty for several seconds and places
  *                    them on the pending_writes list.
+ *                    Buffers on this list are marked a B_DELWRI but are not
+ *                    marked as B_BUSY.
  *
  * pending_writes   - buffers queued for writing out to disk. Blocks cannot
  *                    be removed from this list. All async bawrite() buffers 
  *                    are placed immediately at the end of this list. Delayed
  *                    bdwrite() buffers are placed on this list by the
  *                    call to bsync().
+ *                    Buffers on this list are marked as B_BUSY.
  *
  * All bawrite blocks are written out as they will all have expired.  A
  * number of dirty blocks from bdwrite() that have not been written for
@@ -596,7 +629,7 @@ int bdiscard(struct Buf *buf)
  * 
  * If a block is on the dirty buffer list then by definition it is not busy
  */
-int bsync(struct VNode *vnode, uint64_t now)
+int do_bsync(struct VNode *vnode, uint64_t now, bool action)
 {
   int saved_sc = 0;
   struct Buf *buf;
@@ -617,12 +650,17 @@ int bsync(struct VNode *vnode, uint64_t now)
       nbytes_to_write = PAGE_SIZE;
     }
 
-    int sc = vfs_write(vnode, KUCOPY, buf->data, nbytes_to_write, NULL);
-
-    if (sc != 0 && saved_sc == 0) {
-      saved_sc = sc;
+    if (action != BS_INVALIDATE) {
+      int sc = vfs_write(vnode, KUCOPY, buf->data, nbytes_to_write, NULL);
+      if (sc != 0 && saved_sc == 0) {
+        saved_sc = sc;
+      }
     }
-
+    
+    if (action == BS_INVALIDATE || action == BS_SYNC_INVALIDATE) {
+      buf->flags |= B_DISCARD;
+    }
+  
     brelse(buf);
   }
     

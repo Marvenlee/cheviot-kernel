@@ -35,9 +35,7 @@ int sys_sync(void)
   struct SuperBlock *sb;
   int saved_sc = 0;
   
-  Info("sys_sync()");
-  
-  rwlock(&mounted_sb_list_lock, LK_SHARED);
+  rwlock(&superblock_list_lock, LK_SHARED);
   
   sb = LIST_HEAD(&mounted_superblock_list);
   
@@ -52,9 +50,7 @@ int sys_sync(void)
     sb = LIST_NEXT(sb, link);
   }
 
-  rwlock(&mounted_sb_list_lock, LK_RELEASE);
-
-  Info("sys_sync() DONE, sc:%d", saved_sc);
+  rwlock(&superblock_list_lock, LK_RELEASE);
 
   return saved_sc;
 }
@@ -106,7 +102,7 @@ int sys_fsync(int fd)
  */
 int sys_sync2(int fd, bool shutdown)
 {
-  // Notify bdflush task to sync
+  // TODO: Notify bdflush task to sync
 
   return -ENOSYS;
 }

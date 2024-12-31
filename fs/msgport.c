@@ -43,6 +43,8 @@
  * TODO: Atomically create node on filesystem and mount this message port on it.
  * Avoids need for 2 steps and possible race conditions during mount.
  *
+ * TODO: Do we need to lock the vnodes ?
+ * 
  */ 
 int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 {
@@ -63,13 +65,11 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   current = get_current_process();
 
   if (CopyIn(&stat, _stat, sizeof stat) != 0) {
-    Error("createmsgport copyin failed _stat :%08x", (uint32_t)_stat);
     return -EFAULT;
   }
 
   if (root_vnode != NULL) {
     if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
-      Error("createmsgport lookup failed");
       return sc;
     }
 
@@ -78,7 +78,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     vnode_covered = ld.vnode;
 
     if (vnode_covered == NULL) {
-      Error("createmsgport vnode_covered == NULL");
       lookup_cleanup(&ld);
       return  -ENOENT;
     }
@@ -86,7 +85,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     if (! ((S_ISDIR(stat.st_mode) && S_ISDIR(vnode_covered->mode))
         || (S_ISCHR(stat.st_mode) && S_ISCHR(vnode_covered->mode))
         || (S_ISBLK(stat.st_mode) && S_ISBLK(vnode_covered->mode)))) {
-      Error("createmsgport invalid mount mode");
       lookup_cleanup(&ld);
       return -EINVAL;
     }
@@ -94,7 +92,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     // TODO: Check covered permissions ?  
 
     if (vnode_covered->vnode_covered != NULL) {
-      Error("createmsgport already mount point");
       lookup_cleanup(&ld);
       return -EEXIST;
     }
@@ -105,31 +102,31 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   }
 
 
-  // TODO: rw_lock(&superblock_mount_list_lock, LK_EXCLUSIVE);
+  rwlock(&superblock_list_lock, LK_EXCLUSIVE);
 
   fd = alloc_fd_superblock(current);
   
   if (fd < 0) {
     Error("createmsgport failed to alloc file descriptor");
-    lookup_cleanup(&ld);
+    rwlock(&superblock_list_lock, LK_RELEASE);
+    if (do_lookup_cleanup) {
+      lookup_cleanup(&ld);
+    }
     return -ENOMEM;
   }
   
   sb = get_superblock(current, fd);
-
-  Info("sb = %08x", (uint32_t)sb);
   
   mount_root_vnode = vnode_new(sb);
-
-  Info("vnode_new -> mount_root_vnode = %08x", (uint32_t)mount_root_vnode);
-
-  Info("a mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
-
 
   if (mount_root_vnode == NULL) {
     Error("createmsgport failed to alloc vnode");
     free_fd_superblock(current, fd);
-    lookup_cleanup(&ld);
+    rwlock(&superblock_list_lock, LK_RELEASE);
+    
+    if (do_lookup_cleanup) {
+      lookup_cleanup(&ld);
+    }
     return -ENOMEM;
   }
 
@@ -155,13 +152,14 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     if (init_superblock_bdflush(sb) != 0) {
       vnode_discard(mount_root_vnode);
       free_fd_superblock(current, fd);
-      lookup_cleanup(&ld);
+      rwlock(&superblock_list_lock, LK_RELEASE);
+      if (do_lookup_cleanup) {
+        lookup_cleanup(&ld);
+      }
       return -ENOMEM;
     }
 
   }
-
-  Info("b mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
   
   if (S_ISBLK(mount_root_vnode->mode)) {    
     mount_root_vnode->size = (off64_t)stat.st_blocks * (off64_t)stat.st_blksize;
@@ -178,42 +176,25 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   mount_root_vnode->vnode_covered = vnode_covered;
   knote(&mount_root_vnode->knote_list, NOTE_ATTRIB);
 
-  Info("c mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
-
-
   if (root_vnode == NULL) {
     root_vnode = mount_root_vnode;
-    Info("set root_vnode to: %08x", (uint32_t)root_vnode);
   }    
-
-  Info("d mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
   
   if (vnode_covered != NULL) {
     vnode_covered->vnode_mounted_here = mount_root_vnode;
-    knote(&vnode_covered->knote_list, NOTE_ATTRIB);
-
     vnode_add_reference(vnode_covered);
-    // FIXME:   rwlock(&vnode_covered->lock, LK_RELEASE);
+    
+    knote(&vnode_covered->knote_list, NOTE_ATTRIB);
   }
 
-  Info("e mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
-
   vnode_add_reference(mount_root_vnode);
-    // FIXME rwlock(&mount_root_vnode->lock, LK_RELEASE);
 
-  Info("f mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
-
-  Info("createmsgport calling lookup_cleanup");
-
-
-  // TODO: rw_lock(&superblock_mount_list_lock, LK_RELEASE);
-
+  rwlock(&superblock_list_lock, LK_RELEASE);
 
   if (do_lookup_cleanup) {
     lookup_cleanup(&ld);
   }
   
-  Info("g mount_root_vnode->superblock=%08x", (uint32_t)mount_root_vnode->superblock);
   Info("createmsgport returning fd:%d", fd);
   return fd;
 }
@@ -230,7 +211,7 @@ int sys_unmount(char *_path, uint32_t flags)
   // TODO:  Lookup pathname,
   // flag this volume for unmounting, prevent further use.
 
-  // TODO: rw_lock(&superblock_mount_list_lock, LK_EXCLUSIVE);
+  rwlock(&superblock_list_lock, LK_EXCLUSIVE);
 
   // TODO: Should this wait, with a timeout ?
   // If reference count is zero, remove detach from mount point
@@ -242,8 +223,8 @@ int sys_unmount(char *_path, uint32_t flags)
   // Free all vnodes
   // Free superblock
 
-  // TODO: rw_lock(&superblock_mount_list_lock, LK_RELEASE);
-  
+  rwlock(&superblock_list_lock, LK_RELEASE);
+
   return -ENOSYS;
 }
 

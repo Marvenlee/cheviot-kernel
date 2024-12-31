@@ -252,8 +252,8 @@ syscall_table:
 
     .long sys_select                    // 144
 
-    .long sys_reboot                    // 145    
-
+    .long sys_shutdown_os               // 145
+    
 #define UNKNOWN_SYSCALL             0
 #define MAX_SYSCALL                 145
 

@@ -129,7 +129,7 @@ extern int max_superblock;
 extern struct SuperBlock *superblock_table;
 extern superblock_list_t free_superblock_list;
 extern superblock_list_t mounted_superblock_list;
-extern struct RWLock mounted_sb_list_lock;
+extern struct RWLock superblock_list_lock;
 
 extern struct VNode *root_vnode;
 
@@ -137,6 +137,7 @@ extern int max_vnode;
 extern struct VNode *vnode_table;
 extern vnode_list_t vnode_free_list;
 extern vnode_list_t vnode_hash[VNODE_HASH];
+extern struct RWLock vnode_list_lock;
 
 extern int max_filp;
 extern struct Filp *filp_table;
@@ -181,6 +182,7 @@ extern struct Buf *buf_table;
 extern struct Rendez buf_list_rendez;
 extern buf_list_t buf_hash[BUF_HASH];
 extern buf_list_t buf_avail_list;
+extern struct RWLock cache_lock;         // FIXME: May not be needed
 
 
 #endif

@@ -126,6 +126,10 @@ struct Buf
 #define B_ERROR     (1 << 4)  // Buf is not valid (discarded in brelse)
 #define B_DISCARD   (1 << 5)  // Discard block in brelse
 
+// do_bsync() actions
+#define BS_SYNC                 0     // Write buffers to disk, keep in cache
+#define BS_SYNC_INVALIDATE      1     // Write buffers to disk, remove from cache
+#define BS_INVALIDATE           2     // Do not write buffers to disk, remove from cache
 
 
 // FIXME: Do we need the ones below, can these be hints to vfs_strategy?
@@ -212,6 +216,7 @@ struct VNode
 #define V_VALID (1 << 2)
 #define V_ROOT (1 << 3)
 #define V_ABORT (1 << 4)
+#define V_DISCARD (1 << 5)
 
 
 /* @brief   SuperBlock data structure for a mounted filesystem.
@@ -355,6 +360,9 @@ struct Buf *getblk(struct VNode *vnode, uint64_t file_offset);
 struct Buf *findblk(struct VNode *vnode, uint64_t file_offset);
 int calc_buf_hash(ino_t inode_nr, off64_t file_offset);
 int bsync(struct VNode *vnode, uint64_t now);
+int bsync_and_invalidate(struct VNode *vnode);
+int binvalidate(struct VNode *vnode);
+int do_bsync(struct VNode *vnode, uint64_t now, bool action);
 int bsyncfs(struct SuperBlock *sb, uint64_t now);
 int btruncate(struct VNode *vnode);
 int bdiscard(struct Buf *buf);

@@ -13,6 +13,7 @@ kernel_SOURCES += \
   boards/raspberry_pi_4/main.c          \
   boards/raspberry_pi_4/pmap.c          \
   boards/raspberry_pi_4/context.c       \
+  boards/raspberry_pi_4/shutdown.c      \
   boards/raspberry_pi_4/signals.c       \
   boards/raspberry_pi_4/timer.c         \
   boards/raspberry_pi_4/vectors.S

@@ -87,10 +87,8 @@ int close_vnode(struct Process *proc, int fd)
   }
 
   if (S_ISREG(vnode->mode)) {
-    Info("sync on close");
     bsync(vnode, BSYNC_ALL_NOW);
-    
-    
+            
   } else if (S_ISFIFO(vnode->mode)) {
     pipe = vnode->pipe;
     if (filp->flags & O_RDONLY) {
@@ -125,18 +123,29 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 
   KASSERT(sb != NULL);
 
+  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
+
   vnode = LIST_HEAD(&vnode_free_list);
 
   if (vnode == NULL) {
+    rwlock(&vnode_list_lock, LK_RELEASE);
     return NULL;
   }
 
   LIST_REM_HEAD(&vnode_free_list, vnode_link);
 
   if (vnode->flags & V_VALID) {
-    rwlock(vnode, LK_EXCLUSIVE);
-    bsync(vnode, BSYNC_ALL_NOW);
+
+    rwlock(vnode, LK_DRAIN);
+    
+    rwlock(&cache_lock, LK_EXCLUSIVE);
+    
+    bsync_and_invalidate(vnode);
+
+    rwlock(&cache_lock, LK_RELEASE);
+            
     rwlock(vnode, LK_RELEASE);
+
     vnode->flags = 0;
   }
   
@@ -181,6 +190,8 @@ struct VNode *vnode_new(struct SuperBlock *sb)
   LIST_INIT(&vnode->directory_dname_list);
 
   LIST_INIT(&vnode->knote_list);
+
+  rwlock(&vnode_list_lock, LK_RELEASE);
   
   return vnode;
 }
@@ -192,27 +203,29 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
 
-//  Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
-
   KASSERT(sb != NULL);
 
-  if (sb->flags & SF_ABORT) {
-    return NULL;
-  }
-  
-  if ((vnode = vnode_find(sb, inode_nr)) != NULL) {
-    vnode->reference_cnt++;
-    sb->reference_cnt++;
-  
-    if (vnode->flags & V_FREE) {
-      LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
-    }
+  rwlock(&vnode_list_lock, LK_SHARED);
 
-    return vnode;
-  
-  } else {
+  if (sb->flags & SF_ABORT) {
+    rwlock(&vnode_list_lock, LK_RELEASE);  
     return NULL;
   }
+  
+  if ((vnode = vnode_find(sb, inode_nr)) == NULL) {
+    rwlock(&vnode_list_lock, LK_RELEASE);  
+    return NULL;
+  }
+  
+  vnode->reference_cnt++;
+  sb->reference_cnt++;
+
+  if (vnode->flags & V_FREE) {
+    LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
+  }
+
+  rwlock(&vnode_list_lock, LK_RELEASE);  
+  return vnode;  
 }
 
 
@@ -239,13 +252,11 @@ void vnode_add_reference(struct VNode *vnode)
  */
 void vnode_put(struct VNode *vnode)
 {
-//  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
-
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
 
-  // Assert it is not locked.
-  
+  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
+
   vnode->reference_cnt--;  
   vnode->superblock->reference_cnt--;
   
@@ -253,6 +264,7 @@ void vnode_put(struct VNode *vnode)
     
 #if 0
     if (vnode->nlink == 0) {
+    // FIXME: do_vnode_discard(vnode);
     // FIXME: IF vnode->link_count == 0,  delete entries in cache.
     // FIXME: Do any special cleanup of file, dir, fifo ?
     // TODO: Mark vnode as free/invalid    
@@ -264,37 +276,53 @@ void vnode_put(struct VNode *vnode)
       LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
     }
   }
+
+  rwlock(&vnode_list_lock, LK_RELEASE);
     
   TaskWakeupAll(&vnode->rendez);
 }
 
 
 /* @brief   Discard a vnode, put it on the free list and mark it as invalid.
+ *
+ * Any bufs associated with the vnode should be discarded.
  */
 void vnode_discard(struct VNode *vnode)
 {
-  // TODO: assert vnode is not null
-  // TODO: assert that vnode lock is in DRAIN state
-  // TODO: Remove from any lookup hash list
-  // Reset the vnode lock;
- 
+#if 0
+
+  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
+
+  // FIXME: rwlock(vnode, LK_DRAIN);    // Do we need this for vnode_get/vnode_put ?
+    
   vnode_hash_remove(vnode);
+  
+  binvalidate(vnode);
   
   vnode->flags = V_FREE;
   LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
   vnode->reference_cnt = 0;
 
-// sb->reference_cnt--;
+  // sb->reference_cnt--;
 
+  // Reinitialize vnode lock.
   rwlock_init(&vnode->lock);
 
   TaskWakeupAll(&vnode->rendez);
+
+  rwlock(&vnode_list_lock, LK_RELEASE);
+#else
+
+  vnode->nlink--;
+  
+  vnode->flags |= V_DISCARD;
+
+#endif
 }
 
 
 /* @brief   Find an existing vnode in the vnode cache
  *
- * TODO : Hash vnode by sb and inode_nr
  */
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
 {

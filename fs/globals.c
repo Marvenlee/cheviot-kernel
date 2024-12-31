@@ -30,13 +30,14 @@ int max_superblock;
 struct SuperBlock *superblock_table;
 superblock_list_t free_superblock_list;
 superblock_list_t mounted_superblock_list;
-struct RWLock mounted_sb_list_lock;
+struct RWLock superblock_list_lock;
 
 
 int max_vnode;
 struct VNode *vnode_table;
 vnode_list_t vnode_free_list;
 vnode_list_t vnode_hash[VNODE_HASH];
+struct RWLock vnode_list_lock;
 
 int max_filp;
 struct Filp *filp_table;
@@ -56,6 +57,7 @@ struct Buf *buf_table;
 struct Rendez buf_list_rendez;
 buf_list_t buf_hash[BUF_HASH];
 buf_list_t buf_avail_list;
+struct RWLock cache_lock;         // FIXME: May not be needed
 
 /*
  * Directory Name Lookup Cache
