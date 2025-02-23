@@ -39,6 +39,10 @@
 
 int sys_gethostbyname(const char *name, struct hostent *result)
 {
+  // name_sz
+  
+  // reply hostent struct
+   
   return -ENOSYS;
 }
 
@@ -48,6 +52,12 @@ int sys_gethostbyname(const char *name, struct hostent *result)
  */
 int sys_gethostbyaddr(const void *addr, socklen_t len, int type, struct hostent *result)
 {
+  // len
+  // type
+  // addr as payload
+  
+  // reply hostent
+
   return -ENOSYS;
 }
 

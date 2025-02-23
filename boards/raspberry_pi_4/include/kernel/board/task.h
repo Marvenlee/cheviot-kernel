@@ -121,6 +121,7 @@ extern void start_of_forked_process(void);
 extern void start_of_execed_process(void);
 extern void start_of_kernel_thread(void);
 extern void start_of_user_thread(void);
+extern void start_of_prolog_user_thread(void);
 
 void save_fp_context(uint32_t *context);
 

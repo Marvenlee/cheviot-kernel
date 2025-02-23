@@ -31,6 +31,7 @@
 .global start_of_forked_process
 .global start_of_execed_process
 .global start_of_user_thread
+.global start_of_prolog_user_thread
 .global start_of_kernel_thread
 
 .section .text
@@ -226,18 +227,19 @@ syscall_table:
     .long sys_thread_cancel             // 122
     .long sys_thread_kill               // 123
     
-    .long sys_thread_mutex_lock         // 124
-    .long sys_thread_mutex_unlock       // 125
+    .long sys_thread_detach            // 124
 
-    .long sys_thread_cond_wait          // 126
-    .long sys_thread_cond_timedwait     // 127
-    .long sys_thread_cond_signal        // 128
-    .long sys_thread_cond_broadcast     // 129
+    .long sys_deprecatedsyscall        // 125
+    .long sys_futex_destroy            // 126
 
-    .long sys_thread_rwlock_rdlock      // 130
-    .long sys_thread_rwlock_unlock      // 131
-    .long sys_thread_rwlock_wrlock      // 132
+    .long sys_futex_wait               // 127
+    .long sys_futex_wake               // 128
+    .long sys_futex_requeue            // 129
 
+    .long sys_deprecatedsyscall         // 130
+    .long sys_deprecatedsyscall         // 131
+    .long sys_deprecatedsyscall         // 132
+    
     .long sys_socket                    // 133
     .long sys_bind                      // 134
     .long sys_listen                    // 135
@@ -254,8 +256,11 @@ syscall_table:
 
     .long sys_shutdown_os               // 145
     
+    .long sys_thread_set_self           // 146
+    
+    
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 145
+#define MAX_SYSCALL                 146
 
 
 /* @brief   System call entry point
@@ -437,13 +442,28 @@ start_of_execed_process:
     MSWIPopRegs
     subs pc, lr, #0
 
+
 /* @brief   Starting point of a user thread
  *
  */
 .balign 16
 start_of_user_thread:
+    bl start_user_thread_log
+    bl KernelLock
+    mov r0, sp
+    bl check_signals
+
+    MDisableInterrupts
+    bl KernelUnlock
+     
+    MSWIPopRegs
+    subs pc, lr, #0
+    
+    
+.balign 16
+start_of_prolog_user_thread:    
     push {r0-r1}
-    bl start_kernel_thread_log
+    bl start_prolog_user_thread_log
     bl KernelLock
     pop {r0-r1}
     blx r1

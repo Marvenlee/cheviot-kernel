@@ -155,6 +155,12 @@ int do_exec(int fd, char *name, struct execargs *_args)
     return -ENOMEM;
   }
 
+  if (cleanup_futexes(current) != 0) {
+    Error("exec cleanup futexes failed");
+    free_arg_pool(pool);
+    return -ENOMEM;
+  }
+
   if (load_process(current, fd, &entry_point) != 0) {
     Error("LoadProcess failed");
     free_arg_pool(pool);
@@ -179,6 +185,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
   StrLCpy(current->basename, name, sizeof current->basename);
   StrLCpy(current_thread->basename, name, sizeof current_thread->basename);
 
+  set_user_stack_tcb(current_thread, stack_base, USER_STACK_SZ, NULL);
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
   return 0;
 }

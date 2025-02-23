@@ -82,7 +82,13 @@ extern pgrp_list_t free_pgrp_list;
 extern int max_thread;
 extern struct Thread *thread_table;
 extern thread_list_t free_thread_list;
- 
+
+extern int max_futex;
+extern struct Futex *futex_table;
+extern futex_list_t free_futex_list; 
+extern int futex_table_busy;
+extern struct Rendez futex_table_busy_rendez;
+extern futex_list_t futex_hash_table[FUTEX_HASH_SZ];
 
 extern struct Process *root_process;
 extern struct Thread *root_thread; 

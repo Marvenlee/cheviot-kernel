@@ -455,6 +455,7 @@ int walk_component(struct lookupdata *ld)
         if (vnode_mounted_here == NULL) {
           vnode_put(ld->vnode);
           ld->vnode = NULL;
+          Warn("vnode_mounted_here is null");
           return -EPERM;
         }
       }

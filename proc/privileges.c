@@ -84,9 +84,11 @@ int sys_set_privileges(int when, uint64_t *_set, uint64_t *_result)
  */
 int check_privileges(struct Process *proc, uint64_t map)
 {
+#if 0   // FIXME: enable check_privileges
   if ((proc->privileges & map) != map) {
     return -EPERM;
   }
+#endif
   
   return 0;
 }

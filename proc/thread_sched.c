@@ -18,7 +18,7 @@
  * Scheduling related functions
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -28,6 +28,8 @@
 #include <kernel/types.h>
 #include <kernel/arch.h>
 #include <sys/privileges.h>
+#include <pthread.h>
+#include <sys/_pthreadtypes.h>
 
 
 /* @brief   Set thread scheduling policy and priority
@@ -91,6 +93,7 @@ int sys_thread_getschedparams(pid_t tid, int *policy, int *priority)
 {
   return -ENOSYS;
 }
+
 
 /*
  *

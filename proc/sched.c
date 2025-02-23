@@ -17,7 +17,7 @@
  * Thread scheduling related functions
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>

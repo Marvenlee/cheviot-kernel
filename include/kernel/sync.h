@@ -1,12 +1,25 @@
 #ifndef KERNEL_SYNC_H
 #define KERNEL_SYNC_H
 
-
+#include <stdint.h>
+#include <time.h>
+#include <sys/time.h>
 #include <kernel/lists.h>
 #include <kernel/types.h>
 
 
+// Constants
+#define NR_FUTEX        4096      // Maximum number of futexes in the system
+#define FUTEX_HASH_SZ   128       // Hash table size for looking up futex based on proc and address
+
+
+// Forward declarations
 struct Thread;
+struct Futex;
+
+
+// List types
+LIST_TYPE(Futex, futex_list_t, futex_link_t);
 
 
 /* @brief   Kernel condition variable for TaskSleep()/TaskWakeup() calls
@@ -50,16 +63,37 @@ struct RWLock
 #define LK_DRAIN        6
 
 
-/* @brief   Kernel mutex, to eventually replace the big kernel lock on syscall entry
+/*
+ *
  */
-#if 0 
-struct Mutex
+struct Futex
 {
-  int locked;
-  struct Process *owner;
-  LIST(Process, blocked_list);
+  uintptr_t uaddr;
+  struct Process *proc;
+  futex_link_t free_link;
+  futex_link_t hash_link;  
+
+  struct Rendez rendez;
+  uint32_t hash;
 };
-#endif
+
+
+// Flags for futex_get()
+#define FUTEX_CREATE    (1<<0)
+
+
+// Prototypes
+int sys_futex_destroy(void *uaddr);
+int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, int flags);
+int sys_futex_wake(void *uaddr, uint32_t n, int flags);
+int sys_futex_requeue(void *uaddr, uint32_t n, void *uaddr2, uint32_t m, int flags);
+struct Futex *futex_get(struct Process *proc, void *uaddr, int flags);
+uint32_t futex_hash(struct Process *proc, void *uaddr);
+struct Futex *futex_create(struct Process *proc, void *uaddr);
+int cleanup_futexes(struct Process *proc);
+int lock_futex_table(void);
+void unlock_futex_table(void);
+
 
 
 #endif

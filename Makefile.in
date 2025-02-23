@@ -110,6 +110,8 @@ sbin_PROGRAMS = kernel$(EXEEXT)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@am__append_2 = \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/arm.S           \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/aux_uart.c      \
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/context.S       \
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/copyin.S        \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/debug.c         \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/exception.c     \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/globals.c       \
@@ -120,10 +122,10 @@ sbin_PROGRAMS = kernel$(EXEEXT)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/interrupt.c     \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/main.c          \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/pmap.c          \
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/context.c       \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/shutdown.c      \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/signals.c       \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/timer.c         \
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/ucontext.c      \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@  boards/raspberry_pi_4/vectors.S
 
 subdir = .
@@ -143,21 +145,20 @@ PROGRAMS = $(sbin_PROGRAMS)
 am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
 	proc/pid.c proc/privileges.c proc/proc.c proc/rwlock.c \
 	proc/sched.c proc/signal.c proc/sleep_wakeup_bkl.c \
-	proc/sysconf.c proc/thread.c proc/thread_cond.c \
-	proc/thread_events.c proc/thread_mutex.c proc/thread_rwlock.c \
-	proc/thread_sched.c proc/timer.c proc/usage.c fs/access.c \
-	fs/block.c fs/cache.c fs/char.c fs/close.c fs/dir.c fs/dnlc.c \
-	fs/exec.c fs/exec_root.c fs/filp.c fs/filedesc.c fs/fproc.c \
-	fs/globals.c fs/init.c fs/ioctl.c fs/kqueue.c fs/link.c \
-	fs/lookup.c fs/mknod.c fs/mount.c fs/msg.c fs/msgport.c \
-	fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
-	fs/select.c fs/signal.c fs/stat.c fs/superblock.c fs/symlink.c \
-	fs/sync.c fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
-	utility/doprintf.c utility/string.c vm/as.c vm/bounds.c \
-	vm/globals.c vm/ipcopy.c vm/memregion.c vm/mmap.c vm/page.c \
-	vm/pagefault.c socket/host.c socket/recv.c socket/send.c \
-	socket/socket.c socket/socketpair.c socket/sockname.c \
-	socket/sockopt.c boards/raspberry_pi_1/arm.S \
+	proc/sysconf.c proc/thread.c proc/thread_events.c \
+	proc/thread_futex.c proc/thread_sched.c proc/timer.c \
+	proc/usage.c fs/access.c fs/block.c fs/cache.c fs/char.c \
+	fs/close.c fs/dir.c fs/dnlc.c fs/exec.c fs/exec_root.c \
+	fs/filp.c fs/filedesc.c fs/fproc.c fs/globals.c fs/init.c \
+	fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c fs/mknod.c \
+	fs/mount.c fs/msg.c fs/msgport.c fs/open.c fs/pipe.c fs/read.c \
+	fs/rename.c fs/seek.c fs/select.c fs/signal.c fs/stat.c \
+	fs/superblock.c fs/symlink.c fs/sync.c fs/truncate.c fs/vfs.c \
+	fs/vnode.c fs/write.c utility/doprintf.c utility/string.c \
+	vm/as.c vm/bounds.c vm/globals.c vm/ipcopy.c vm/memregion.c \
+	vm/mmap.c vm/page.c vm/pagefault.c socket/host.c socket/recv.c \
+	socket/send.c socket/socket.c socket/socketpair.c \
+	socket/sockname.c socket/sockopt.c boards/raspberry_pi_1/arm.S \
 	boards/raspberry_pi_1/aux_uart.c boards/raspberry_pi_1/debug.c \
 	boards/raspberry_pi_1/exception.c \
 	boards/raspberry_pi_1/globals.c boards/raspberry_pi_1/gpio.c \
@@ -169,16 +170,18 @@ am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
 	boards/raspberry_pi_1/pmap.c boards/raspberry_pi_1/proc.c \
 	boards/raspberry_pi_1/signals.c boards/raspberry_pi_1/timer.c \
 	boards/raspberry_pi_1/vectors.S boards/raspberry_pi_4/arm.S \
-	boards/raspberry_pi_4/aux_uart.c boards/raspberry_pi_4/debug.c \
+	boards/raspberry_pi_4/aux_uart.c \
+	boards/raspberry_pi_4/context.S boards/raspberry_pi_4/copyin.S \
+	boards/raspberry_pi_4/debug.c \
 	boards/raspberry_pi_4/exception.c \
 	boards/raspberry_pi_4/globals.c boards/raspberry_pi_4/idle.c \
 	boards/raspberry_pi_4/init_arm.c \
 	boards/raspberry_pi_4/init_proc.c \
 	boards/raspberry_pi_4/init_vm.c \
 	boards/raspberry_pi_4/interrupt.c boards/raspberry_pi_4/main.c \
-	boards/raspberry_pi_4/pmap.c boards/raspberry_pi_4/context.c \
-	boards/raspberry_pi_4/shutdown.c \
+	boards/raspberry_pi_4/pmap.c boards/raspberry_pi_4/shutdown.c \
 	boards/raspberry_pi_4/signals.c boards/raspberry_pi_4/timer.c \
+	boards/raspberry_pi_4/ucontext.c \
 	boards/raspberry_pi_4/vectors.S
 am__dirstamp = $(am__leading_dot)dirstamp
 @BOARD_RASPBERRY_PI_1_TRUE@am__objects_1 = boards/raspberry_pi_1/arm.$(OBJEXT) \
@@ -201,6 +204,8 @@ am__dirstamp = $(am__leading_dot)dirstamp
 @BOARD_RASPBERRY_PI_1_TRUE@	boards/raspberry_pi_1/vectors.$(OBJEXT)
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@am__objects_2 = boards/raspberry_pi_4/arm.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/aux_uart.$(OBJEXT) \
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/context.$(OBJEXT) \
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/copyin.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/debug.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/exception.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/globals.$(OBJEXT) \
@@ -211,10 +216,10 @@ am__dirstamp = $(am__leading_dot)dirstamp
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/interrupt.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/main.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/pmap.$(OBJEXT) \
-@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/context.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/shutdown.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/signals.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/timer.$(OBJEXT) \
+@BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/ucontext.$(OBJEXT) \
 @BOARD_RASPBERRY_PI_1_FALSE@@BOARD_RASPBERRY_PI_4_TRUE@	boards/raspberry_pi_4/vectors.$(OBJEXT)
 am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
 	proc/interrupt.$(OBJEXT) proc/pid.$(OBJEXT) \
@@ -222,8 +227,7 @@ am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
 	proc/rwlock.$(OBJEXT) proc/sched.$(OBJEXT) \
 	proc/signal.$(OBJEXT) proc/sleep_wakeup_bkl.$(OBJEXT) \
 	proc/sysconf.$(OBJEXT) proc/thread.$(OBJEXT) \
-	proc/thread_cond.$(OBJEXT) proc/thread_events.$(OBJEXT) \
-	proc/thread_mutex.$(OBJEXT) proc/thread_rwlock.$(OBJEXT) \
+	proc/thread_events.$(OBJEXT) proc/thread_futex.$(OBJEXT) \
 	proc/thread_sched.$(OBJEXT) proc/timer.$(OBJEXT) \
 	proc/usage.$(OBJEXT) fs/access.$(OBJEXT) fs/block.$(OBJEXT) \
 	fs/cache.$(OBJEXT) fs/char.$(OBJEXT) fs/close.$(OBJEXT) \
@@ -286,6 +290,7 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/arm.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/aux_uart.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/context.Po \
+	boards/raspberry_pi_4/$(DEPDIR)/copyin.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/debug.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/exception.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/globals.Po \
@@ -299,6 +304,7 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/shutdown.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/signals.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/timer.Po \
+	boards/raspberry_pi_4/$(DEPDIR)/ucontext.Po \
 	boards/raspberry_pi_4/$(DEPDIR)/vectors.Po \
 	fs/$(DEPDIR)/access.Po fs/$(DEPDIR)/block.Po \
 	fs/$(DEPDIR)/cache.Po fs/$(DEPDIR)/char.Po \
@@ -324,8 +330,7 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	proc/$(DEPDIR)/rwlock.Po proc/$(DEPDIR)/sched.Po \
 	proc/$(DEPDIR)/signal.Po proc/$(DEPDIR)/sleep_wakeup_bkl.Po \
 	proc/$(DEPDIR)/sysconf.Po proc/$(DEPDIR)/thread.Po \
-	proc/$(DEPDIR)/thread_cond.Po proc/$(DEPDIR)/thread_events.Po \
-	proc/$(DEPDIR)/thread_mutex.Po proc/$(DEPDIR)/thread_rwlock.Po \
+	proc/$(DEPDIR)/thread_events.Po proc/$(DEPDIR)/thread_futex.Po \
 	proc/$(DEPDIR)/thread_sched.Po proc/$(DEPDIR)/timer.Po \
 	proc/$(DEPDIR)/usage.Po socket/$(DEPDIR)/host.Po \
 	socket/$(DEPDIR)/recv.Po socket/$(DEPDIR)/send.Po \
@@ -500,16 +505,15 @@ top_srcdir = @top_srcdir@
 kernel_SOURCES = proc/globals.c proc/id.c proc/interrupt.c proc/pid.c \
 	proc/privileges.c proc/proc.c proc/rwlock.c proc/sched.c \
 	proc/signal.c proc/sleep_wakeup_bkl.c proc/sysconf.c \
-	proc/thread.c proc/thread_cond.c proc/thread_events.c \
-	proc/thread_mutex.c proc/thread_rwlock.c proc/thread_sched.c \
-	proc/timer.c proc/usage.c fs/access.c fs/block.c fs/cache.c \
-	fs/char.c fs/close.c fs/dir.c fs/dnlc.c fs/exec.c \
-	fs/exec_root.c fs/filp.c fs/filedesc.c fs/fproc.c fs/globals.c \
-	fs/init.c fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c \
-	fs/mknod.c fs/mount.c fs/msg.c fs/msgport.c fs/open.c \
-	fs/pipe.c fs/read.c fs/rename.c fs/seek.c fs/select.c \
-	fs/signal.c fs/stat.c fs/superblock.c fs/symlink.c fs/sync.c \
-	fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
+	proc/thread.c proc/thread_events.c proc/thread_futex.c \
+	proc/thread_sched.c proc/timer.c proc/usage.c fs/access.c \
+	fs/block.c fs/cache.c fs/char.c fs/close.c fs/dir.c fs/dnlc.c \
+	fs/exec.c fs/exec_root.c fs/filp.c fs/filedesc.c fs/fproc.c \
+	fs/globals.c fs/init.c fs/ioctl.c fs/kqueue.c fs/link.c \
+	fs/lookup.c fs/mknod.c fs/mount.c fs/msg.c fs/msgport.c \
+	fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/seek.c \
+	fs/select.c fs/signal.c fs/stat.c fs/superblock.c fs/symlink.c \
+	fs/sync.c fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
 	utility/doprintf.c utility/string.c vm/as.c vm/bounds.c \
 	vm/globals.c vm/ipcopy.c vm/memregion.c vm/mmap.c vm/page.c \
 	vm/pagefault.c socket/host.c socket/recv.c socket/send.c \
@@ -642,13 +646,9 @@ proc/sysconf.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/thread.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
-proc/thread_cond.$(OBJEXT): proc/$(am__dirstamp) \
-	proc/$(DEPDIR)/$(am__dirstamp)
 proc/thread_events.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
-proc/thread_mutex.$(OBJEXT): proc/$(am__dirstamp) \
-	proc/$(DEPDIR)/$(am__dirstamp)
-proc/thread_rwlock.$(OBJEXT): proc/$(am__dirstamp) \
+proc/thread_futex.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
 proc/thread_sched.$(OBJEXT): proc/$(am__dirstamp) \
 	proc/$(DEPDIR)/$(am__dirstamp)
@@ -819,6 +819,12 @@ boards/raspberry_pi_4/arm.$(OBJEXT):  \
 boards/raspberry_pi_4/aux_uart.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
+boards/raspberry_pi_4/context.$(OBJEXT):  \
+	boards/raspberry_pi_4/$(am__dirstamp) \
+	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
+boards/raspberry_pi_4/copyin.$(OBJEXT):  \
+	boards/raspberry_pi_4/$(am__dirstamp) \
+	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/debug.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
@@ -849,9 +855,6 @@ boards/raspberry_pi_4/main.$(OBJEXT):  \
 boards/raspberry_pi_4/pmap.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
-boards/raspberry_pi_4/context.$(OBJEXT):  \
-	boards/raspberry_pi_4/$(am__dirstamp) \
-	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/shutdown.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
@@ -859,6 +862,9 @@ boards/raspberry_pi_4/signals.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/timer.$(OBJEXT):  \
+	boards/raspberry_pi_4/$(am__dirstamp) \
+	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
+boards/raspberry_pi_4/ucontext.$(OBJEXT):  \
 	boards/raspberry_pi_4/$(am__dirstamp) \
 	boards/raspberry_pi_4/$(DEPDIR)/$(am__dirstamp)
 boards/raspberry_pi_4/vectors.$(OBJEXT):  \
@@ -903,6 +909,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/arm.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/aux_uart.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/context.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/copyin.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/debug.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/exception.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
@@ -916,6 +923,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/shutdown.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/signals.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/timer.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/ucontext.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@boards/raspberry_pi_4/$(DEPDIR)/vectors.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/access.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/block.Po@am__quote@ # am--include-marker
@@ -966,10 +974,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sleep_wakeup_bkl.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/sysconf.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_cond.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_events.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_mutex.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_rwlock.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_futex.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/thread_sched.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/timer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/usage.Po@am__quote@ # am--include-marker
@@ -1337,6 +1343,7 @@ distclean: distclean-am
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/arm.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/aux_uart.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/context.Po
+	-rm -f boards/raspberry_pi_4/$(DEPDIR)/copyin.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/debug.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/exception.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/globals.Po
@@ -1350,6 +1357,7 @@ distclean: distclean-am
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/shutdown.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/signals.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/timer.Po
+	-rm -f boards/raspberry_pi_4/$(DEPDIR)/ucontext.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/vectors.Po
 	-rm -f fs/$(DEPDIR)/access.Po
 	-rm -f fs/$(DEPDIR)/block.Po
@@ -1400,10 +1408,8 @@ distclean: distclean-am
 	-rm -f proc/$(DEPDIR)/sleep_wakeup_bkl.Po
 	-rm -f proc/$(DEPDIR)/sysconf.Po
 	-rm -f proc/$(DEPDIR)/thread.Po
-	-rm -f proc/$(DEPDIR)/thread_cond.Po
 	-rm -f proc/$(DEPDIR)/thread_events.Po
-	-rm -f proc/$(DEPDIR)/thread_mutex.Po
-	-rm -f proc/$(DEPDIR)/thread_rwlock.Po
+	-rm -f proc/$(DEPDIR)/thread_futex.Po
 	-rm -f proc/$(DEPDIR)/thread_sched.Po
 	-rm -f proc/$(DEPDIR)/timer.Po
 	-rm -f proc/$(DEPDIR)/usage.Po
@@ -1492,6 +1498,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/arm.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/aux_uart.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/context.Po
+	-rm -f boards/raspberry_pi_4/$(DEPDIR)/copyin.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/debug.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/exception.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/globals.Po
@@ -1505,6 +1512,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/shutdown.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/signals.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/timer.Po
+	-rm -f boards/raspberry_pi_4/$(DEPDIR)/ucontext.Po
 	-rm -f boards/raspberry_pi_4/$(DEPDIR)/vectors.Po
 	-rm -f fs/$(DEPDIR)/access.Po
 	-rm -f fs/$(DEPDIR)/block.Po
@@ -1555,10 +1563,8 @@ maintainer-clean: maintainer-clean-am
 	-rm -f proc/$(DEPDIR)/sleep_wakeup_bkl.Po
 	-rm -f proc/$(DEPDIR)/sysconf.Po
 	-rm -f proc/$(DEPDIR)/thread.Po
-	-rm -f proc/$(DEPDIR)/thread_cond.Po
 	-rm -f proc/$(DEPDIR)/thread_events.Po
-	-rm -f proc/$(DEPDIR)/thread_mutex.Po
-	-rm -f proc/$(DEPDIR)/thread_rwlock.Po
+	-rm -f proc/$(DEPDIR)/thread_futex.Po
 	-rm -f proc/$(DEPDIR)/thread_sched.Po
 	-rm -f proc/$(DEPDIR)/timer.Po
 	-rm -f proc/$(DEPDIR)/usage.Po

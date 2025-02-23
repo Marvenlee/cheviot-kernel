@@ -178,12 +178,16 @@ void PrintUserContext(struct UserContext *uc)
 }
 
 
+/*
+ *
+ */
 void PrintMemDump(uint32_t base, size_t word_cnt)
 {
-  for (size_t t=0; t<word_cnt; t++)
-  {
+#if 0
+  for (size_t t=0; t<word_cnt; t++) {
     DoLog("addr: %08x,  data:%08x", (base + t*4), *(uint32_t *)(base + t * 4));  
   }
+#endif  
 }
 
 

@@ -151,7 +151,7 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 	struct sigaction act, oact;
 	struct Process *cproc;
 	
-	Info("sys_sigaction(signal:%d)", signal);
+	// Info("sys_sigaction(signal:%d)", signal);
 	
 	cproc = get_current_process();	
 
@@ -471,7 +471,7 @@ int sys_sigpending(sigset_t *set_out)
  */ 
 void do_signal_default(int sig)
 {
-  Info("do_signal_default(%d)", sig);
+//  Info("do_signal_default(%d)", sig);
   
 	if (sigprop[sig] & SP_KILL) {
 		sig_exit(sig);

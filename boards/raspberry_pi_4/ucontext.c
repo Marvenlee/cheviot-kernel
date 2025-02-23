@@ -44,6 +44,16 @@ void start_forked_thread_log(void)
   Info ("start_forked_thread_log()");
 }
 
+void start_user_thread_log(void)
+{
+  Info ("start_user_thread_log()");
+}
+
+void start_prolog_user_thread_log(void)
+{
+  Info ("start_prolog_user_thread_log()");
+}
+
 
 void start_forked_thread_inside_log(struct UserContext *uc)
 {
@@ -198,7 +208,7 @@ void arch_init_exec_thread(struct Process *proc, struct Thread *thread, void *en
 /*
  *
  */
-void arch_init_user_thread(struct Thread *thread, void *entry, void *arg)
+void arch_init_user_thread(struct Thread *thread, void *entry, void *user_entry, void *stack_pointer, void *arg)
 {
   uint32_t cpsr;
   struct UserContext *uc;
@@ -214,17 +224,24 @@ void arch_init_user_thread(struct Thread *thread, void *entry, void *arg)
 #endif
   
   memset(uc, 0, sizeof(*uc));
-  uc->pc = (uint32_t)0xdeadeee3;      // Why are these set to odd addresses?
   uc->cpsr = cpsr;
-  uc->sp = (uint32_t)0xdeadeee1;
 
-// kernel save/restore context
+  if (entry == NULL) {
+    uc->pc = (uint32_t)user_entry;      // Why are these set to odd addresses?
+    uc->sp = (uint32_t)stack_pointer;
+    uc->r0 = (uint32_t)arg;
+  } else {
+    uc->pc = (uint32_t)0xdeadeee3;      // Why are these set to odd addresses?
+    uc->sp = (uint32_t)0xdeadaaa3;
+  }
+  
+  // kernel save/restore context
 
   context = ((uint32_t *)uc) - N_CONTEXT_WORD;
   
-  context[0] = (uint32_t)arg;
+  context[0] = (uint32_t)arg;  
   context[1] = (uint32_t)entry;
-
+  
   for (int t = 2; t <= 12; t++) {
     context[t] = 0;
   }
@@ -232,8 +249,14 @@ void arch_init_user_thread(struct Thread *thread, void *entry, void *arg)
   Info("Setting FPU state, addr:%08x", (uint32_t)context); 
 
   context[13] = (uint32_t)uc;
-  context[14] = (uint32_t)start_of_user_thread;
-
+  
+  if (entry != NULL) {
+    context[14] = (uint32_t)start_of_prolog_user_thread;
+  } else {
+    context[14] = (uint32_t)start_of_user_thread;
+  }
+  
+  
   context[15] = 0x00000000;  // FPU status register
   for (int t=0; t<32; t+=2) {
     context[16 + t ] = 0x00000000;

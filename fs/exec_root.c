@@ -105,6 +105,7 @@ void exec_root(void *arg)
   Info ("Args");
   Info ("Entry Point  : %08x", (vm_addr) entry_point);
   
+  set_user_stack_tcb(current_thread, stack_base, USER_STACK_SZ, NULL);  
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
 }
 

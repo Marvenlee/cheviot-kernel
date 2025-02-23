@@ -19,7 +19,7 @@
  * Raspberry Pi interrupt handling functions.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/board/arm.h>
 #include <kernel/board/interrupt.h>

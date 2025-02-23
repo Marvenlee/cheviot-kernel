@@ -115,8 +115,23 @@ void init_processes(void)
     thread->state = THREAD_STATE_FREE;
     LIST_ADD_TAIL(&free_thread_list, thread, free_link);
   }
-  
+   
   Info("free thread list initialized");
+  
+  LIST_INIT(&free_futex_list);
+  
+  for (int t = 0; t < max_futex; t++) {
+    LIST_ADD_TAIL(&free_futex_list, &futex_table[t], free_link);
+  }
+  
+  futex_table_busy = 0;
+  InitRendez(&futex_table_busy_rendez);
+  
+  for (int t = 0; t < FUTEX_HASH_SZ; t++) {
+    LIST_INIT(&futex_hash_table[t]);
+  }
+  
+  Info("futex lists initialized");
     
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
     LIST_INIT(&timing_wheel[t]);
@@ -142,9 +157,11 @@ void init_processes(void)
   // Does the timer thread and kernel threads run in the root address space?
   // May as well, and then use the ASID mechanism to reduce overhead.
 
-  thread_reaper_thread = do_create_thread(root_process, thread_reaper_task, NULL, 
+  thread_reaper_thread = do_create_thread(root_process, thread_reaper_task, NULL, NULL, 
                                SCHED_RR, 16, 
-                               THREADF_KERNEL,
+                               THREADF_KERNEL, false, 
+                               NULL, 0,
+                               NULL,
                                0,
                                &cpu_table[0],
                                "reaper-kt");
@@ -157,9 +174,11 @@ void init_processes(void)
   // Does the timer thread and kernel threads run in the root address space?
   // May as well, and then use the ASID mechanism to reduce overhead.
 
-  timer_thread = do_create_thread(root_process, timer_bottom_half_task, NULL, 
+  timer_thread = do_create_thread(root_process, timer_bottom_half_task, NULL, NULL,
                                SCHED_RR, 31, 
-                               THREADF_KERNEL,
+                               THREADF_KERNEL, false, 
+                               NULL, 0,
+                               NULL,
                                0,
                                &cpu_table[0],
                                "timer-kt");
@@ -168,9 +187,11 @@ void init_processes(void)
 
   thread_start(timer_thread);
 
-  cpu_table[0].idle_thread = do_create_thread(root_process, idle_task, NULL, 
+  cpu_table[0].idle_thread = do_create_thread(root_process, idle_task, NULL, NULL,
                                    SCHED_IDLE, 0, 
-                                   THREADF_KERNEL,
+                                   THREADF_KERNEL, false, 
+                                   NULL, 0,
+                                   NULL,
                                    0,
                                    &cpu_table[0],
                                    "idle-kt");

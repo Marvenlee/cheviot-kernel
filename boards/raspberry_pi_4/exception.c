@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define KDEBUG
+//#define KDEBUG
 
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>

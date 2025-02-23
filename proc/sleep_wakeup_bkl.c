@@ -343,7 +343,7 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
   int_state = DisableInterrupts();
 
   if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED &&
-      (thread->intr_flags & intr_reason) != 0) {
+      ((thread->intr_flags & intr_reason) != 0) || intr_reason == 0) {
     KASSERT(thread->blocking_rendez != NULL);
     rendez = thread->blocking_rendez;
     LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
@@ -353,6 +353,17 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
   }
 
   RestoreInterrupts(int_state);
+}
+
+
+/*
+ *
+ */
+void TaskRendezRequeue(struct Thread *thread, struct Rendez *r_new, struct Rendez *r_old)
+{
+  LIST_REM_HEAD(&r_old->blocked_list, blocked_link);
+  LIST_ADD_TAIL(&r_new->blocked_list, thread, blocked_link);
+  thread->blocking_rendez = r_new;
 }
 
 

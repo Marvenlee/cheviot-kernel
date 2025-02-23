@@ -46,7 +46,7 @@ int sys_fork(void)
   struct Thread *current_thread;
   struct Thread *new_thread;
   
-	Info("sys_fork()");
+//	Info("sys_fork()");
 
   current_proc = get_current_process();
   current_thread = get_current_thread();
@@ -142,7 +142,7 @@ int sys_waitpid(int pid, int *status, int options)
   int found_in_pgrp = 0;
   int err = 0;
   
-  Info("sys_waitpid(pid:%d, opt:%08x", pid, options);
+//  Info("sys_waitpid(pid:%d, opt:%08x", pid, options);
   
   current = get_current_process();
 
@@ -320,7 +320,7 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
   
   current_proc = get_current_process();
 
-  Info ("do_create_process..");
+//  Info ("do_create_process..");
   
   if ((new_proc = alloc_process(current_proc, flags, basename)) == NULL) {
     return NULL;
@@ -337,7 +337,12 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
   init_signals(new_proc);
   init_privileges(new_proc);
   
-  thread = do_create_thread(new_proc, entry, arg, SCHED_RR, 16, 0, THREADF_USER, cpu, basename);
+  thread = do_create_thread(new_proc, entry, NULL, arg, 
+                            SCHED_RR, 16, 
+                            0, false,
+                            NULL, 0,
+                            NULL,
+                            THREADF_USER, cpu, basename);
 
   if (thread == NULL) {
     free_address_space(&new_proc->as);

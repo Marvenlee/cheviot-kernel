@@ -12,10 +12,8 @@ kernel_SOURCES +=         \
   proc/sleep_wakeup_bkl.c \
   proc/sysconf.c          \
   proc/thread.c           \
-  proc/thread_cond.c      \
   proc/thread_events.c    \
-  proc/thread_mutex.c     \
-  proc/thread_rwlock.c    \
+  proc/thread_futex.c     \
   proc/thread_sched.c     \
   proc/timer.c            \
   proc/usage.c

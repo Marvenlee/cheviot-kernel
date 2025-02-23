@@ -90,6 +90,7 @@ void Main(void)
   max_kqueue = NR_KQUEUE;
   max_knote = NR_KNOTE;
   max_isr_handler = NR_ISR_HANDLER;
+  max_futex = NR_FUTEX;
   
   init_bootstrap_allocator();
 
@@ -111,6 +112,7 @@ void Main(void)
   kqueue_table      = bootstrap_alloc(max_kqueue * sizeof(struct KQueue));
   knote_table       = bootstrap_alloc(max_knote * sizeof(struct KNote));
   isr_handler_table = bootstrap_alloc(max_isr_handler * sizeof(struct ISRHandler));
+  futex_table       = bootstrap_alloc(max_futex * sizeof(struct Futex));
 	
 	
   Info ("bootloader_base     : %08x", bootinfo->bootloader_base);

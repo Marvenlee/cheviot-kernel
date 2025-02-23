@@ -35,7 +35,7 @@
 
 
 /*
- *
+ * Do we let each network type/server handle it?
  */
 int sys_socketpair(int domain, int type, int protocol, int socket_vector[2])
 {

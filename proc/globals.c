@@ -51,6 +51,15 @@ piddesc_list_t free_piddesc_list;
 struct Session *session_table;
 session_list_t free_session_list;
 
+int max_futex;
+struct Futex *futex_table;
+futex_list_t free_futex_list;
+int futex_table_busy;
+struct Rendez futex_table_busy_rendez;
+futex_list_t futex_hash_table[FUTEX_HASH_SZ];
+
+
+
 struct Pgrp *pgrp_table;
 pgrp_list_t free_pgrp_list;
 

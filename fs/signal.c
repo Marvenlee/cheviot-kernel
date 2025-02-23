@@ -17,7 +17,7 @@
  * Signalling foreground process group from TTY device drivers
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <sys/types.h>
 #include <stdint.h>

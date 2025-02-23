@@ -59,6 +59,8 @@ pid_t sys_getppid(void)
  */
 pid_t sys_thread_gettid(void)
 {
+  Info("sys_thread_gettid");
+
   return get_current_tid(); 
 }
 

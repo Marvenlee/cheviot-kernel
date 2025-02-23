@@ -114,6 +114,8 @@ struct Process
 
   uint64_t privileges;              // Privilege bitmap of process
   uint64_t privileges_after_exec;   // Privilege bitmap to use after exec.  
+
+  futex_list_t futex_list;
 };
 
 
@@ -158,7 +160,7 @@ struct Thread
   struct Thread *joiner_thread; // Thread that is performing a join() on this thread
   intptr_t exit_status;
   bool detached;
-    
+  
   thread_link_t free_link;
   thread_link_t thread_link;
   
@@ -177,7 +179,6 @@ struct Thread
   int quanta_used;              // number of ticks the process has run without blocking
   int priority;                 // effective priority of process
   int desired_priority;         // default priority of process
-
 
   // TODO: Remove events, use sigsuspend() to temporarilly unmask and wait for signals.
   uint32_t intr_flags;          // Mask of what sources can interrupt TaskSleepInterruptible
@@ -357,19 +358,24 @@ void thread_start(struct Thread *thread);
 void thread_stop(void);
 
 // proc/thread.c
-pid_t sys_thread_create(void (*entry)(void *), void *arg,
-                        int policy, int priority,
-                        uint32_t flags, char *basename);
+pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr, void *user_tcb);
 int sys_thread_join(pid_t tid, intptr_t *retval);
 void sys_thread_exit(intptr_t retval);
+
 struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, struct Thread *old_thread);
 struct Thread *create_kernel_thread(void (*entry)(void *), void *arg, int policy, int priority,
                                     uint32_t flags, struct CPU *cpu, char *name);
-struct Thread *do_create_thread(struct Process *proc, void (*entry)(void *), void *arg,
-                                int policy, int priority, uint32_t flags, uint32_t sig_mask,
+struct Thread *do_create_thread(struct Process *new_proc, 
+                                void (*entry)(void *), void (*user_entry)(void *), 
+                                void *arg,
+                                int policy, int priority, 
+                                uint32_t flags, int detached,
+                                void *user_stack_base, size_t user_stack_sz,
+                                void *user_tcb,
+                                uint32_t sig_mask,
                                 struct CPU *cpu, char *name);
 void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, void *stack,
-                 pid_t tid, uint32_t sig_mask, char *name);
+                 pid_t tid, uint32_t sig_mask, int detached, char *name);
 int do_kill_thread(struct Thread *thread, int signal);
 void do_kill_other_threads_and_wait(struct Process *current, struct Thread *current_thread);
 int do_exit_thread(intptr_t status);
@@ -379,6 +385,8 @@ void free_thread(struct Thread *thread);
 struct Thread *alloc_thread_struct(void);
 void free_thread_struct(struct Thread *thread);
 void thread_reaper_task(void *arg);
+void set_user_stack_tcb(struct Thread *thread, void *user_stack, size_t user_stack_sz, void *user_tcb);
+void get_user_stack_tcb(struct Thread *thread, void **user_stack, size_t *user_stack_sz, void **user_tcb);
 
 // proc/thread_events.c
 uint32_t sys_thread_event_check(uint32_t event_mask);
@@ -397,7 +405,7 @@ int arch_init_fork_thread(struct Process *proc, struct Process *current_proc,
                       struct Thread *thread, struct Thread *current_thread);
 void arch_init_exec_thread(struct Process *proc, struct Thread *thread, void *entry_point,
                   void *stack_pointer, struct execargs *args);
-void arch_init_user_thread(struct Thread *thread, void *entry, void *arg);
+void arch_init_user_thread(struct Thread *thread, void *entry_point, void *user_entry_point, void *stack_pointer, void *arg);
 void arch_init_kernel_thread(struct Thread *thread, void *entry, void *arg);
 void arch_stop_thread(struct Thread *thread);
 

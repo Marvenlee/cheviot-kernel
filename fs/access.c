@@ -103,6 +103,7 @@ int sys_chmod(char *_path, mode_t mode)
       vnode->mode = mode;
     }
   } else {
+    Warn("chmod -EPERM");
     sc = EPERM;
   }
 
@@ -143,7 +144,8 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
       vnode->gid = gid;
     }    
   } else {
-    sc = EPERM;
+    Warn("chown -EPERM");
+    sc = -EPERM;
   }
 
   rwlock(&vnode->lock, LK_RELEASE);
@@ -179,6 +181,7 @@ int sys_fchmod(int fd, mode_t mode)
       vnode->mode = mode;
     }
   } else {
+    Warn("fchmod -EPERM");
     sc = EPERM;
   }
 
@@ -218,6 +221,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
       vnode->gid = gid;
     }    
   } else {
+    Warn("fchown -EPERM");
     sc = EPERM;
   }
 
@@ -246,6 +250,12 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   struct Process *current;
   
   current = get_current_process();
+  
+#if 1
+  return 0;
+#endif
+  
+  // FIXME: check_access
   
   if (current->euid == SUPERUSER) {
     return 0;

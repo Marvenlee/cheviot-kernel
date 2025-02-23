@@ -201,6 +201,7 @@ sys_call:
     // Save return pc, sp and cpu flags into new activation
     // load new pagedir from new activation
     // update user entry point pc and top of stack sp register before returning into new ring
+
     MSWIPopRegs    
     subs pc, lr, #0   // Return into new ring
 
@@ -220,6 +221,31 @@ sys_return:
     MSWIPopRegs    
     subs pc, lr, #0   // Return into previous ring
 
+
+/* @brief   Store the current CPU's activation table
+ *
+ * Only permitted by most privileged ring. Used for task switching.
+ */
+sys_get_activation_contexts:
+    MSWIPushRegs  // Save some registers if needed on kernel stack
+
+    // Copy activation contexts out for all rings.
+
+    MSWIPopRegs    
+    subs pc, lr, #0   // Return into previous ring
+
+
+/* @brief   Update the current CPU's activation table
+ *
+ * Only permitted by most privileged ring. Used for task switching.
+ */
+sys_set_activation_contexts:
+    MSWIPushRegs  // Save some registers if needed on kernel stack
+
+    // Copy activation contexts in for all rings.
+
+    MSWIPopRegs    
+    subs pc, lr, #0   // Return into previous ring
 
 
 /* @brief   Entry point for interrupts
