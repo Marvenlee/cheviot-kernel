@@ -130,8 +130,6 @@ int sys_futex_requeue(void *uaddr, uint32_t n, void *uaddr2, uint32_t m, int fla
   struct Process *current_proc;
   struct Thread *thread;
  
-  Error("sys_futex_requeue");
-  
   current_proc = get_current_process();
 
   if (uaddr == uaddr2) {
@@ -186,8 +184,6 @@ struct Futex *futex_get(struct Process *proc, void *uaddr, int flags)
   struct Futex *futex;
   int hash;
 
-  Info("futex_get(proc:%08x, uaddr:%08x)", (uint32_t)proc, (uint32_t)uaddr);
-  
   if (((uintptr_t)uaddr % sizeof(int)) != 0) {
     return -EINVAL;
   }
@@ -230,8 +226,6 @@ uint32_t futex_hash(struct Process *proc, void *uaddr)
  */
 int lock_futex_table(void)
 {
-  Error("lock_futex_table");
-
   while(futex_table_busy == true) {
     TaskSleep(&futex_table_busy_rendez);
   }
@@ -246,24 +240,26 @@ int lock_futex_table(void)
  */
 void unlock_futex_table(void)
 {
-  Error("unlock_futex_table");
-
   futex_table_busy = false;
   TaskWakeup(&futex_table_busy_rendez);
 }
 
 
 /*
- * TODO: Remove, must by created on the fly, so new forked process can use existing initialized mutexes
- * in the new address space.
+ * We are currently creating futexes on first use, such as the first time a particular mutex is locked.
+ * We could potentially run out of mutexes and not all code checks the error code of pthread_mutex_lock.
+ * This could potentially cause issues.  We could have an "out-of-futex" killer than exits the process.
  *
- * TODO: Exec must release futexes.
+ * Prefer to have syscall to create futex at init time.  If a mutex is not valid or uninitialized on use
+ * then kill the process by default with SIGSEGV.
+ *
+ * Futexes then need to be duplicated to new process on fork().
+ *
+ * TODO: exec() must release futexes.
  */
 struct Futex *futex_create(struct Process *proc, void *uaddr)
 {
   struct Futex *futex;
-
-  Error("futex_create(proc:%08x, uaddr:%08x)", (uint32_t)proc, (uint32_t)uaddr);
 
   futex = LIST_HEAD(&free_futex_list);
 
@@ -282,8 +278,6 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
   futex->uaddr = uaddr;
     
   InitRendez(&futex->rendez);
-  
-  Info("futex:%08x", (uint32_t)futex);
   
   return futex;
 }

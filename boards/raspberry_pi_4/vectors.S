@@ -295,11 +295,15 @@ swi_vector:
                                         // We're accessing the SWI instruction in user space,
                                         // It is possible to fault and we don't have a safe
                                         // way of catching this. This can happen if we are
-                                        // preempted and the mapping is removed. That is not
-                                        // currently possible as we grab the kernel lock.
+                                        // preempted and the mapping is removed. Though that is
+                                        // not currently possible as we are non-SMP and grab the
+                                        // kernel lock before enabling interrupts.
+                                        // However, it could occur when we support SMP and another
+                                        // thread unmaps it.                                        
                                         // We would have also caused a prefetch fault from user
                                         // space if the page with the swi instruction was not mapped.
-                                        // Prefer to use another register as the syscall index.                        
+                                        // Prefer to use R6 or R7 as the syscall index.                        
+
     bic r7,r7, #0xff000000              // Assumes non-thumb, eventually handle thumb mode.
 
     cmp r7, #MAX_SYSCALL
