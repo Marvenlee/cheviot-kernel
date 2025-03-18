@@ -60,15 +60,17 @@ int sys_fork(void)
     return -ENOMEM;
   }
 
+  // FIXME: Can any of these fail? check return codes
   fork_session_pgrp(new_proc, current_proc);
   fork_ids(new_proc, current_proc);
   fork_process_fds(new_proc, current_proc);
   fork_signals(new_proc, current_proc);  
   fork_privileges(new_proc, current_proc);
-  
+
   new_thread = fork_thread(new_proc, current_proc, current_thread);
 
   if (new_thread == NULL) {
+    fini_futexes(new_proc);
     free_address_space(&new_proc->as);
     fini_fproc(new_proc);
     fini_session_pgrp(new_proc);
@@ -105,9 +107,10 @@ void sys_exit(int status)
 
     do_kill_other_threads_and_wait(current, current_thread);
 
+    fini_futexes(current);
     fini_fproc(current);
     fini_session_pgrp(current);
-    
+
     cleanup_address_space(&current->as);
 
     detach_child_processes(current);
@@ -403,6 +406,8 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
   LIST_INIT(&proc->child_list);
   LIST_INIT(&proc->thread_list);
   LIST_INIT(&proc->unmasked_signal_thread_list);
+
+  LIST_INIT(&proc->futex_list);
     
   return proc;
 }

@@ -121,7 +121,7 @@ void init_processes(void)
   LIST_INIT(&free_futex_list);
   
   for (int t = 0; t < max_futex; t++) {
-    LIST_ADD_TAIL(&free_futex_list, &futex_table[t], free_link);
+    LIST_ADD_TAIL(&free_futex_list, &futex_table[t], link);
   }
   
   futex_table_busy = 0;

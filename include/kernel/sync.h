@@ -70,7 +70,7 @@ struct Futex
 {
   uintptr_t uaddr;
   struct Process *proc;
-  futex_link_t free_link;
+  futex_link_t link;        // Link on global free futex list or process's futex list
   futex_link_t hash_link;  
 
   struct Rendez rendez;
@@ -78,8 +78,8 @@ struct Futex
 };
 
 
-// Flags for futex_get()
-#define FUTEX_CREATE    (1<<0)
+// flags for futex_get
+#define FUTEX_CREATE (1<<0)
 
 
 // Prototypes
@@ -90,7 +90,9 @@ int sys_futex_requeue(void *uaddr, uint32_t n, void *uaddr2, uint32_t m, int fla
 struct Futex *futex_get(struct Process *proc, void *uaddr, int flags);
 uint32_t futex_hash(struct Process *proc, void *uaddr);
 struct Futex *futex_create(struct Process *proc, void *uaddr);
-int cleanup_futexes(struct Process *proc);
+void futex_free(struct Process *proc, struct Futex *futex);
+void fini_futexes(struct Process *proc);
+int do_cleanup_futexes(struct Process *proc);
 int lock_futex_table(void);
 void unlock_futex_table(void);
 

@@ -94,7 +94,7 @@ int sys_exec(char *_path, struct execargs *_args)
   lookup_cleanup(&ld);  
   sys_close(fd);
   
-  if (sc == -ENOMEM) {
+  if (sc != 0) {
     Error("Exec failed to exec, sc = %d", sc);
     sys_exit(-1);   // TODO: exit code for exec() failure?
   }
@@ -155,11 +155,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
     return -ENOMEM;
   }
 
-  if (cleanup_futexes(current) != 0) {
-    Error("exec cleanup futexes failed");
-    free_arg_pool(pool);
-    return -ENOMEM;
-  }
+  fini_futexes(current);
 
   if (load_process(current, fd, &entry_point) != 0) {
     Error("LoadProcess failed");

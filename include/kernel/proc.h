@@ -174,6 +174,8 @@ struct Thread
   struct Rendez *blocking_rendez;
   thread_link_t blocked_link;
 
+  futex_list_t futex_list;
+
   thread_cqlink_t sched_entry;  // run-queue entry
   int sched_policy;
   int quanta_used;              // number of ticks the process has run without blocking

@@ -27,6 +27,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/execargs.h>
 #include <sys/wait.h>
 
@@ -48,9 +49,8 @@ int sys_futex_destroy(void *uaddr)
     unlock_futex_table();
     return -EINVAL;
   }
-  
-  LIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);  
-  LIST_ADD_HEAD(&free_futex_list, futex, free_link);
+ 
+  futex_free(current_proc, futex);
   
   unlock_futex_table();
 
@@ -185,7 +185,7 @@ struct Futex *futex_get(struct Process *proc, void *uaddr, int flags)
   int hash;
 
   if (((uintptr_t)uaddr % sizeof(int)) != 0) {
-    return -EINVAL;
+    return NULL;
   }
   
   hash = futex_hash(proc, uaddr);
@@ -199,11 +199,15 @@ struct Futex *futex_get(struct Process *proc, void *uaddr, int flags)
   
     futex = LIST_NEXT(futex, hash_link);
   }    
-  
+
   if (flags & FUTEX_CREATE) {
     futex = futex_create(proc, uaddr);
+    
+    if (futex == NULL) {
+      sys_exit(SIGKILL<<8);
+    }    
   }
-  
+
   return futex;
 }
 
@@ -265,11 +269,11 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
 
   if (futex == NULL) {
     Error("no free futex");
-    unlock_futex_table();
     return NULL;
   }
 
-  LIST_REM_HEAD(&free_futex_list, free_link);
+  LIST_REM_HEAD(&free_futex_list, link);
+  LIST_ADD_HEAD(&proc->futex_list, futex, link);
 
   futex->hash = futex_hash(proc, uaddr);  
   LIST_ADD_HEAD(&futex_hash_table[futex->hash], futex, hash_link);
@@ -282,27 +286,54 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
   return futex;
 }
 
-  
+
 /*
  *
  */
-int cleanup_futexes(struct Process *proc)
+void futex_free(struct Process *proc, struct Futex *futex)
+{
+  LIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);
+
+  LIST_REM_ENTRY(&proc->futex_list, futex, link);
+  LIST_ADD_HEAD(&free_futex_list, futex, link);
+}
+
+
+/*
+ *
+ */
+void fini_futexes(struct Process *proc)
+{
+  int sc;
+
+  lock_futex_table();
+  sc = do_cleanup_futexes(proc);
+  unlock_futex_table();
+
+  return sc;
+}
+
+
+/*
+ * Where else is this called, does it have futex table lock?
+ */
+int do_cleanup_futexes(struct Process *proc)
 {
   struct Futex *futex, *next;
   
-  for (int h = 0; h < FUTEX_HASH_SZ; h++) {
-    futex = LIST_HEAD(&futex_hash_table[h]);
+  futex = LIST_HEAD(&proc->futex_list);
+
+  while (futex != NULL) {
+    next = LIST_NEXT(futex, link);
     
-    while (futex != NULL) {
-      next = LIST_NEXT(futex, hash_link);
-      
-      if (futex->proc == proc) {
-        LIST_REM_ENTRY(&futex_hash_table[h], futex, hash_link);  
-        LIST_ADD_HEAD(&free_futex_list, futex, free_link);              
-      }
-      
-      futex = next;
+    if (futex->proc == proc) {
+      LIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);
+
+      LIST_REM_ENTRY(&proc->futex_list, futex, link);
+      LIST_ADD_HEAD(&free_futex_list, futex, link);
     }
+
+    futex = next;
   }
   
   return 0;
