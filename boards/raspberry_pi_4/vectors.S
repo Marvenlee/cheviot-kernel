@@ -291,23 +291,9 @@ swi_vector:
     MEnableInterrupts
     
     ldr lr, [sp, #CONTEXT_PC]
-    ldr r7, [lr, #-4]                   // FIXME: Get syscall nr and check range  
-                                        // We're accessing the SWI instruction in user space,
-                                        // It is possible to fault and we don't have a safe
-                                        // way of catching this. This can happen if we are
-                                        // preempted and the mapping is removed. Though that is
-                                        // not currently possible as we are non-SMP and grab the
-                                        // kernel lock before enabling interrupts.
-                                        // However, it could occur when we support SMP and another
-                                        // thread unmaps it.                                        
-                                        // We would have also caused a prefetch fault from user
-                                        // space if the page with the swi instruction was not mapped.
-                                        // Prefer to use R6 or R7 as the syscall index.                        
 
-    bic r7,r7, #0xff000000              // Assumes non-thumb, eventually handle thumb mode.
-
-    cmp r7, #MAX_SYSCALL
-    movgt r7, #UNKNOWN_SYSCALL
+    cmp r6, #MAX_SYSCALL
+    movgt r6, #UNKNOWN_SYSCALL
 
     ldr r0, [sp, #CONTEXT_R0]
     ldr r1, [sp, #CONTEXT_R1]
@@ -320,9 +306,9 @@ swi_vector:
     str r4, [sp, #0]          // Store R4 and R5 on stack, these are the 5th and 6th arguments of a syscall.
     str r5, [sp, #4]          
     ldr r4, =syscall_table
-    add r4, r7, LSL #2
-    ldr r7, [r4]
-    blx r7
+    add r4, r6, LSL #2
+    ldr r6, [r4]
+    blx r6
     add sp, #8                // Remove R4 and R5 5th and 6th arguments from stack
     str r0, [sp, #CONTEXT_R0]    
     mov r0, sp
