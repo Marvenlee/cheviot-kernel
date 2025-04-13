@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define KDEBUG 1
-
 #include <string.h>
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -37,7 +35,6 @@ void idle_task(void *arg)
 {
   (void)arg;
   
-  Info("** idle task **");
   KernelUnlock();
   EnableInterrupts();
   

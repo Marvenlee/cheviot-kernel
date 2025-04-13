@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+// #define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
@@ -141,6 +141,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
   }
 
   if (current->exit_in_progress == true) {
+    Error("exit_in_progress is true, exiting thread");
     do_exit_thread(0);
   }
 
@@ -148,7 +149,9 @@ int do_exec(int fd, char *name, struct execargs *_args)
   current->exit_in_progress = true;
 
   do_kill_other_threads_and_wait(current, current_thread);
-  
+
+  current->exit_in_progress = false;
+
   if (cleanup_address_space(&current->as) != 0) {
     Error("exec cleanup address space failed");
     free_arg_pool(pool);
@@ -170,6 +173,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
   }
 
   copy_out_argv(stack_base, USER_STACK_SZ, &args);
+
   free_arg_pool(pool);
   
   stack_pointer = stack_base + USER_STACK_SZ - ALIGN_UP(args.total_size, 16) - 16;
@@ -182,7 +186,9 @@ int do_exec(int fd, char *name, struct execargs *_args)
   StrLCpy(current_thread->basename, name, sizeof current_thread->basename);
 
   set_user_stack_tcb(current_thread, stack_base, USER_STACK_SZ, NULL);
+
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
+
   return 0;
 }
 
@@ -238,9 +244,6 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   if (CopyIn(args, _args, sizeof *args) != 0) {
     goto cleanup;
   }
-
-	Info("copy_in_argv(pool:%08x, execargs:%08x, _args:%08x",
-				(uint32_t)pool, (uint32_t)args, (uint32_t)_args);
 
   // TODO : Ensure less than sizeof MAX_ARGS_SZ
   argv = (char **)pool;
@@ -299,6 +302,7 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   args->total_size = dst - pool;
   args->argv = argv;
   args->envv = envv;
+
   return 0;
 
 cleanup:
@@ -317,6 +321,8 @@ int copy_out_argv(void *stack_base, int stack_size, struct execargs *args) {
 	Info("copy_out_argv(stack_base:%08x, stack_size:%d, execargs:%08x",
 											(uint32_t)stack_base, stack_size, (uint32_t)args);
 
+  Info("args->total_size:%08x", (uint32_t)args->total_size);
+
   args_base = stack_base + stack_size - ALIGN_UP(args->total_size, 16);
   difference = (vm_addr)execargs_buf - (vm_addr) args_base;
 
@@ -328,10 +334,7 @@ int copy_out_argv(void *stack_base, int stack_size, struct execargs *args) {
     args->envv[t] = (char *)((vm_addr)args->envv[t] - difference);
   }
 
-	Info("copy_out_argv");
-	Info("args_base:%08x, execargs_buf:%08x", (uint32_t)args_base, (uint32_t)execargs_buf);
   CopyOut((void *)args_base, execargs_buf, args->total_size);
-	Info("copy_out_argv done");
 
   args->argv = (char **)((vm_addr)args->argv - difference);
   args->envv = (char **)((vm_addr)args->envv - difference);
@@ -394,7 +397,8 @@ static int check_elf_headers(int fd)
 /*
  * LoadProcess();
  */
-static int load_process(struct Process *proc, int fd, void **entry_point) {
+static int load_process(struct Process *proc, int fd, void **entry_point)
+{
   int t;
   int rc;
   int32_t phdr_cnt;
@@ -406,6 +410,8 @@ static int load_process(struct Process *proc, int fd, void **entry_point) {
   void *ret_addr;
   Elf32_EHdr ehdr;
   Elf32_PHdr phdr;
+
+  Info("load_process");
   
   rc = kread_file(fd, 0, &ehdr, sizeof(Elf32_EHdr));
 

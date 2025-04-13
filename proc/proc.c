@@ -46,7 +46,7 @@ int sys_fork(void)
   struct Thread *current_thread;
   struct Thread *new_thread;
   
-//	Info("sys_fork()");
+	Info("sys_fork()");
 
   current_proc = get_current_process();
   current_thread = get_current_thread();

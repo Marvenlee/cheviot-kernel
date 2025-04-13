@@ -151,7 +151,7 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 	struct sigaction act, oact;
 	struct Process *cproc;
 	
-	// Info("sys_sigaction(signal:%d)", signal);
+	Info("sys_sigaction(signal:%d)", signal);
 	
 	cproc = get_current_process();	
 

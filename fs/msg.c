@@ -514,7 +514,7 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
 }
 
 
-/* @brief   Blocking send and receive message to a RPC service
+/* @brief   Synchronously sendd a message to a server
  *
  * @param   fd, file descriptor of opened connection to server
  * @param   subclass, subclass of the CMD_SENDMSG command
@@ -536,7 +536,7 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
  *
  * TODO: Check bounds of IOVs. 
  */
-int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
+int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
 {
   struct Process *current;
   struct Filp *filp;
@@ -588,6 +588,33 @@ int sys_sendmsg(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cn
   rwlock(&vnode->lock, LK_RELEASE);
   
   return sc;
+}
+
+
+/* @brief   Asynchronously send a message to a server.
+ *
+ */
+int sys_beginio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Allocate buffers to handle asynchronous messages
+ *
+ */
+int sys_alloc_asyncio(int n)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Free buffers used to handle asynchronous messages
+ *
+ */
+int sys_free_asyncio(int n)
+{
+  return -ENOSYS;
 }
 
 

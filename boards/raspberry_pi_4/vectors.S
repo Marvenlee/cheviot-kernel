@@ -85,7 +85,7 @@ syscall_table:
     // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
     // Need listen(mount_fd) to create new listener handle (multiple for char device server)
     
-    .long sys_sendmsg                   // 23
+    .long sys_sendio                    // 23
     .long sys_getmsg                    // 24  
     .long sys_replymsg                  // 25
     .long sys_readmsg                   // 26
@@ -257,10 +257,15 @@ syscall_table:
     .long sys_shutdown_os               // 145
     
     .long sys_thread_set_self           // 146
-    
-    
+
+    .long sys_sysctl                    // 147
+    .long sys_revoke                    // 148
+    .long sys_beginio                   // 149
+    .long sys_alloc_asyncio             // 150
+    .long sys_free_asyncio              // 151
+
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 146
+#define MAX_SYSCALL                 151
 
 
 /* @brief   System call entry point

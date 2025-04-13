@@ -191,11 +191,11 @@ int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov,
   
   sb = vnode->superblock;
   
-  req.cmd = CMD_SENDMSG;
-  req.args.sendmsg.inode_nr = vnode->inode_nr;
-  req.args.sendmsg.subclass = subclass;
-  req.args.sendmsg.ssize = sbuf_total_sz;
-  req.args.sendmsg.rsize = rbuf_total_sz;
+  req.cmd = CMD_SENDIO;
+  req.args.sendio.inode_nr = vnode->inode_nr;
+  req.args.sendio.subclass = subclass;
+  req.args.sendio.ssize = sbuf_total_sz;
+  req.args.sendio.rsize = rbuf_total_sz;
   
   nbytes_response = ksendmsg(&sb->msgport, IPCOPY, &req, NULL, siov_cnt, siov, riov_cnt, riov);
   return nbytes_response;

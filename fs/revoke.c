@@ -12,57 +12,24 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * --
- * System configuration info
  */
 
 //#define KDEBUG
 
 #include <kernel/dbg.h>
-#include <kernel/error.h>
+#include <kernel/filesystem.h>
 #include <kernel/globals.h>
-#include <kernel/msg.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
-#include <kernel/arch.h>
-#include <unistd.h>
+#include <kernel/vm.h>
+#include <string.h>
 
 
-/* @brief   Get system configuration information
- *
- * @param   name, the name of a setting to get
- * @return  value of the named configuration or negative errno on failure
- */
-int sys_sysconf(int name)
-{
-  int ret;
-  
-  switch(name) {
-    case _SC_PAGE_SIZE:
-      ret = PAGE_SIZE;
-      break;
-   
-    case _SC_PROCESS_MAX:
-      ret = max_process;
-      break;
-      
-    default:
-      ret = -ENOSYS;
-      break;
-  }
-  
-  return ret;
-}
-
-
-/*
+/* @brief   Revoke system call
  *
  */
-int sys_sysctl(const int *name, unsigned int namelen,
-               void *oldp, size_t *oldlenp, const void *newp, size_t newlen)
+int sys_revoke(const char *path)
 {
   return -ENOSYS;
 }
-
 

@@ -59,8 +59,6 @@ pid_t sys_getppid(void)
  */
 pid_t sys_thread_gettid(void)
 {
-  Info("sys_thread_gettid");
-
   return get_current_tid(); 
 }
 
@@ -308,11 +306,11 @@ pid_t get_current_tid(void)
  */
 struct Process *get_process(pid_t pid)
 {
-  if (pid < 0 || pid >= max_pid) {
+  if (pid <= 0 || pid >= max_pid) {
     return NULL;
   }
 
-  return pid_table[pid].proc;
+  return pid_table[pid - 1].proc;
 }
 
 
@@ -322,11 +320,11 @@ struct Process *get_process(pid_t pid)
  */
 struct Thread *get_thread(pid_t tid)
 {
-  if (tid < 0 || tid >= max_pid) {  
+  if (tid <= 0 || tid >= max_pid) {
     return NULL;
   }
 
-  return pid_table[tid].thread;
+  return pid_table[tid - 1].thread;
 }
 
 struct Process *get_thread_process(struct Thread *thread)
@@ -361,7 +359,7 @@ pid_t get_thread_tid(struct Thread *thread)
  */
 struct PidDesc *get_piddesc(struct Process *proc)
 {
-  return &pid_table[proc->pid];
+  return &pid_table[proc->pid - 1];
 }
 
 
@@ -370,20 +368,20 @@ struct PidDesc *get_piddesc(struct Process *proc)
  */
 struct PidDesc *pid_to_piddesc(pid_t pid)
 {
-  if (pid < 0 || pid >= max_pid) {
+  if (pid <= 0 || pid >= max_pid) {
     return NULL;
   }
     
-  return &pid_table[pid];
+  return &pid_table[pid - 1];
 }
 
 
 /*
  *
  */
-pid_t piddesc_to_pid(struct PidDesc *pid)
+pid_t piddesc_to_pid(struct PidDesc *piddesc)
 {
-  return pid - pid_table;
+  return piddesc - pid_table + 1;
 }
 
 

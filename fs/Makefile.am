@@ -27,6 +27,7 @@ kernel_SOURCES += \
   fs/pipe.c \
   fs/read.c \
   fs/rename.c \
+  fs/revoke.c \
   fs/seek.c \
   fs/select.c \
   fs/signal.c \

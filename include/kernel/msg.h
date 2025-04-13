@@ -66,14 +66,18 @@ struct MsgPort
 
 /*
  * Prototypes
- */
-int sys_sendrec(int fd, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
+ */ 
 int sys_getmsg(int server_fd, msgid_t *msgid, iorequest_t *req, size_t req_sz);
 int sys_replymsg(int server_fd, msgid_t msgid, int status, ioreply_t *reply, size_t rep_sz);
 int sys_readmsg(int server_fd, msgid_t msgid, void *buf, size_t buf_sz, off_t offset);
 int sys_writemsg(int server_fd, msgid_t msgid, void *buf, size_t buf_sz, off_t offset);
 int sys_readmsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t offset);
 int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t offset);
+
+int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
+int sys_beginio(int fd, int subclass, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
+int sys_alloc_asyncio(int n);
+int sys_free_asyncio(int n);
 
 int kabortmsg(struct MsgPort *msgport, struct Msg *msg);
 int ksendmsg(struct MsgPort *msgport, int ipc, iorequest_t *req, ioreply_t *reply,
