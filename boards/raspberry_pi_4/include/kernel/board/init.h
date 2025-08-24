@@ -25,6 +25,10 @@
 #define BOOT_CEILING_ADDR   0x00010000
 
 
+// Kernel table heap alignment. Should 16k for reserving pool of ARM page directories.
+#define KERNEL_HEAP_ALIGN   16384
+
+
 // Externs
 extern uint8_t _stext;
 extern uint8_t _ebss;
@@ -63,6 +67,7 @@ void init_cpu_tables(void);
 
 // arm/init_vm.c
 void init_vm(void);
+void init_free_page_queue(void);
 void init_memregion_list(void);
 void init_io_pagetables(void);
 void init_buffer_cache_pagetables(void);
@@ -72,6 +77,7 @@ void init_pageframe_flags(vm_addr base, vm_addr ceiling, bits32_t flags);
 void coalesce_free_pageframes(void);
 void *io_map(vm_addr pa, size_t sz, bool bufferable);
 void init_io_addresses(void);
+void init_free_page_list(vm_addr base, vm_addr ceiling);
 
 // arm/main.c
 void init_bootstrap_allocator(void);

@@ -82,19 +82,19 @@ struct Futex
 #define FUTEX_CREATE (1<<0)
 
 
-// Prototypes
+// proc/thread_futex.c
 int sys_futex_destroy(void *uaddr);
 int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, int flags);
 int sys_futex_wake(void *uaddr, uint32_t n, int flags);
 int sys_futex_requeue(void *uaddr, uint32_t n, void *uaddr2, uint32_t m, int flags);
 struct Futex *futex_get(struct Process *proc, void *uaddr, int flags);
 uint32_t futex_hash(struct Process *proc, void *uaddr);
-struct Futex *futex_create(struct Process *proc, void *uaddr);
-void futex_free(struct Process *proc, struct Futex *futex);
-void fini_futexes(struct Process *proc);
-int do_cleanup_futexes(struct Process *proc);
 int lock_futex_table(void);
 void unlock_futex_table(void);
+struct Futex *futex_create(struct Process *proc, void *uaddr);
+void futex_free(struct Process *proc, struct Futex *futex);
+int fini_futexes(struct Process *proc);
+int do_cleanup_futexes(struct Process *proc);
 
 
 

@@ -34,52 +34,40 @@ int sys_stat(char *_path, struct stat *_stat) {
   struct lookupdata ld;
   int sc;
 
-  Info("sys_stat");
+  if ((sc = lookup(_path, 0, &ld)) == 0) {
+    rwlock(&ld.vnode->lock, LK_SHARED);
+    
+    stat.st_dev = ld.vnode->superblock->dev;
+    stat.st_ino = ld.vnode->inode_nr;
+    stat.st_mode = ld.vnode->mode;
+    stat.st_nlink = ld.vnode->nlink;
+    stat.st_uid = ld.vnode->uid;
+    stat.st_gid = ld.vnode->gid;
+    stat.st_rdev = ld.vnode->rdev;
+    stat.st_size = ld.vnode->size;
+    stat.st_atime = ld.vnode->atime;
+    stat.st_mtime = ld.vnode->mtime;
+    stat.st_ctime = ld.vnode->ctime;
 
-  if (_stat == NULL) {
-    return -EFAULT;
-  }
-	
-  if ((sc = lookup(_path, 0, &ld)) != 0) {
-    return sc;
-  }
-
-//  rwlock(ld.vnode, LK_SHARED);
-  
-  stat.st_dev = ld.vnode->superblock->dev;
-  stat.st_ino = ld.vnode->inode_nr;
-  stat.st_mode = ld.vnode->mode;
-  stat.st_nlink = ld.vnode->nlink;
-  stat.st_uid = ld.vnode->uid;
-  stat.st_gid = ld.vnode->gid;
-  stat.st_rdev = ld.vnode->rdev;
-  stat.st_size = ld.vnode->size;
-  stat.st_atime = ld.vnode->atime;
-  stat.st_mtime = ld.vnode->mtime;
-  stat.st_ctime = ld.vnode->ctime;
-
-	// TODO: Handle st_blocks and st_blocksize correctly 
-	// Update these on reads, writes or truncate operations.
-	// special case return zeros for char and other non-block devices?
+	  // TODO: Handle st_blocks and st_blocksize correctly 
+	  // Update these on reads, writes or truncate operations.
+	  // special case return zeros for char and other non-block devices?
 
 
-	if (ld.vnode->superblock->block_size != 0) {
-		stat.st_blocks = ld.vnode->size / ld.vnode->superblock->block_size;
-		stat.st_blksize = ld.vnode->superblock->block_size;
-	} else {
-		stat.st_blocks = 0;
-		stat.st_blksize = 0;
-	}
+	  if (ld.vnode->superblock->block_size != 0) {
+		  stat.st_blocks = ld.vnode->size / ld.vnode->superblock->block_size;
+		  stat.st_blksize = ld.vnode->superblock->block_size;
+	  } else {
+		  stat.st_blocks = 0;
+		  stat.st_blksize = 0;
+	  }
 
-//  rwlock(ld.vnode, LK_RELEASE);
+    rwlock(&ld.vnode->lock, LK_RELEASE);
 
-  if (CopyOut(_stat, &stat, sizeof stat) != 0) {
-    sc = -EFAULT;
-  } else {
-    sc = 0;
+    lookup_cleanup(&ld);
+    sc = CopyOut(_stat, &stat, sizeof stat);    
   }
   
-  lookup_cleanup(&ld);
   return sc;
 }
 
@@ -90,55 +78,62 @@ int sys_stat(char *_path, struct stat *_stat) {
  * @param   _stat, pointer to stat structure to return statistics
  * @return  0 on success, negative errno on error 
  */
-int sys_fstat(int fd, struct stat *_stat) {
+int sys_fstat(int fd, struct stat *_stat)
+{
   struct Filp *filp;
   struct VNode *vnode;
   struct stat stat;
   struct Process *current;
+  int sc;
 
-  Info("sys_fstat fd:%d", fd);
-	  
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    Info("sys_fstat fd:%d no vnode, -EINVAL", fd);
-    return -EINVAL;
-  }
-
-  rwlock(vnode, LK_SHARED);
+  filp = filp_get(current, fd);
   
-  stat.st_dev = vnode->superblock->dev;
-  stat.st_ino = vnode->inode_nr;
-  stat.st_mode = vnode->mode;  
-  stat.st_nlink = vnode->nlink;
-  stat.st_uid = vnode->uid;
-  stat.st_gid = vnode->gid;
-  stat.st_rdev = vnode->rdev;
-  stat.st_size = vnode->size;
-  stat.st_atime = vnode->atime;
-  stat.st_mtime = vnode->mtime;
-  stat.st_ctime = vnode->ctime;
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
 
-	// TODO: Handle st_blocks and st_blocksize correctly 
-	// Update these on reads, writes or truncate operations.
-	// special case return zeros for char and other non-block devices?
+    if (vnode) {
+      rwlock(&vnode->lock, LK_SHARED);
+      
+      stat.st_dev = vnode->superblock->dev;
+      stat.st_ino = vnode->inode_nr;
+      stat.st_mode = vnode->mode;  
+      stat.st_nlink = vnode->nlink;
+      stat.st_uid = vnode->uid;
+      stat.st_gid = vnode->gid;
+      stat.st_rdev = vnode->rdev;
+      stat.st_size = vnode->size;
+      stat.st_atime = vnode->atime;
+      stat.st_mtime = vnode->mtime;
+      stat.st_ctime = vnode->ctime;
 
-	if (vnode->superblock->block_size != 0) {
-		stat.st_blocks = vnode->size / vnode->superblock->block_size;
-		stat.st_blksize = vnode->superblock->block_size;
-	} else {
-		stat.st_blocks = 0;
-		stat.st_blksize = 0;
-	}
+	    // TODO: Handle st_blocks and st_blocksize correctly 
+	    // Update these on reads, writes or truncate operations.
+	    // special case return zeros for char and other non-block devices?
 
-  rwlock(vnode, LK_RELEASE);
+	    if (vnode->superblock->block_size != 0) {
+		    stat.st_blocks = vnode->size / vnode->superblock->block_size;
+		    stat.st_blksize = vnode->superblock->block_size;
+	    } else {
+		    stat.st_blocks = 0;
+		    stat.st_blksize = 0;
+	    }
 
-  if (_stat == NULL || CopyOut(_stat, &stat, sizeof stat) != 0) {
-    return -EFAULT;
+      rwlock(&vnode->lock, LK_RELEASE);
+
+      vnode_put(vnode);
+
+      sc = CopyOut(_stat, &stat, sizeof stat);
+    } else {
+      sc = -EINVAL;
+    }    
+
+    filp_put(filp);
+  } else {
+    sc = -EBADF;
   }
-  
-  return 0;
+    
+  return sc;
 }
 

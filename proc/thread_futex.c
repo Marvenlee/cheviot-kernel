@@ -193,7 +193,7 @@ struct Futex *futex_get(struct Process *proc, void *uaddr, int flags)
   futex = LIST_HEAD(&futex_hash_table[hash]);
 
   while (futex != NULL) {
-    if (futex->uaddr == uaddr && futex->proc == proc) {
+    if (futex->uaddr == (uintptr_t)uaddr && futex->proc == proc) {
       return futex;
     }
   
@@ -217,10 +217,9 @@ struct Futex *futex_get(struct Process *proc, void *uaddr, int flags)
  */
 uint32_t futex_hash(struct Process *proc, void *uaddr)
 {
-  uintptr_t iaddr = (uintptr_t)iaddr;
   uint32_t hash;
   
-  hash = (iaddr + proc->pid) % FUTEX_HASH_SZ;
+  hash = ((uintptr_t)uaddr + proc->pid) % FUTEX_HASH_SZ;
   return hash;
 }  
 
@@ -279,7 +278,7 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
   LIST_ADD_HEAD(&futex_hash_table[futex->hash], futex, hash_link);
 
   futex->proc = proc;  
-  futex->uaddr = uaddr;
+  futex->uaddr = (uintptr_t)uaddr;
     
   InitRendez(&futex->rendez);
   
@@ -302,7 +301,7 @@ void futex_free(struct Process *proc, struct Futex *futex)
 /*
  *
  */
-void fini_futexes(struct Process *proc)
+int fini_futexes(struct Process *proc)
 {
   int sc;
 

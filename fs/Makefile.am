@@ -10,8 +10,9 @@ kernel_SOURCES += \
   fs/dnlc.c \
   fs/exec.c \
   fs/exec_root.c \
-  fs/filp.c \
+  fs/file.c \
   fs/filedesc.c \
+  fs/filp.c \
   fs/fproc.c \
   fs/globals.c \
   fs/init.c \

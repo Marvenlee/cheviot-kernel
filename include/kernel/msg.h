@@ -1,5 +1,5 @@
-#ifndef MSG_H
-#define MSG_H
+#ifndef KERNEL_MSG_H
+#define KERNEL_MSG_H
 
 #include <kernel/error.h>
 #include <kernel/lists.h>
@@ -31,6 +31,7 @@ struct Msg
   struct MsgPort *reply_port; // The reply port to reply to
   
   int ipc;                    // true if interprocess copy, false if kernel-user or user-kernel copy
+  
   struct AddressSpace *src_as;
   iorequest_t *req;
   ioreply_t *reply;
@@ -43,17 +44,26 @@ struct Msg
 
 
 
+
+
+
 /* @brief   Message Port for interprocess communication
  */
 struct MsgPort
 {
   struct Rendez rendez;
   msg_list_t pending_msg_list;
+  msg_list_t received_msg_list;
   knote_list_t knote_list;    
+
+  uint32_t flags;
   
   void *context;              // For pointer to superblock or other data
 };
 
+
+// MsgPort.flags
+#define MPF_SHUTDOWN   (1<<0)
 
 
 // ksendmsg options
@@ -76,6 +86,8 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
 
 int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
 int sys_beginio(int fd, int subclass, int siov_cnt, msgiov_t *siov, int riov_cnt, msgiov_t *riov);
+int sys_waitio(int fd, int ioid, int flags);
+int sys_abortio(int fd, int ioid, int flags);
 int sys_alloc_asyncio(int n);
 int sys_free_asyncio(int n);
 

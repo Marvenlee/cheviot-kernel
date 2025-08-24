@@ -69,9 +69,11 @@ int sys_thread_event_kevent_mask(int kq, uint32_t event_mask)
     }
     kqueue->busy = true;
 
-    cthread->event_knote = alloc_knote(kqueue, &ev);
+     
     
-    if (cthread->event_knote != NULL) {
+    sc = alloc_knote(kqueue, &ev, &cthread->event_knote);
+    
+    if (sc == 0) {
       cthread->event_kqueue = kqueue;
       enable_knote(kqueue, cthread->event_knote);
     } else {
@@ -94,21 +96,16 @@ int sys_thread_event_kevent_mask(int kq, uint32_t event_mask)
 uint32_t sys_thread_event_check(uint32_t event_mask)
 {
   struct Thread *cthread;
-  int sc = 0;
   int_state_t int_state;
   uint32_t caught_events;
-  uint32_t new_pending_events;
   
   cthread = get_current_thread();
   
   int_state = DisableInterrupts();
   caught_events = cthread->pending_events & event_mask;
   cthread->pending_events &= ~caught_events;
-  new_pending_events = cthread->pending_events;
   RestoreInterrupts(int_state);
-  
-  Info("sys_thread_event_check() caught:%08x remaining:%08x", caught_events, new_pending_events);
-  
+    
   return caught_events;
 }
 

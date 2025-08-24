@@ -61,6 +61,8 @@ int sys_getmsg(int fd, msgid_t *_msgid, iorequest_t *_req, size_t req_sz)
   msgid_t msgid;
   struct Process *current_proc;
 
+  Info("sys_getmsg(fd:%d,,,)", fd);
+
   if (req_sz < sizeof(iorequest_t) || _msgid == NULL || _req == NULL) {
     return -EINVAL;
   }
@@ -570,8 +572,13 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
   }
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+  filp = filp_get(current, fd);
+  
+  if (filp == NULL) {
+    return -EBADF;
+  }
+  
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EBADF;
@@ -595,6 +602,27 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
  *
  */
 int sys_beginio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Wait for an I/O operation to complete and get its return status.
+ *
+ * Options, use on it's own after beginio,  flags say if non-blocking, any if ioid = -1
+ * Or register interest in notifications from this fd with kqueue.  Only use this
+ * to get status using non-blocking mode.
+ */
+int sys_waitio(int fd, int ioid, int flags)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Abort an I/O operation
+ *
+ */
+int sys_abortio(int fd, int ioid, int flags)
 {
   return -ENOSYS;
 }
@@ -733,6 +761,10 @@ int kabortmsg(struct MsgPort *msgport, struct Msg *msg)
  */
 int kputmsg(struct MsgPort *msgport, struct Msg *msg)
 {
+  if (msgport->flags & MPF_SHUTDOWN) {
+    return -ECONNABORTED;
+  }
+
   msg->port = msgport;
   LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
 
@@ -765,11 +797,18 @@ int kreplymsg(struct Msg *msg)
 struct Msg *kgetmsg(struct MsgPort *msgport)
 {
   struct Msg *msg;
+
+  if (msgport->flags & MPF_SHUTDOWN) {
+    return -ECONNABORTED;
+  }
     
   msg = LIST_HEAD(&msgport->pending_msg_list);
   
   if (msg) {
     LIST_REM_HEAD(&msgport->pending_msg_list, link);
+  
+  // TODO: Add to a received_msg_list, so they can be cancelled.
+  
   }
   
   return msg;
@@ -818,34 +857,6 @@ int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
 
   return 0;  
 }
-
-
-/* @brief   Initialize a message port
- *
- * @param   msgport, message port to initialize
- * @return  0 on success, negative errno on error
- */
-int init_msgport(struct MsgPort *msgport)
-{
-  LIST_INIT(&msgport->pending_msg_list);
-  LIST_INIT(&msgport->knote_list);
-  InitRendez(&msgport->rendez);
-  msgport->context = NULL;
-  return 0;
-}
-
-
-/* @brief   Cleanup a message port
- * 
- * @param   msgport, message port to cleanup
- * @return  0 on success, negative errno on error
- * 
- * TODO: Reply to any pending or in progress messages
- */
-int fini_msgport(struct MsgPort *msgport)
-{
-  return 0;
-} 
 
 
 /* @brief   Get a pointer to message from the message ID.

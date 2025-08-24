@@ -343,7 +343,7 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
   int_state = DisableInterrupts();
 
   if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED &&
-      ((thread->intr_flags & intr_reason) != 0) || intr_reason == 0) {
+      ((thread->intr_flags & intr_reason) != 0 || intr_reason == 0)) {    // FIXME: intr_reason confusing
     KASSERT(thread->blocking_rendez != NULL);
     rendez = thread->blocking_rendez;
     LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);

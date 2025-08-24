@@ -31,35 +31,42 @@
 int sys_truncate(int fd, size_t sz)
 {
   struct Process *current;
-  struct VNode *vnode = NULL;
+  struct VNode *vnode;
+  struct Filp *filp;
   int sc = 0;
 
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    return -EINVAL;
-  }
-
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
+  filp = filp_get(current, fd);
   
-  if (!S_ISREG(vnode->mode)) {
-    Error("truncate: vnode is not reg file!");
-    rwlock(&vnode->lock, LK_RELEASE);
-    return -EINVAL;
+  if (filp) {  
+    vnode = vnode_get_from_filp(filp);
+
+    if (vnode) {
+      rwlock(&vnode->lock, LK_EXCLUSIVE);
+      
+      if (!S_ISREG(vnode->mode)) {
+        Error("truncate: vnode is not reg file!");
+        rwlock(&vnode->lock, LK_RELEASE);
+        return -EINVAL;
+      }
+
+      if ((sc = vfs_truncate(vnode, 0)) != 0) {
+        rwlock(&vnode->lock, LK_RELEASE);
+        return sc;
+      }
+
+      // TODO: Check if size has gone up or down.
+      knote(&vnode->knote_list, NOTE_EXTEND | NOTE_ATTRIB);
+      rwlock(&vnode->lock, LK_RELEASE);
+      return 0;
+      
+    } else {
+      return -EFAULT;
+    }    
+  } else {
+    return -EBADF;
   }
-
-  if ((sc = vfs_truncate(vnode, 0)) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return sc;
-  }
-
-  // TODO: Check if size has gone up or down.
-  knote(&vnode->knote_list, NOTE_EXTEND | NOTE_ATTRIB);
-
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  return 0;
 }
 
 

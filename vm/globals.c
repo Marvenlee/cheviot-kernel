@@ -29,12 +29,24 @@
  * Memory Management
  */
 vm_size mem_size;
-int max_pageframe;
-struct Pageframe *pageframe_table;
+int max_page;
+struct Page *page_table;
 
-pageframe_list_t free_4k_pf_list;
-pageframe_list_t free_16k_pf_list;
-pageframe_list_t free_64k_pf_list;
+int free_page_cnt;
+int dirty_page_cnt;
+int busy_page_cnt;
+
+//bool dirty_queues_busy;
+//struct Rendez dirty_queues_rendez;
+
+//struct RWLock cache_lock;
+
+page_list_t free_page_queue;        // Pages that are clean and can be reused by other vnodes
+
+page_list_t page_lookup_hash[PAGE_LOOKUP_HASH_SZ];
+
+struct Rendez page_list_rendez;
+
 
 int max_memregion;
 struct MemRegion *memregion_table;

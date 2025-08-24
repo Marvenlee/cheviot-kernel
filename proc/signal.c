@@ -243,6 +243,7 @@ int sys_kill(pid_t pid, int signal)
 int sys_thread_kill(pid_t tid, int signal)
 {
   // TODO: do_kill_thread(thread, signal);
+  return -ENOSYS;
 }
 
 
@@ -379,7 +380,6 @@ void do_signal_thread(struct Thread *thread, int signal, int code, intptr_t val)
 int sys_sigsuspend(const sigset_t *mask_in)
 {
 	sigset_t mask;
-	uint32_t intstate;
 	struct Thread *cthread;
 	int_state_t int_state;
 	

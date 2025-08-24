@@ -17,7 +17,7 @@
  * Functions for allocating physical pages of system RAM.
  */
 
-//#define KDEBUG  1
+//#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
@@ -43,18 +43,18 @@
 void *kmalloc_page(void)
 {
   void *vaddr;
-  struct Pageframe *pf;
+  struct Page *page;
   
-  pf = alloc_pageframe(PAGE_SIZE);
+  page = alloc_page();
   
-  if (pf == NULL) {
+  if (page == NULL) {
     Error("kmalloc_page() failed");
     return NULL;
   }
   
-  vaddr = (void *)pmap_pf_to_va(pf);
+  vaddr = (void *)pmap_page_to_va(page);
 
-  Info("kmalloc_page() vaddr:%08x", (uint32_t)vaddr);
+//  Info("kmalloc_page() vaddr:%08x", (uint32_t)vaddr);
 
   return vaddr;
 }
@@ -65,186 +65,70 @@ void *kmalloc_page(void)
  */
 void kfree_page(void *vaddr)
 {
-  struct Pageframe *pf;
+  struct Page *page;
   
-  Info("kfree_page(%08x)", (uint32_t)vaddr);
+  page = pmap_va_to_page((vm_addr)vaddr);
   
-  pf = pmap_va_to_pf((vm_addr)vaddr);
-  
-  if (pf != NULL) {
-    free_pageframe(pf);
+  if (page != NULL) {
+    free_page(page);
   }
 }
 
 
-/* @brief   Allocate a 4k, 16k or 64k page and return a Pageframe struct
+/* @brief   Allocate a 4k page of physical memory
  *
- * Splitting larger slabs into smaller sizes if needed.
+ * Rename to do_alloc_page,  remove any splitting/coalescing
  */
-struct Pageframe *alloc_pageframe(vm_size size)
+struct Page *alloc_page(void)
 {
-  struct Pageframe *head = NULL;
-  int t;
+  struct Page *page = NULL;
 
-//	Info("alloc_pageframe(%d)", size);
+  Info("alloc_page()");
 
-  if (size == 4096) {
-    head = LIST_HEAD(&free_4k_pf_list);
-
-    if (head != NULL) {
-      LIST_REM_HEAD(&free_4k_pf_list, link);
-    }
-  } else if (size == 16384) {
-    head = LIST_HEAD(&free_16k_pf_list);
-
-    if (head != NULL) {
-      LIST_REM_HEAD(&free_16k_pf_list, link);
-    }
-  }
-
-  if (head == NULL || size == 65536) {
-    head = LIST_HEAD(&free_64k_pf_list);
-
-    if (head != NULL) {
-      LIST_REM_HEAD(&free_64k_pf_list, link);
-    }
-  }
-
-  if (head == NULL) {
-    Warn("no pageframe available");
+  page = getblk_anon();
+  
+  if (page == NULL) {
+    Info("alloc_page failed");
     return NULL;
   }
-
-  KASSERT ((head->flags & PGF_INUSE) == 0);
-
-  // Split 64k slabs if needed into 4k or 16k allocations.
-  if (head->size == 65536 && size == 16384) {
-    for (t = 3; t > 0; t--) {    
-      head[t*4].size = 16384;
-      head[t*4].flags = 0;
-			LIST_ADD_HEAD(&free_16k_pf_list, &head[t*4], link);
-    }
-    
-		head[0].size = 16384;
-		head[0].flags = 0;
-
-    
-  } else if (head->size == 65536 && size == 4096) {
-    for (t = 15; t > 0; t--) {
-      head[t].size = 4096;
-      head[t].flags = 0;
-	    LIST_ADD_HEAD(&free_4k_pf_list, &head[t], link);
-		}
-		
-		head[0].size = 4096;
-    head[0].flags = 0;
-  }
   
-  head->flags = PGF_INUSE;
-  head->reference_cnt = 0;
+  page->mflags = PGF_INUSE;
+  page->reference_cnt = 0;
 
-  pmap_pageframe_init(&head->pmap_pageframe);
+  pmap_page_init(&page->pmap_page);
 
-  vm_addr va = pmap_pa_to_va(head->physical_addr);
+//  Info("alloc_page() done :%08x", (uint32_t) page);
 
-//	Info("..pf va:%08x, pa:%08x, pf:%08x, sz:%d", va, head->physical_addr, (uint32_t)head, size);
-
-  // TODO: Add flag to clear page
-  memset((void *)va, 0, size);
-
-  return head;
+  return page;
 }
 
 
 /*
  *
  */
-
-int dup_pageframe(struct Pageframe *pf)
+int ref_page(struct Page *page)
 {
-  pf->reference_cnt++;
+  page->reference_cnt++;
   return 0;
 }
 
 
 /*
- * FIXME: Debug FreePageframe, Finish VirtualFree
+ *
  */
-void free_pageframe(struct Pageframe *pf)
+void free_page(struct Page *page)
 {
-#if 1
-	return;
-#endif
+  KASSERT(page != NULL);
+  KASSERT((page - page_table) < max_page);
 
-  KASSERT(pf != NULL);
-  KASSERT((pf - pageframe_table) < max_pageframe);
-  KASSERT(pf->size == 65536 || pf->size == 16384 || pf->size == 4096);
+  page->reference_cnt--;
 
-  pf->reference_cnt--;
-
-  if (pf->reference_cnt > 0) {
+  if (page->reference_cnt > 0) {
     return;
   }
 
-  pf->flags = 0;
-
-  if (pf->size == 65536) {
-    LIST_ADD_TAIL(&free_64k_pf_list, pf, link);
-  } else if (pf->size == 16384) {
-    LIST_ADD_TAIL(&free_16k_pf_list, pf, link);
-    coalesce_slab(pf);
-  } else {
-    LIST_ADD_TAIL(&free_4k_pf_list, pf, link);
-    coalesce_slab(pf);
-  }
+  putblk_anon(page);
 }
 
-/*
- * Coalesce free pages in a 64k block.
- *
- * The page allocator manages memory in three sizes of 4k, 16k and 64k pages.
- * If a 4k or 16k page is freed, check the other pages in the 64k aligned span
- * are also free. If all pages in a 64k span are free then coalesce into a
- * single 64k page. 
- */
-void coalesce_slab(struct Pageframe *pf)
-{
-  vm_addr base;
-  vm_addr ceiling;
-  vm_size stride;
-  int t;
 
-#if 1   // FIXME: coalesce_slab
-  Info("coalesce_slab");
-  return;
-#endif  
-
-  KASSERT(pf != NULL);
-  KASSERT((pf - pageframe_table) < max_pageframe);
-
-  base = ALIGN_DOWN((pf - pageframe_table), (65536 / PAGE_SIZE));
-  ceiling = base + 65536 / PAGE_SIZE;
-  stride = pf->size / PAGE_SIZE;
-
-  for (t = base; t < ceiling; t += stride) {
-    if (pageframe_table[t].flags & PGF_INUSE) {
-      return;
-    }
-  }
-
-  for (t = base; t < ceiling; t += stride) {
-    if (pf->size == 16384) {
-      LIST_REM_ENTRY(&free_16k_pf_list, &pageframe_table[t], link);
-    } else if (pf->size == 4096) {
-      LIST_REM_ENTRY(&free_4k_pf_list, &pageframe_table[t], link);
-    } else {
-      Error("unknown page size coalescing");
-      KernelPanic();
-    }
-  }
-
-  pageframe_table[base].flags = 0;
-  pageframe_table[base].size = 65536;
-  LIST_ADD_TAIL(&free_64k_pf_list, &pageframe_table[base], link)
-}
 

@@ -46,6 +46,8 @@ int rwlock(struct RWLock *lock, int flags)
 {
   int request;
 
+  Info("rwlock(lock:%08x, flags:%x) *******", (uint32_t)lock, flags);
+
   request = flags & LOCK_REQUEST_MASK;
   
   switch(request) {
@@ -55,6 +57,7 @@ int rwlock(struct RWLock *lock, int flags)
       }
 
       while (lock->exclusive_cnt != 0 || lock->share_cnt != 0) {
+        Info("lock->exclusive_cnt = %d, share_cnt = %d, sleeping", lock->exclusive_cnt, lock->share_cnt);
         TaskSleep(&lock->rendez);
       }
 

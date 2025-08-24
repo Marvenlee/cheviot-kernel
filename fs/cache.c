@@ -19,6 +19,7 @@
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
+#include <kernel/hash.h>
 #include <kernel/proc.h>
 #include <kernel/vm.h>
 #include <kernel/timer.h>
@@ -28,157 +29,11 @@
 #include <string.h>
 
 
-/* @brief   Read from a file through the VFS file cache
- *
- * @param   vnode, file to read from
- * @param   dst, destination address to copy file data to (kernel or user)
- * @param   sz, number of bytes to read
- * @param   offset, pointer to filp's offset which will be updated
- * @param   inkernel, set to true if the destination address is in the kernel (for kread)
- * @return  number of bytes read or negative errno on failure  
- */
-ssize_t read_from_cache(struct VNode *vnode, void *dst, size_t sz, off64_t *offset, bool inkernel)
-{
-  struct Buf *buf;
-  off64_t cluster_base;
-  off64_t cluster_offset;
-  size_t nbytes_xfer;
-  size_t nbytes_total;
-  size_t remaining_in_file;
-  size_t nbytes_to_read;
-  size_t remaining_to_xfer;  
-  size_t remaining_in_cluster;    
-
-  if (*offset >= vnode->size) {
-    return 0;
-  }
-
-  if (*offset >= vnode->size) {
-    return 0;
-  }
-
-  remaining_in_file = vnode->size - *offset;
-
-  nbytes_total = 0;
-  nbytes_to_read = (remaining_in_file < sz) ? remaining_in_file : sz;
-
-  while (nbytes_total < nbytes_to_read) {  
-    cluster_base = ALIGN_DOWN(*offset, PAGE_SIZE);
-    cluster_offset = *offset % PAGE_SIZE;
-
-    remaining_to_xfer = nbytes_to_read - nbytes_total;
-    remaining_in_cluster = PAGE_SIZE - cluster_offset;
-    nbytes_xfer = (remaining_to_xfer < remaining_in_cluster) ? remaining_to_xfer : remaining_in_cluster;
-		
-    buf = bread(vnode, cluster_base);
-
-    if (buf == NULL) {
-      Warn("bread buf is NULL");
-      
-      if (nbytes_total > 0) {
-        return nbytes_total;
-      } else {
-        return -EIO;
-      }
-    }
-
-    if (inkernel == true) {
-      memcpy(dst, buf->data + cluster_offset, nbytes_xfer);
-    } else {    
-      if (CopyOut(dst, buf->data + cluster_offset, nbytes_xfer) != 0) {
-      	return -EFAULT;
-      }
-    }
-    
-    brelse(buf);
-
-    dst += nbytes_xfer;
-    *offset += nbytes_xfer;
-    nbytes_total += nbytes_xfer;
-  }
-
-  return nbytes_total;
-}
-
-
-/* @brief   Write to a file through the VFS file cache
- *
- * @param   vnode, file to write to
- * @param   src, user-space source address of the data to be written to the file
- * @param   sz, number of bytes to write
- * @param   offset, pointer to filp's offset which will be updated
- * @return  number of bytes written or negative errno on failure  
- *
- * If we are writing a full block, can we avoid reading it in?
- * if block doesn't exist, does bread create it?
- *
- * FIXME: Do we need an exclusive lock?
- */
-ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offset)
-{
-  struct Buf *buf;
-  off_t cluster_base;
-  off_t cluster_offset;
-  size_t nbytes_xfer;
-  size_t nbytes_total;
-  size_t nbytes_to_write;
-  size_t remaining_to_xfer;  
-  size_t remaining_in_cluster;  
-
-	nbytes_total = 0;
-  nbytes_to_write = sz;
-
-  while (nbytes_total < nbytes_to_write) {  
-    cluster_base = ALIGN_DOWN(*offset, PAGE_SIZE);
-    cluster_offset = *offset % PAGE_SIZE;
-
-		remaining_to_xfer = nbytes_to_write - nbytes_total;
-		remaining_in_cluster = PAGE_SIZE - cluster_offset;
-		nbytes_xfer = (remaining_to_xfer < remaining_in_cluster) ? remaining_to_xfer : remaining_in_cluster;
-		
-		if (cluster_base < vnode->size) {
-      buf = bread(vnode, cluster_base);
-    } else {
-      buf = bread_zero(vnode, cluster_base);
-    }
-    
-    if (buf == NULL) {
-      if (nbytes_total > 0) {
-        return nbytes_total;
-      } else {
-        return -EIO;
-      }
-    }
-
-    if (CopyIn(buf->data + cluster_offset, src, nbytes_xfer) != 0) {
-      return -EFAULT;  
-    }
-		 
-    src += nbytes_xfer;
-    *offset += nbytes_xfer;
-    nbytes_total += nbytes_xfer;
-
-    // Update file size if we have written past the end of file    
-    if (*offset > vnode->size) {
-      vnode->size = *offset;
-    }
-
-    if ((*offset % PAGE_SIZE) == 0) {
-      bawrite(buf);
-    } else {
-      bdwrite(buf);
-    }    
-  }
-
-  return nbytes_total;
-}
-
-
 /* @Brief   Get a cached block
  *
  * @param   vnode, file to get cached block of
  * @param   file_offset, offset within file to read (aligned to page size)
- * @return  buf on success, NULL if it cannot find or create a buf
+ * @return  Page on success, NULL if it cannot find or allocate a Page
  *
  * This cache operates at the file level and not the block level. As such it
  * has no understanding of the on disk formatting of a file system. User space
@@ -189,104 +44,124 @@ ssize_t write_to_cache(struct VNode *vnode, void *src, size_t sz, off64_t *offse
  * getblk, bread, bwrite, bawrite and brelse operations (though they applied to
  * the block level in the book).
  *
- * If cache is now single page blocks instead of larger 16k or 64k clusters
- * can we use the phys mem mapping to access pages?
- * Do we need to map cached blocks into a certain area of the kernel?
- *
- * Do we need to write the entire cluster?  Is this handled by strategy params?
- *
- * TODO: Need better hash value than use file offset otherwise with lots of small
- * files the lower hash table buckets will be highly populated and the higher
- * hash table buckets will be almost empty.
+ * TODO: Add timeout for getting a block
  */
-struct Buf *getblk(struct VNode *vnode, uint64_t file_offset)
+struct Page *getblk(struct VNode *vnode, uint64_t file_offset)
 {
-  struct Buf *buf;
-  struct Pageframe *pf;
-  struct SuperBlock *sb;
-  vm_addr pa;
-  int h;
+  struct Page *page;
+
+  Info("getblk(vnode:%08x, offs:%08x)", (uint32_t)vnode, (uint32_t)file_offset);
 
   while (1) {
-    if ((buf = findblk(vnode, file_offset)) != NULL) {
-      if (buf->flags & B_BUSY) {
-        TaskSleep(&buf->rendez);
+    if (vnode->superblock->flags & SBF_ABORT) {
+      return NULL;
+    }
+  
+    if ((page = find_blk(vnode, file_offset)) != NULL) {
+      if (page->bflags & B_BUSY) {
+        TaskSleep(&page->rendez);
         continue;
       }
 
-      buf->flags |= B_BUSY;
-
-      if (buf->flags & B_ASYNC) {
-        buf->flags &= ~(B_ASYNC);
-        sb = buf->vnode->superblock;
-  
-        LIST_REM_ENTRY(&vnode->pendwri_buf_list, buf, async_link);
-      }
-
-
-      if (buf->flags & B_DELWRI) {
-        buf->flags &= ~(B_DELWRI);
-        sb = buf->vnode->superblock;
-  
-        LIST_REM_ENTRY(&vnode->delwri_buf_list, buf, async_link);
-      }
+      page->bflags |= B_BUSY;
       
-      return buf;
+      remove_from_free_page_queue(page);
+
+      if ((page->bflags & B_VALID) == 0) {
+        memset(page->vaddr, 0, PAGE_SIZE);
+      }
+
+      return page;
 
     } else {
-      if ((buf = LIST_HEAD(&buf_avail_list)) == NULL) {
-        TaskSleep(&buf_list_rendez);
+      if ((page = find_available_blk()) == NULL) {
+        Info("find_available_blk, none found, sleeping");
+        TaskSleep(&page_list_rendez);
         continue;
       }
 
-      LIST_REM_HEAD(&buf_avail_list, free_link);
-      buf->flags |= B_BUSY;
+      KASSERT((page->bflags & B_BUSY) == 0);
 
-      // Buf is valid, not dirty
-      if (buf->flags & B_VALID) {
-        h = calc_buf_hash(buf->vnode->inode_nr, buf->file_offset);
-        LIST_REM_ENTRY(&buf_hash[h], buf, hash_link);
+      page->bflags |= B_BUSY;
+
+      remove_from_free_page_queue(page);
+      
+      if (page->bflags & B_VALID) {
+        remove_from_lookup_page_hash(page);
+        remove_from_vnode_page_list(page);
+
+        page->bflags &= ~B_VALID;
       }
 
-      buf->flags &= ~B_VALID;
-      buf->vnode = vnode;
-      buf->file_offset = file_offset;
+      page->vnode = vnode;      
+      page->file_offset = file_offset;
       
-      h = calc_buf_hash(vnode->inode_nr, file_offset);
-      LIST_ADD_HEAD(&buf_hash[h], buf, hash_link);
+      add_to_lookup_page_hash(page);
+      add_to_vnode_page_list(page);
 
-      return buf;
+      memset(page->vaddr, 0, PAGE_SIZE);
+
+      Info("getblk() recycled/alloced page:%08x, paddr:%08x", (uint32_t)page, (uint32_t)page->physical_addr);
+    
+      return page;
     }
   }
 }
 
 
-/* @brief   Release a cache block
- *
- * @param   buf, buf to be be released
+/*
+ * TODO: Add a timeout of 10 seconds, or maybe pass in an absolute timeout.
  */
-void brelse(struct Buf *buf)
+struct Page *getblk_anon(void)
 {
-  int h;
-  
-  if (buf->flags & (B_ERROR | B_DISCARD)) {
-    h = calc_buf_hash(buf->vnode->inode_nr, buf->file_offset);
-  
-    LIST_REM_ENTRY(&buf_hash[h], buf, hash_link);
-    buf->flags = 0;
-    buf->file_offset = 0;
-    buf->vnode = NULL;
-
-    if (buf->data != NULL) {
-      LIST_ADD_HEAD(&buf_avail_list, buf, free_link);
+  struct Page *page;
+    
+  while(1) {
+    if ((page = find_available_blk()) == NULL) {
+      Info("getblk_anon() - sleeping");
+      TaskSleep(&page_list_rendez);
+      continue;
     }
-  } else if (buf->data != NULL) {
-    LIST_ADD_TAIL(&buf_avail_list, buf, free_link);
-  }
 
-  buf->flags &= ~B_BUSY;
-  TaskWakeupAll(&buf_list_rendez);
-  TaskWakeupAll(&buf->rendez);
+    KASSERT((page->bflags & B_BUSY) == 0);
+
+    page->bflags |= B_BUSY;
+
+    remove_from_free_page_queue(page);
+
+    // Buf is valid
+    if (page->bflags & B_VALID) {
+      remove_from_lookup_page_hash(page);
+      remove_from_vnode_page_list(page);
+
+      page->bflags &= ~B_VALID;
+    }
+    
+    page->vnode = NULL;
+
+    page->file_offset = 0;
+        
+    memset(page->vaddr, 0, PAGE_SIZE);
+
+    Info("getblk_anon() page:%08x, paddr:%08x", (uint32_t)page, (uint32_t) page->physical_addr);
+
+
+    return page;
+  }
+}
+
+
+/*
+ *
+ * TODO: Should we have a background task clearing anon pages
+ */
+void putblk_anon(struct Page *page)
+{
+  add_to_free_page_queue_tail(page);
+
+  page->bflags &= ~B_BUSY;
+    
+  TaskWakeupAll(&page_list_rendez);  
 }
 
 
@@ -294,33 +169,136 @@ void brelse(struct Buf *buf)
  *
  * @param   vnode, file to find block of
  * @param   file_offset, offset within the file (aligned to page size)
- * @return  buf on success, null if not present
+ * @return  Page on success, null if not present
  */
-struct Buf *findblk(struct VNode *vnode, uint64_t file_offset)
+struct Page *find_blk(struct VNode *vnode, uint64_t file_offset)
 {
-  struct Buf *buf;
+  struct Page *page;
   int h;
   
-  h = calc_buf_hash(vnode->inode_nr, file_offset);
-  buf = LIST_HEAD(&buf_hash[h]);
+  h = calc_page_lookup_hash(vnode->inode_nr, file_offset);
+  page = LIST_HEAD(&page_lookup_hash[h]);
 
-  while (buf != NULL) {
-    if (buf->vnode == vnode && buf->file_offset == file_offset)
-      return buf;
+  while (page != NULL) {
+    if (page->vnode == vnode && page->file_offset == file_offset) {
+      return page;
+    }
+    
+    page = LIST_NEXT(page, lookup_link);
+  }
+  
+  return NULL;
+}
 
-    buf = LIST_NEXT(buf, hash_link);
+
+/* @brief   Find any block that doesn't need to be written to disk
+ *
+ * @return  Page on success, null if not present
+ *
+  // Do we need to remove pages that are busy in getblk, or do we
+  // Need to skip over busy pages in the search?
+ *
+ *
+ * Remove from appropriate LRU list,  if valid it is still on the hash lookup 
++ */
+struct Page *find_available_blk(void)
+{
+  struct Page *page;
+
+  if ((page = LIST_TAIL(&free_page_queue)) != NULL) {
+    return page;
   }
 
   return NULL;
 }
 
 
-/*
+/* @brief   Add a page to the free page queue
  *
  */
-int calc_buf_hash(ino_t inode_nr, off64_t file_offset)
+void add_to_free_page_queue(struct Page *page)
 {
-  return (inode_nr + (file_offset / PAGE_SIZE)) % BUF_HASH;
+  LIST_ADD_HEAD(&free_page_queue, page, free_link);
+  free_page_cnt++;
+}
+
+
+/* @brief   Add a page to the free page queue tail
+ *
+ */
+void add_to_free_page_queue_tail(struct Page *page)
+{
+  LIST_ADD_TAIL(&free_page_queue, page, free_link);
+  free_page_cnt++;
+}
+
+
+/* @brief   Remove a page from a page queue
+ *
+ */
+void remove_from_free_page_queue(struct Page *page)
+{
+  LIST_REM_ENTRY(&free_page_queue, page, free_link);
+  free_page_cnt--;
+}
+
+
+/*
+ *
+ */ 
+void add_to_lookup_page_hash(struct Page *page)
+{
+  int h = calc_page_lookup_hash(page->vnode->inode_nr, page->file_offset);
+  LIST_ADD_HEAD(&page_lookup_hash[h], page, lookup_link);
+}
+
+
+/*
+ *
+ */ 
+void remove_from_lookup_page_hash(struct Page *page)
+{
+  int h = calc_page_lookup_hash(page->vnode->inode_nr, page->file_offset);
+  LIST_REM_ENTRY(&page_lookup_hash[h], page, lookup_link);
+}
+
+
+/*
+ *
+ */ 
+void add_to_vnode_page_list(struct Page *page)
+{
+  KASSERT(page->vnode != NULL);
+  
+  LIST_ADD_HEAD(&page->vnode->page_list, page, vnode_link);
+}
+
+
+/*
+ *
+ */ 
+void remove_from_vnode_page_list(struct Page *page)
+{
+  KASSERT(page->vnode != NULL);
+  KASSERT(page->vnode->superblock != NULL);
+
+  LIST_REM_ENTRY(&page->vnode->page_list, page, vnode_link);
+}
+
+
+/*
+ * TODO: Use minix hash algorithm
+ */
+int calc_page_lookup_hash(ino_t inode_nr, off64_t file_offset)
+{
+  uint32_t a = (uint32_t)inode_nr;
+  uint32_t b = (uint32_t)file_offset;
+  uint32_t c = (uint32_t)(file_offset >> 32);
+
+	hash_mix(a, b, c);
+	hash_final(a, b, c);
+
+  return c % PAGE_LOOKUP_HASH_SZ;
 }
 
 
@@ -338,163 +316,185 @@ int calc_buf_hash(ino_t inode_nr, off64_t file_offset)
  * A block read will be of this size. If the block is at the end of the
  * file the remaining bytes after the end will be zero.
  */
-struct Buf *bread(struct VNode *vnode, off64_t file_offset)
+struct Page *bread(struct VNode *vnode, off64_t file_offset)
 {
-  struct Buf *buf;
+  struct Page *page;
   ssize_t xfered;
 
-  buf = getblk(vnode, file_offset);
+  Info("bread(vnode:%08x, offs:%08x", (uint32_t)vnode, (uint32_t)file_offset);
 
-  if (buf->flags & B_VALID) {
-    return buf;
-  }
+  page = getblk(vnode, file_offset);
 
-  buf->flags = (buf->flags | B_READ) & ~(B_WRITE | B_ASYNC);
-
-  xfered = vfs_read(vnode, KUCOPY, buf->data, PAGE_SIZE, &file_offset);
-
-  if (xfered > PAGE_SIZE) {
-    Error("bread > PAGE_SIZE: %d", xfered);
-  }
-
-	if (xfered <= 0) {
-		Error("bread error: %d", xfered);
-		buf->flags |= B_ERROR;
-	} else if (xfered != PAGE_SIZE) {
-		memset(buf->data + xfered, 0, PAGE_SIZE - xfered);
-  }
-  
-  if (buf->flags & B_ERROR) {
-    Error("block read failed");
-    brelse(buf);
+  if (page == NULL) {
+    Info("bread failed, getblk failed");
     return NULL;
   }
 
-  buf->flags = (buf->flags | B_VALID) & ~B_READ;
-  return buf;
+  if (page->bflags & B_VALID) {
+    return page;
+  }
+    
+  xfered = vfs_read(vnode, KUCOPY, page->vaddr, PAGE_SIZE, &file_offset);
+
+  KASSERT(xfered <= PAGE_SIZE);
+  
+	if (xfered <= 0) {
+	  Error("bread failed, xfered = %d", (int)xfered);
+		page->bflags |= B_ERROR;
+    brelse(page);
+    return NULL;
+  }
+
+	if (xfered < PAGE_SIZE) {
+		memset(page->vaddr + xfered, 0, PAGE_SIZE - xfered);
+  }
+
+  page->bflags |= B_VALID;
+
+  return page;
 }
 
 
 /*
+ * TODO: getblk, can it return NULL ?
  *
+ * TODO: optimization, if not present, can we set a flag so it gets from clean pool ?
  */
-struct Buf *bread_zero(struct VNode *vnode, off64_t file_offset)
+struct Page *bread_zero(struct VNode *vnode, off64_t file_offset)
 {
-  struct Buf *buf;
+  struct Page *page;
 
-  buf = getblk(vnode, file_offset);
+  page = getblk(vnode, file_offset);
 
-  if (buf->flags & B_VALID) {
-    Warn("bzero ok (cached) ???");
-    return buf;
-  }
+  memset(page->vaddr, 0, PAGE_SIZE);
 
-  memset(buf->data, 0, PAGE_SIZE);
-
-  buf->flags = (buf->flags | B_VALID) & ~B_READ;
-
-  return buf;
+  page->bflags |= B_VALID;
+  return page;
 }
 
 
 /* @brief   Writes a block to disk and releases it. Waits for IO to complete.
  * 
- * @param   buf, buffer to write
+ * @param   page, buffer to write
  * @return  0 on success, negative errno on failure
+ *
+ * TODO: in file.c read_from_file() can we grab a bunch of pages for larger writes from the cache?
+ * Then do a single message to write all data at once?
  */
-int bwrite(struct Buf *buf)
+int bwrite(struct Page *page)
 {
   ssize_t xfered;
   struct VNode *vnode;
   off64_t file_offset;
   off_t nbytes_to_write;
-  
-  buf->flags = (buf->flags | B_WRITE) & ~(B_READ | B_ASYNC);
-  vnode = buf->vnode;
-  file_offset = buf->file_offset;
+    
+  vnode = page->vnode;
+  file_offset = page->file_offset;
 
-  if ((vnode->size - buf->file_offset) < PAGE_SIZE) {
+  if ((vnode->size - page->file_offset) < PAGE_SIZE) {
     nbytes_to_write = vnode->size % PAGE_SIZE;
   } else {
     nbytes_to_write = PAGE_SIZE;
   }
 
-  xfered = vfs_write(vnode, KUCOPY, buf->data, nbytes_to_write, &file_offset);
+  xfered = vfs_write(vnode, KUCOPY, page->vaddr, nbytes_to_write, &file_offset);
 
   if (xfered != nbytes_to_write) {
-    buf->flags |= B_ERROR;
-  }
-  
-  if (buf->flags & B_ERROR) {
-    brelse(buf);
+    page->bflags |= B_ERROR;
+    brelse(page);
     return -1;
   }
 
-  buf->flags &= ~B_WRITE;
-  brelse(buf);
+  brelse(page);
   return 0;
 }
 
 
-/* @brief   Write buffer asynchronously.
+/* @brief   Discard a buffer in the cache, removing it from a vnode
  *
- * @param   buf, buffer to write
+ * @param   page, buffer to discard
  * @return  0 on success, negative errno on failure
  *
- * Queue buffer for write. This block is unlikely to be
- * written again anytime soon so write as soon as possible.
- *
- * This is called when a write will reaches the end of a block
- * with the expectation that further writes will be in another block.
- *
- * This is placed on the superblock's pending write list and will be sent
- * to the driver by the superblock's bdflush task.  It will also
- * be released by the sb_flush task.
+ * TODO: Remove buffer from any vnode lists it is on.  (busy pages aren't on the vnode lists).
  */
-int bawrite(struct Buf *buf)
+int bdiscard(struct Page *page)
 {
-  struct SuperBlock *sb;
-  struct VNode *vnode;
+  page->bflags |= B_DISCARD;
+  brelse(page);
+  return 0;
+}
 
-  vnode = buf->vnode;
-  sb = vnode->superblock;
+
+/* @brief   Release a cache block
+ *
+ * @param   page, buf to be be released
+ */
+void brelse(struct Page *page)
+{
+  Info("brelse() page:%08x", (uint32_t)page);
+  
+  if (page->bflags & (B_ERROR | B_DISCARD)) {
+    if (page->bflags & B_ERROR) {
+      Error("File Block Error");
+    }
     
-  buf->flags = (buf->flags | B_WRITE | B_ASYNC) & ~(B_READ | B_DELWRI);
+    remove_from_lookup_page_hash(page);    
+    remove_from_vnode_page_list(page);
 
-  buf->expiration_time = get_hardclock();  
-  LIST_ADD_TAIL(&vnode->pendwri_buf_list, buf, async_link);
-  TaskWakeup(&sb->bdflush_rendez);
-  return 0;
+    page->file_offset = 0;
+    page->vnode = NULL;
+    page->bflags = 0;
+    add_to_free_page_queue_tail(page);
+
+  } else {      
+    page->bflags &= ~B_BUSY;
+    add_to_free_page_queue(page);
+  }
+
+  TaskWakeupAll(&page_list_rendez);
+  TaskWakeupAll(&page->rendez);
 }
 
 
-/* @brief   Delayed write to buffer
+/* @brief   Mark all pages belonging to a file in the cache as busy
  *
- * @param   buf, buffer to write
+ * The purpose is to ensure no pages can be removed from the vnode->page_list
+ * whilst truncatev is walking the list.
+ */
+void mark_all_vnode_pages_as_busy(struct VNode *vnode)
+{
+  struct Page *page;
+
+  page = LIST_HEAD(&vnode->page_list);
+  
+  while (page != NULL) {
+    page->bflags |= B_BUSY;
+    page = LIST_NEXT(page, vnode_link);
+  }
+}
+
+
+/* @brief   Sync all dirty blocks of a vnode to disk
+ *
+ * @param   vnode, file to sync
  * @return  0 on success, negative errno on failure
  *
- * Delay writing of a block for a few seconds. This block is likely
- * to be written again soon so schedule it to be written out after a
- * short delay.
+ * Called with vnode exclusive locked, maybe also the superblock vnode_list locked/busy or rwlock
  *
- * A bdwrite block is marked as dirty but is released immediately so
- * that further writes can happen.  The block is placed on the vnode's
- * list of dirty buffers. This list is periodically scanned by the
- * superblock's bdflush task and written to disk.
+ * TODO: There should be no dirty blocks in cache (there should be no dirty bit or dirty list).
  */
-int bdwrite(struct Buf *buf)
+int bsyncv(struct VNode *vnode)
 {
-  struct VNode *vnode;
+  int sc = 0;
+  struct Page *page;
+  off64_t nbytes_to_write;
   
-  vnode = buf->vnode;
+  Info("bsyncv()");
 
-  buf->flags = (buf->flags | B_WRITE | B_DELWRI) & ~(B_READ | B_ASYNC);
+  KASSERT(vnode->lock.exclusive_cnt == 1 || vnode->lock.is_draining == true);
 
-  buf->expiration_time = get_hardclock() + DELWRI_DELAY_TICKS;
+  // vfs_sync_file(vnode)   // TODO: Send message to sync file
 
-  LIST_ADD_TAIL(&vnode->delwri_buf_list, buf, async_link);
-  brelse(buf);
-  
   return 0;
 }
 
@@ -508,290 +508,85 @@ int bdwrite(struct Buf *buf)
  * If the end of the file is partially within a buffer then the buffer is kept but
  * the remainder of the buffer is wiped clean.
  * 
- * The new size must already be set within the vnode structur and the vnode
+ * The new size must already be set within the vnode structure and the vnode
  * should already have an exclusive lock.
+ *
+ * TODO: Maybe send a truncate message to the filesystem handler in here
  */
-int btruncate(struct VNode *vnode)
+int btruncatev(struct VNode *vnode)
 {
-  struct Buf *buf;
-  struct Buf *next;
+  struct Page *page;
+  struct Page *next;
+  off64_t cluster_offset;
+  off64_t remaining;
+
+  KASSERT(vnode->lock.exclusive_cnt == 1 || vnode->lock.is_draining == true);
+
+  mark_all_vnode_pages_as_busy(vnode);
+
+  page = LIST_HEAD(&vnode->page_list);
+    
+  while(page != NULL) {
+    next = LIST_NEXT(page, vnode_link); 
   
-  Info("btruncate() inode_nr:%u, size:%u", (uint32_t)vnode->inode_nr, (uint32_t)vnode->size);
-  
-  buf = LIST_HEAD(&vnode->buf_list);
-  
-  while(buf != NULL) {
-    // vnode is locked, does this mean all bufs are NOT BUSY ?
-    // FIXME: do we need to take_buf() so that we have a lock on it ?????
-  
-    next = LIST_NEXT(buf, vnode_link); 
-  
-    if (vnode->size <= buf->file_offset) {
-      // Remove buf from file, mark as free
-      bdiscard(buf);
-    } else if ((vnode->size - buf->file_offset) < PAGE_SIZE) {
-      // Clear partial buf at end of file, mark as dirty
-      off_t cluster_offset = vnode->size - buf->file_offset;
-      off_t remaining = PAGE_SIZE - cluster_offset;
+    if (vnode->size <= page->file_offset) {
+      page->bflags &= ~B_VALID;
       
-      memset(buf->data + cluster_offset, 0, remaining);
-      bawrite(buf);
+      remove_from_free_page_queue(page);        
+      remove_from_lookup_page_hash(page);
+      remove_from_vnode_page_list(page);
+
+      bdiscard(page);
+         
+    } else if ((vnode->size - page->file_offset) < PAGE_SIZE) {
+      // Clear partial buf at end of file, write page immediately
+      cluster_offset = vnode->size - page->file_offset;
+      remaining = PAGE_SIZE - cluster_offset;
+      
+      memset(page->vaddr + cluster_offset, 0, remaining);
+
+      bwrite(page);
     }
       
-    buf = next;
-  }  
-
+    page = next;
+  }
+  
   return 0;
 }
 
-
-/* @brief   Discard a buffer in the cache, removing it from a vnode
+  
+/* @brief   Invalidate all blocks of a vnode, discarding them without writing to disk.
  *
- * @param   buf, buffer to discard
+ * @param   vnode, file to truncate
  * @return  0 on success, negative errno on failure
  *
- * TODO: Remove buffer from any vnode lists it is on.
+ * Used when deleting a file OR repurposing a free vnode
+ *
+ * TODO: Note:  vnode_find/vnode_new needs to be able to clear this.
+ *
+ * TODO: Do we send an vfs_invalidate command here or does vfs_unlink/etc handle the FS handler flush?
+ *       Invalidate could be for other reasons such as recycling a vnode.
  */
-int bdiscard(struct Buf *buf)
+int binvalidatev(struct VNode *vnode)
 {
-  buf->flags |= B_DISCARD;
-  brelse(buf);
-  return 0;
-}
- 
+  struct Page *page;
 
-/*
- *
- */
-int bsync(struct VNode *vnode, uint64_t now)
-{
-  return do_bsync(vnode, now, BS_SYNC);
-}
+  // Does it really need exclusive lock?
+  KASSERT(vnode->lock.exclusive_cnt == 1 || vnode->lock.is_draining == true);
 
-
-/*
- *
- */
-int bsync_and_invalidate(struct VNode *vnode)
-{
-  return do_bsync(vnode, BSYNC_ALL_NOW, BS_SYNC_INVALIDATE);
-}
-
-
-/*
- *
- */
-int binvalidate(struct VNode *vnode)
-{
-  return do_bsync(vnode, BSYNC_ALL_NOW, BS_INVALIDATE);
-}
-
-
-/* @brief   Write out all cached blocks of a file
- *
- * @param   vnode, file to write dirty cached blocks to disk
- * @param   action, action to perform on all blocks:
- *                BS_SYNC - sync block to disk, keep in cache
- *                BS_SYNC_INVALIDATE, sync block to disk, remove from cache
- *                BS_INVALIDATE, remove from cache without syncing
- * @return  0 on success, negative errno on failure.
- *
- * Find all dirty blocks in cache belonging to file, immediately write out.
- *
- * The vnode must be exclusive locked prior to performing bsync
- * so that the dirty buf list cannot be modified by other tasks.
- * 
- * There are 2 queues:
- *
- * delayed_writes   - blocks to be written out at a later time. These are
- *                    blocks written with bdwrite and are expected to be
- *                    written again soon. Blocks can be removed from this
- *                    and written again.
- *                    bsync() removes a number of blocks from this list
- *                    that have been dirty for several seconds and places
- *                    them on the pending_writes list.
- *                    Buffers on this list are marked a B_DELWRI but are not
- *                    marked as B_BUSY.
- *
- * pending_writes   - buffers queued for writing out to disk. Blocks cannot
- *                    be removed from this list. All async bawrite() buffers 
- *                    are placed immediately at the end of this list. Delayed
- *                    bdwrite() buffers are placed on this list by the
- *                    call to bsync().
- *                    Buffers on this list are marked as B_BUSY.
- *
- * All bawrite blocks are written out as they will all have expired.  A
- * number of dirty blocks from bdwrite() that have not been written for
- * a few seconds will be written out and marked as not-dirty.
- *
- * TODO: We could do some processing in here to sort blocks and write out
- * larger runs of blocks as a multipart IOV message.
- * 
- * If a block is on the dirty buffer list then by definition it is not busy
- */
-int do_bsync(struct VNode *vnode, uint64_t now, bool action)
-{
-  int saved_sc = 0;
-  struct Buf *buf;
-  off_t nbytes_to_write;
-      
-  while((buf = bgetdirtybuf(vnode, now)) != NULL) {
-    LIST_ADD_TAIL(&vnode->pendwri_buf_list, buf, async_link);
-
-    buf->flags &= ~B_DELWRI;  
-    buf->flags |= B_BUSY | B_ASYNC | B_WRITE;
-  }
+  while((page = LIST_HEAD(&vnode->page_list)) != NULL) {
+    page->bflags |= B_BUSY;
+    page->bflags &= ~B_VALID;
     
-  while ((buf = LIST_HEAD(&vnode->pendwri_buf_list)) != NULL) {  
-    LIST_REM_HEAD(&vnode->pendwri_buf_list, async_link);
-    if ((vnode->size - buf->file_offset) < PAGE_SIZE) {
-      nbytes_to_write = vnode->size % PAGE_SIZE;
-    } else {
-      nbytes_to_write = PAGE_SIZE;
-    }
+    remove_from_free_page_queue(page);        
+    remove_from_lookup_page_hash(page);
+    remove_from_vnode_page_list(page);
 
-    if (action != BS_INVALIDATE) {
-      int sc = vfs_write(vnode, KUCOPY, buf->data, nbytes_to_write, NULL);
-      if (sc != 0 && saved_sc == 0) {
-        saved_sc = sc;
-      }
-    }
-    
-    if (action == BS_INVALIDATE || action == BS_SYNC_INVALIDATE) {
-      buf->flags |= B_DISCARD;
-    }
-  
-    brelse(buf);
-  }
-    
-  return saved_sc;
-}
-
-
-/* @brief   Write out all cached blocks of a mounted filesystem.
- * 
- * @param   sb, superblock of mounted filesystem to sync contents of
- * @param   now, write out blocks that have an expiry time less than 'now' ticks
- * @return  0 on success, negative errno on failure
- *
- * Goes through the superblock's list of vnodes and writes out dirty
- * blocks of each vnode tha .
- */
-int bsyncfs(struct SuperBlock *sb, uint64_t now)
-{
-  int saved_sc = 0;  
-  struct VNode *vnode;
-  
-  rwlock(&sb->lock, LK_EXCLUSIVE);             //For locking vnode mount list
-                                                // But does it also protect vnode->buf_list ?
-  vnode = LIST_HEAD(&sb->vnode_list);
-  
-  while (vnode != NULL) {
-    rwlock(&vnode->lock, LK_EXCLUSIVE);
-    int sc = bsync(vnode, now);
-    rwlock(&vnode->lock, LK_RELEASE);
-    
-    if (sc != 0 && saved_sc == 0) {
-      saved_sc = sc;
-    }
-    
-    vnode = LIST_NEXT(vnode, vnode_link);
-  }
-  
-  rwlock(&sb->lock, LK_RELEASE);
-
-  TaskWakeupAll(&sb->bdflush_rendez);
-  
-  return saved_sc;
-}
-
-
-/* @brief   Per-Superblock kernel task for flushing async and delayed writes to disk
- *
- * @param   arg, pointer to the superblock
- */
-void bdflush_task(void *arg)
-{
-	struct SuperBlock *sb;
-  uint64_t now;
-  struct timespec timeout;
-  
-	sb = (struct SuperBlock *)arg;
-	
-  while((sb->flags & SF_ABORT) == 0) {
-  	now = get_hardclock();  	
-    bsyncfs(sb, now);
-
-    timeout.tv_sec = 1;
-    timeout.tv_nsec = 0;
-    TaskSleepInterruptible(&sb->bdflush_rendez, &timeout, INTRF_NONE);
-  }  
-}
-
-
-/* @brief   Get a block marked as dirty for the current vnode.
- *
- * @param   vnode, vnode to get a dirty block from
- * @param   now, get a block with an expiry time less than 'now' ticks
- * @return  A buffer that is dirty or NULL if no buffers due to expire
- */
-struct Buf *bgetdirtybuf(struct VNode *vnode, uint64_t now)
-{
-  struct Buf *buf;
-  
-  buf = LIST_HEAD(&vnode->delwri_buf_list);
-  
-  if (buf != NULL) {
-    if (buf->expiration_time <= now) {
-      LIST_REM_HEAD(&vnode->delwri_buf_list, async_link);
-            
-      buf->flags |= B_BUSY | B_WRITE;
-      buf->flags &= ~B_DELWRI;
-      return buf;
-    }
+    bdiscard(page);
   }
 
-  return NULL;
-}
-
-
-/* @brief   Create a kernel task to periodically flush a filesystem's dirty blocks
- * 
- */
-int init_superblock_bdflush(struct SuperBlock *sb)
-{
-  Info("init_superblock_bdflush");
-  
-  sb->bdflush_thread = create_kernel_thread(bdflush_task, sb, 
-                                        SCHED_RR, SCHED_PRIO_CACHE_HANDLER, 
-                                        THREADF_KERNEL, NULL, "bdflush-kt");
-  
-  if (sb->bdflush_thread == NULL) {
-    Info("bd_flush initialization failed");
-    return -ENOMEM;
-  }
-  
   return 0;
 }
 
-
-/* @brief   Shutdown the bdflush kernel task of a filesystem
- *
- * @param   sb, superblock of the bdflush task to stop
- * @param   how, option to control how the task is stopped
- *
- * TODO: Set how this should be shutdown, flush all or abort immediately.
- */
-void fini_superblock_bdflush(struct SuperBlock *sb, int how)
-{ 
-  sb->flags |= SF_ABORT;
-  TaskWakeup(&sb->bdflush_rendez);
-
-  if (sb->bdflush_thread != NULL) {
-    do_join_thread(sb->bdflush_thread, NULL);
-  }
-  
-  sb->bdflush_thread = NULL;
-}
 
 

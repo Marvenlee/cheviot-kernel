@@ -135,7 +135,7 @@ int sys_rename(char *oldpath, char *newpath)
 	  }
 	}
 	
-  rwlock(&oldl.vnode, LK_UPGRADE);
+  rwlock(&oldl.vnode->lock, LK_UPGRADE);
 
   // If same dvnode, ensure only a single exclusive lock is held.
   // FIXME: I'm sure it's possible to deadlock this with multiple rename commands.

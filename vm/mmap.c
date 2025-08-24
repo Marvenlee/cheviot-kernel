@@ -51,7 +51,7 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
   vm_addr va, pa;
   vm_addr paddr;
   vm_addr ceiling;
-  struct Pageframe *pf;
+  struct Page *page;
   struct MemRegion *mr;
   uint64_t privileges;
     
@@ -100,15 +100,15 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
     }
   } else {
     for (va = addr; va < addr + len; va += PAGE_SIZE) {
-      if ((pf = alloc_pageframe(PAGE_SIZE)) == NULL) {
+      if ((page = alloc_page()) == NULL) {
         goto cleanup;
       }
 
-      if (pmap_enter(as, va, pf->physical_addr, flags) != 0) {
+      if (pmap_enter(as, va, page->physical_addr, flags) != 0) {
         goto cleanup;
       }
       
-      pf->reference_cnt = 1;
+      page->reference_cnt = 1;
     }
   }
 
@@ -130,8 +130,8 @@ cleanup:
   } else {
     for (va = addr; va < ceiling; va += PAGE_SIZE) {
       if (pmap_extract(as, va, &paddr, NULL) == 0) {
-        pf = pmap_pa_to_pf(paddr);
-        free_pageframe(pf);
+        page = pmap_pa_to_page(paddr);
+        free_page(page);
         pmap_remove(as, va);
       }
     }
@@ -169,6 +169,8 @@ int sys_munmap(void *_addr, size_t len)
     // Finish FreePageframe
     
     pmap_remove(as, va);
+    
+    // TODO: Free page
   }
 
   pmap_flush_tlbs();  
@@ -184,6 +186,8 @@ int sys_munmap(void *_addr, size_t len)
  */
 int sys_mprotect(void *_addr, size_t len, int prot)
 {
+#if 0
+
   struct Process *current;
   struct AddressSpace *as;
   vm_addr addr;
@@ -192,7 +196,6 @@ int sys_mprotect(void *_addr, size_t len, int prot)
   uint64_t privileges;
   int flags;
   
-#if 0
 
   current = get_current_process();
 
@@ -266,7 +269,6 @@ vm_addr sys_virtualtophysaddr(vm_addr addr)
   struct AddressSpace *as;
   vm_addr va;
   vm_addr pa;
-  uint32_t flags;
  
   current = get_current_process();
   as = &current->as;
@@ -281,7 +283,7 @@ vm_addr sys_virtualtophysaddr(vm_addr addr)
     return (vm_addr)NULL;
   }
 
-  if (pmap_extract(as, va, &pa, &flags) != 0) {
+  if (pmap_extract(as, va, &pa, NULL) != 0) {
     return (vm_addr)NULL;
   }
 

@@ -110,7 +110,7 @@ struct Process
   int exit_status;                  // sys_exit() saved error code
   bool exit_in_progress;            // A thread has initiated the exit steps
           
-  struct FProcess *fproc;           // Process's file descriptor table
+  struct FProcess fproc;           // Process's file descriptor table
 
   uint64_t privileges;              // Privilege bitmap of process
   uint64_t privileges_after_exec;   // Privilege bitmap to use after exec.  
@@ -353,6 +353,7 @@ void TaskWakeup(struct Rendez *rendez);
 void TaskWakeupAll(struct Rendez *rendez);
 void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason);
 int TaskCheckInterruptible(struct Thread *thread, uint32_t intr_flags);
+void TaskRendezRequeue(struct Thread *thread, struct Rendez *r_new, struct Rendez *r_old);
 void KernelLock(void);
 void KernelUnlock(void);
 bool IsKernelLocked(void);
@@ -395,6 +396,26 @@ uint32_t sys_thread_event_check(uint32_t event_mask);
 uint32_t sys_thread_event_wait(uint32_t event_mask);
 int sys_thread_event_signal(int tid, int event);
 int isr_thread_event_signal(struct Thread *thread, int event);
+
+// proc/thread_futex.c
+int sys_futex_destroy(void *uaddr);
+int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, int flags);
+int sys_futex_wake(void *uaddr, uint32_t n, int flags);
+int sys_futex_requeue(void *uaddr, uint32_t n, void *uaddr2, uint32_t m, int flags);
+struct Futex *futex_get(struct Process *proc, void *uaddr, int flags);
+uint32_t futex_hash(struct Process *proc, void *uaddr);
+int lock_futex_table(void);
+void unlock_futex_table(void);
+struct Futex *futex_create(struct Process *proc, void *uaddr);
+void futex_free(struct Process *proc, struct Futex *futex);
+int fini_futexes(struct Process *proc);
+int do_cleanup_futexes(struct Process *proc);
+
+// proc/thread_sched.c
+int sys_thread_setschedparams(int policy, int priority);
+int sys_thread_getschedparams(pid_t tid, int *policy, int *priority);
+int sys_thread_getpriority(pid_t tid);
+int sys_thread_setpriority(pid_t tid);
 
 // proc/usage.c
 int sys_get_cpu_usage(void *buf, size_t sz);

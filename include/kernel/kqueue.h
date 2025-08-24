@@ -84,19 +84,20 @@ int knote_dequeue(knote_list_t *knote_list, int filter);
 
 void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread);
 
-int close_kqueue(struct Process *proc, int fd);
+int close_kqueue(struct KQueue *kqueue);
 void enable_knote(struct KQueue *kqueue, struct KNote *knote);
 void disable_knote(struct KQueue *kqueue, struct KNote *knote);
 
 struct KQueue *get_kqueue(struct Process *proc, int fd);
-int alloc_fd_kqueue(struct Process *proc);
-int free_fd_kqueue(struct Process *proc, int fd);
 struct KQueue *alloc_kqueue(void);
 void free_kqueue(struct KQueue *kqueue);
 
 struct KNote *get_knote(struct KQueue *kq, struct kevent *ev);
-struct KNote *alloc_knote(struct KQueue *kq, struct kevent *ev);
+int alloc_knote(struct KQueue *kq, struct kevent *ev, struct KNote **rknote);
 void free_knote(struct KQueue *kqueue, struct KNote *knote);
+
+void drain_knote_list(knote_list_t *knote_list);
+
 int knote_calc_hash(struct KQueue *kq, int ident, int filter);
 
 

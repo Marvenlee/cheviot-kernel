@@ -11,6 +11,7 @@
 #include <kernel/types.h>
 #include <kernel/kqueue.h>
 #include <kernel/types.h>
+#include <kernel/vm.h>
 #include <limits.h>
 #include <sys/iorequest.h>
 #include <sys/stat.h>
@@ -30,14 +31,13 @@ struct VNode;
 struct Filp;
 struct VFS;
 struct DName;
-struct Buf;
+struct Page;
 struct Msgport;
 struct ISRHandler;
 struct KQueue;
 struct TTYState;
 
 // List types
-LIST_TYPE(Buf, buf_list_t, buf_link_t);
 LIST_TYPE(DName, dname_list_t, dname_link_t);
 LIST_TYPE(VNode, vnode_list_t, vnode_link_t);
 LIST_TYPE(VFS, vfs_list_t, vfs_link_t);
@@ -59,7 +59,7 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 // Unmount() flags
 #define UNMOUNT_FORCE     (1 << 0)
 
-// set_fd() flags
+// File Descriptor flags flags
 #define FD_FLAG_CLOEXEC   (1 << 0)
 
 // Sizes
@@ -74,7 +74,7 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define NR_SUPERBLOCK   128
 #define NR_FILP         1024
 #define NR_VNODE        1024
-#define NR_PIPE         64
+#define NR_PIPE         1024
 #define NR_BUF          1024    // Dynamically allocate ?
 #define NR_MSGID2MSG    256     // Must match NPROCESS or greater
 
@@ -88,60 +88,24 @@ LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 #define MAX_ARGS_SZ                   0x10000 // Size of buffers for args and environment variables used during exec 
 #define PIPE_BUF_SZ                   4096    // Buffer size of pipes (should be same as page size)
 
-#define DELWRI_DELAY_TICKS            500     // Time in ticks to delay a delayed-write
+
+#define ASYNC_WRITE_DELAY_TICKS             50     // Time in ticks to delay an async-write
+#define DIRTY_WRITE_DELAY_TICKS             500    // Time in ticks to delay a delayed-write
+#define DIRTY_FLUSH_INTERVAL_TICKS          50
+
+
 #define SCHED_PRIO_CACHE_HANDLER      16      // Task priority of bdflush tasks.
+
+
 
 #define MAX_RENAME_PATH_CHECK_DEPTH   128   /* Max directories to ascend when checking rename
                                                directory is now a subdirectory of new path */
 
 // Hash table sizes
 #define VNODE_HASH                    1024
-#define BUF_HASH                      1024
 #define DNAME_HASH                    32
 
   
-/* @brief   A single cluster of a file in the file buffer cache
- */
-struct Buf
-{  
-  struct Rendez rendez;
-  bits32_t flags;
-  struct VNode *vnode;
-
-  off64_t file_offset;            // Offset within the file of the page-sized buffer that is cached
-  void *data;                     // Address of the page-sized buffer holding cached file data
-
-  buf_link_t free_link;           // Free list entry
-  buf_link_t hash_link;           // Hash table entry
-  buf_link_t vnode_link;          // List of all blocks belonging to a file
-  buf_link_t async_link;          // bawrite or bdflush LRU list entry  
-
-  uint64_t expiration_time;       // Time that a delayed-write block should be flushed
-};
-
-// Buf.flags
-#define B_FREE      (1 << 0)  // On free list
-#define B_VALID     (1 << 2)  // Valid, on lookup hash list
-#define B_BUSY      (1 << 3)  // Busy
-#define B_ERROR     (1 << 4)  // Buf is not valid (discarded in brelse)
-#define B_DISCARD   (1 << 5)  // Discard block in brelse
-
-// do_bsync() actions
-#define BS_SYNC                 0     // Write buffers to disk, keep in cache
-#define BS_SYNC_INVALIDATE      1     // Write buffers to disk, remove from cache
-#define BS_INVALIDATE           2     // Do not write buffers to disk, remove from cache
-
-
-// FIXME: Do we need the ones below, can these be hints to vfs_strategy?
-#define B_READ      (1 << 6)  // Read block of file (upto block size, depending om file size)
-#define B_WRITE     (1 << 7)  // Write block of file (upto block size, depending on file size)
-#define B_ASYNC     (1 << 8)  // Hint to FS Handler that block won't be written again soon (writing next block).
-#define B_DELWRI    (1 << 9)  // Hint to FS Handler that block may be written again soon
-#define B_READAHEAD (1 << 10)  // Hint to FS Handler to read additional blocks after this block has been read.
-
-// 
-#define BSYNC_ALL_NOW   (0xFFFFFFFFFFFFFFFF)
-
 
 /* @brief   Pipe state
  */
@@ -167,7 +131,7 @@ struct VNode
   struct RWLock lock;
   
   struct Rendez rendez;       // Non-lock related rendez, events
-
+  
   bool char_read_busy;        // Allow only a single read to progress
   bool char_write_busy;       // Allow only a single write to progress
 
@@ -179,10 +143,9 @@ struct VNode
   struct VNode *vnode_covered;
   struct VNode *vnode_mounted_here;
   
-  struct Pipe *pipe;      // FIXME Perhaps a union of different specialist objects?
-                          // Will we need something for sockets and socketpair ?
-                          // Or will we have a FS handler for those?
-  // bool isatty;         // FIXME: set isatty in mount()  or set in flags
+  struct Pipe *pipe;      // FIXME: May need 2 vnodes pointing to 1 pipe (for named pipes only?).
+  
+  // bool isatty;         // FIXME: set isatty in createmsgport(), or keep as message
   pid_t tty_sid;          // Session of a controlling TTY
   
   ino_t inode_nr;         // inode number
@@ -201,22 +164,21 @@ struct VNode
   vnode_link_t hash_link;               // hash table lookup link    
   vnode_link_t vnode_link;              // Free list or in use link
   
-  buf_list_t buf_list;                  // TODO: All buffers belonging to a file
-  buf_list_t pendwri_buf_list;          // List of blocks whose expiration time has expired
-  buf_list_t delwri_buf_list;           // List of blocks on the delayed write list
-  
-  dname_list_t dname_list;              // List of all dname entries pointing to this vnode
-  dname_list_t directory_dname_list;    // List of all entries within this directory
+  page_list_t page_list;                // All pages belonging to a file that are in the cache
+    
+  dname_list_t dname_list;              // All dname entries pointing to this vnode
+  dname_list_t directory_dname_list;    // All entries within this directory
 
   knote_list_t knote_list;
 };
 
+
 // VNode.flags
-#define V_FREE (1 << 1)
-#define V_VALID (1 << 2)
-#define V_ROOT (1 << 3)
-#define V_ABORT (1 << 4)
-#define V_DISCARD (1 << 5)
+#define V_FREE      (1 << 1)
+#define V_VALID     (1 << 2)
+#define V_ROOT      (1 << 3)
+#define V_ABORT     (1 << 4)
+#define V_DISCARD   (1 << 5)
 
 
 /* @brief   SuperBlock data structure for a mounted filesystem.
@@ -224,6 +186,11 @@ struct VNode
 struct SuperBlock
 {
   struct RWLock lock;
+  struct Rendez rendez;     // FIXME: Do we need lock or rendez?
+
+  int reference_cnt;
+  
+  superblock_link_t link;
 
   dev_t dev;
   
@@ -236,19 +203,17 @@ struct SuperBlock
                                         // about rename path ascension?)
   uint32_t flags;
 
-  int reference_cnt;
+  superblock_link_t sync_link;
 
-  superblock_link_t link;
-  vnode_list_t  vnode_list;
-  
-  struct Thread *bdflush_thread;
-  struct Rendez bdflush_rendez;       
+  bool vnode_list_busy;
+  struct Rendez vnode_list_rendez;  
+  vnode_list_t  vnode_list; 
 };
 
 // SuperBlock.flags
-#define SF_ABORT     (1 << 0)
-#define SF_READONLY  (1 << 1)
-#define SF_WRITETHRU (1 << 2)
+#define SBF_ABORT                  (1 << 0)
+#define SBF_READONLY               (1 << 1)
+#define SBF_WRITETHRU              (1 << 2)
 
 // Sepcial-case SuperBlock.dev major/minor numbers
 #define DEV_T_DEV_TTY   0x0500
@@ -286,6 +251,9 @@ struct Filp
   uint32_t flags;                       // Access flags, e.g. O_READ, O_WRITE
   int reference_cnt;
   filp_link_t filp_entry;               // VNode link
+  
+  bool busy;
+  struct Rendez rendez;
 };
 
 // Filp.type
@@ -298,6 +266,21 @@ struct Filp
 #define FILP_TYPE_SOCKETPAIR   7
 
 
+/* @brief   Process's file descriptor table entry
+ */
+struct FileDesc
+{
+  struct Filp *filp;
+  uint32_t flags;
+};
+
+// Flags for FileDesc.flags
+#define FDF_NONE                0
+
+#define FDF_CLOSE_ON_EXEC       (1<<0)
+#define FDF_VALID               (1<<31)
+
+
 /* @brief   Management of a process's file descriptors
  */
 struct FProcess
@@ -306,10 +289,7 @@ struct FProcess
   struct VNode *current_dir;
   struct VNode *root_dir;
 
-  fd_set fd_close_on_exec_set;          // FIXME: Should we use fd_set for close_on_exec and in-use tracking?
-  fd_set fd_in_use_set;
-
-  struct Filp *fd_table[OPEN_MAX];
+  struct FileDesc *fd_table;
 
 };
 
@@ -341,35 +321,67 @@ int sys_chown(char *_path, uid_t uid, gid_t gid);
 int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access);
 bool match_supplementary_group(struct Process *proc, gid_t gid);
 
+// fs/bdflush.c
+int init_superblock_bdflush(struct SuperBlock *sb);
+void fini_superblock_bdflush(struct SuperBlock *sb, int how);
+void bdflush_task(void *arg);
+int pause_bdflush_async_writes(struct SuperBlock *sb);
+int restart_bdflush_async_writes(struct SuperBlock *sb);
+
 // fs/block.c
 ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
 ssize_t write_to_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
 ssize_t read_from_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
 ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
 
+
 /* fs/cache.c */
-ssize_t read_from_cache(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
-ssize_t write_to_cache(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
-struct Buf *bread(struct VNode *vnode, off64_t file_offset);
-struct Buf *bread_zero(struct VNode *vnode, off64_t file_offset);
-int bwrite(struct Buf *buf);
-int bawrite(struct Buf *buf);
-int bdwrite(struct Buf *buf);
-void brelse(struct Buf *buf);
-struct Buf *getblk(struct VNode *vnode, uint64_t file_offset);
-struct Buf *findblk(struct VNode *vnode, uint64_t file_offset);
-int calc_buf_hash(ino_t inode_nr, off64_t file_offset);
-int bsync(struct VNode *vnode, uint64_t now);
-int bsync_and_invalidate(struct VNode *vnode);
-int binvalidate(struct VNode *vnode);
-int do_bsync(struct VNode *vnode, uint64_t now, bool action);
-int bsyncfs(struct SuperBlock *sb, uint64_t now);
-int btruncate(struct VNode *vnode);
-int bdiscard(struct Buf *buf);
-int init_superblock_bdflush(struct SuperBlock *sb);
-void fini_superblock_bdflush(struct SuperBlock *sb, int how);
-void bdflush_task(void *arg);
-struct Buf *bgetdirtybuf(struct VNode *vnode, uint64_t now);
+struct Page *getblk(struct VNode *vnode, uint64_t file_offset);
+struct Page *getblk_anon(void);
+void putblk_anon(struct Page *page);
+
+int getblk_dirty_list(struct SuperBlock *sb, uint64_t now, page_list_t *dirty_list);
+
+struct Page *find_blk(struct VNode *vnode, uint64_t file_offset);
+struct Page *find_available_blk(void);
+
+void remove_from_free_page_queue(struct Page *page);
+void remove_from_dirty_page_queue(struct Page *page);
+
+void add_to_free_page_queue(struct Page *page);
+void add_to_free_page_queue_tail(struct Page *page);
+void add_to_dirty_page_queue(struct Page *page);
+
+void add_to_lookup_page_hash(struct Page *page);
+void remove_from_lookup_page_hash(struct Page *page);
+
+void add_to_vnode_dirty_page_list(struct Page *page);
+void add_to_vnode_page_list(struct Page *page);
+void remove_from_vnode_dirty_page_list(struct Page *page);
+void remove_from_vnode_page_list(struct Page *page);
+
+int calc_page_lookup_hash(ino_t inode_nr, off64_t file_offset);
+int calc_dirty_hash(uint64_t now_ms);
+
+struct Page *bread(struct VNode *vnode, off64_t file_offset);
+struct Page *bread_zero(struct VNode *vnode, off64_t file_offset);
+int bwrite(struct Page *buf);
+int bawrite(struct Page *buf);
+int bdwrite(struct Page *buf);
+
+int bdiscard(struct Page *buf);
+void brelse(struct Page *buf);
+
+void mark_all_vnode_pages_as_busy(struct VNode *vnode);
+void mark_dirty_vnode_pages_as_busy(struct VNode *vnode);
+
+int bsyncv(struct VNode *vnode);
+int binvalidatev(struct VNode *vnode);
+int btruncatev(struct VNode *vnode);
+
+void lock_dirty_queues(void);
+void unlock_dirty_queues(void);
+
 
 /* fs/char.c */
 int sys_isatty(int fd);
@@ -416,7 +428,11 @@ void free_arg_pool(char *mem);
 void exec_root(void *arg);
 int load_root_elf(void *file_base, void **entry_point);
 int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_base, size_t ifs_size);
-ssize_t read_ifs_image(void *base, off_t offset, void *vaddr, size_t sz);
+ssize_t read_ifs(void *base, off_t offset, void *vaddr, size_t sz);
+
+/* fs/file.c */
+ssize_t read_from_file(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
+ssize_t write_to_file(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
 
 /* fs/filedesc.c */
 int sys_fcntl(int fd, int cmd, int arg);
@@ -424,27 +440,22 @@ int sys_dup(int h);
 int sys_dup2(int h, int new_h);
 int sys_close(int h);
 int do_close(struct Process *proc, int fd);
-
 int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd);
-
-int close_on_exec_process_fds(void);
-
-int alloc_fd(struct Process *proc, int min_fd, int max_fd);
-int free_fd(struct Process *proc, int fd);
-int set_fd(struct Process *proc, int fd, int type, uint32_t flags, void *item);
+int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **filedesc);
+int fd_free(struct Process *proc, int fd);
+int fork_fds(struct Process *newp, struct Process *oldp);
+int exec_fds(struct Process *proc);
 
 /* fs/filp.c */
-int close_filp(struct Process *proc, int fd);
-struct Filp *get_filp(struct Process *proc, int fd);
-int alloc_fd_filp(struct Process *proc);
-int free_fd_filp(struct Process *proc, int fd);
-struct Filp *alloc_filp(void);
-void free_filp(struct Filp *filp);
+int filp_close(struct Process *proc, int fd);
+struct Filp *filp_get(struct Process *proc, int fd);
+void filp_put(struct Filp *filp);
+struct Filp *filp_alloc(void);
+void filp_free(struct Filp *filp);
 
 /* fs/fproc.c */
 int init_fproc(struct Process *proc);
 int fini_fproc(struct Process *proc);
-int fork_process_fds(struct Process *newp, struct Process *oldp);
 
 /* fs/init.c */
 void init_vfs(void);
@@ -514,11 +525,11 @@ int sys_lseek64(int fd, off64_t *pos, int whence);
 
 /* fs/superblock.c */
 struct SuperBlock *get_superblock(struct Process *proc, int fd);
-int alloc_fd_superblock(struct Process *proc);
-int free_fd_superblock(struct Process *proc, int fd);
 struct SuperBlock *alloc_superblock(void);
 void register_mounted_superblock(struct SuperBlock *sb);
 void free_superblock(struct SuperBlock *sb);
+int close_superblock(struct SuperBlock *sb);
+
 
 /* fs/sync.c */
 int sys_sync(void);
@@ -548,17 +559,20 @@ int vfs_isatty(struct VNode *vnode);
 ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset);
 ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset);
 
+int vfs_sync(struct SuperBlock *sb);
+int vfs_syncfile(struct VNode *vnode);
+
 /* fs/vnode.c */
-struct VNode *get_fd_vnode(struct Process *proc, int fd);
-int close_vnode(struct Process *proc, int fd);
+int close_vnode(struct VNode *vnode, uint32_t filp_flags);
 struct VNode *vnode_new(struct SuperBlock *sb);
 int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr);
 void vnode_hash_enter(struct VNode *vnode);
 void vnode_hash_remove(struct VNode *vnode);
 struct VNode *vnode_get(struct SuperBlock *sb, int vnode_nr);
+struct VNode *vnode_get_from_filp(struct Filp *filp);
 void vnode_put(struct VNode *vnode);
 void vnode_add_reference(struct VNode *vnode);
-void vnode_discard(struct VNode *vnode);      // Delete a vnode from cache ???
+void vnode_discard(struct VNode *vnode);                        // Delete a vnode from cache unlink/rmdir/umount?
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 
 /* fs/write.c */

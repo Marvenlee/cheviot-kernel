@@ -44,41 +44,47 @@ int sys_close(int fd)
 int do_close(struct Process *proc, int fd)
 {
   struct Filp *filp;
-  struct VNode *vnode;
-  struct Pipe *pipe;
-
+  
   Info("do_close(fd:%d)", fd);
 
+  filp = filp_get(proc, fd);
   
-  filp = get_filp(proc, fd);
-  
-  if (filp == NULL) {
-    return -EINVAL;
-  }
-  
-  filp->reference_cnt--;  
-  
-  KASSERT(filp->reference_cnt >= 0);
-  
-  if (filp->reference_cnt == 0) {  
-    switch (filp->type) {
-        case FILP_TYPE_VNODE:
-        close_vnode(proc, fd);
-        break;
-      case FILP_TYPE_SUPERBLOCK:
-        close_msgport(proc, fd);
-        break;
-      case FILP_TYPE_KQUEUE:
-        close_kqueue(proc, fd);
-        break;
-      default:
-        KernelPanic();
+  if (filp) {
+    Info("filp:%08x", (uint32_t)filp);
+    Info("filp->reference_cnt = %d", filp->reference_cnt);
+    
+    if (filp->reference_cnt == 1) {   // TODO: Mark filp as not duplicable, mark FD as busy/in-use/locked
+      // TODO:
+      switch (filp->type) {
+          case FILP_TYPE_VNODE:
+          Info("call close_vnode");
+          close_vnode(filp->u.vnode, filp->flags);
+          break;
+        case FILP_TYPE_SUPERBLOCK:
+          Info("call close_superblock");
+          close_superblock(filp->u.superblock);
+          break;
+        case FILP_TYPE_KQUEUE:
+          Info("call close_kqueue");
+          close_kqueue(filp->u.kqueue);
+          break;
+        default:
+          KernelPanic();
+      }
+
+      Info("call filp_free()");
+      filp_free(filp);
     }
+
+    Info("call fd_free()");
+    fd_free(proc, fd);
+  } else {
+    Info("do_close() -EBADF");
+    return -EBADF;
   }
 
-  
-  free_fd(proc, fd);
-  
+  Info("do_close - success");     
+
   return 0;
 }
 

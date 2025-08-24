@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define KDEBUG
+//#define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
@@ -53,6 +53,7 @@ int sys_exec(char *_path, struct execargs *_args)
   struct lookupdata ld;
   struct Process *current_proc;
   struct VNode *vnode;
+  struct Filp *filp;
 
   Info ("sys_exec");
   
@@ -73,7 +74,19 @@ int sys_exec(char *_path, struct execargs *_args)
     return -ENOENT;
   }
 
-  vnode = get_fd_vnode(current_proc, fd);
+  // We may want to BUSY the filp  (perhaps do_open could return a filp or vnode instead?
+  
+  // FIXME: Replace with Check access from fd or check access from filp.
+  // FIXME: Actually shouldn't we be checking in do_open ?  Can we add a O_RDEX flag?
+  
+  filp = filp_get(current_proc, fd);
+  
+  if (filp == NULL) {
+    lookup_cleanup(&ld);
+    return -EBADF;
+  }
+  
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     lookup_cleanup(&ld);
@@ -175,18 +188,15 @@ int do_exec(int fd, char *name, struct execargs *_args)
   copy_out_argv(stack_base, USER_STACK_SZ, &args);
 
   free_arg_pool(pool);
-  
-  stack_pointer = stack_base + USER_STACK_SZ - ALIGN_UP(args.total_size, 16) - 16;
 
-  // FIXME: CloseOnExec (current);
-
-  exec_signals(current, current_thread);
-	
   StrLCpy(current->basename, name, sizeof current->basename);
   StrLCpy(current_thread->basename, name, sizeof current_thread->basename);
+  
+  exec_fds(current);
+  exec_signals(current, current_thread);
 
+  stack_pointer = stack_base + USER_STACK_SZ - ALIGN_UP(args.total_size, 16) - 16;
   set_user_stack_tcb(current_thread, stack_base, USER_STACK_SZ, NULL);
-
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
 
   return 0;
@@ -425,7 +435,6 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
   phdr_cnt = ehdr.e_phnum;
   phdr_offs = ehdr.e_phoff;
   
-
   for (t = 0; t < phdr_cnt; t++) {    
     rc = kread_file(fd, phdr_offs + t * sizeof(Elf32_PHdr), &phdr, sizeof(Elf32_PHdr));
 

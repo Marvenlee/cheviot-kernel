@@ -69,11 +69,9 @@ struct Pipe *alloc_pipe(void)
  */
 void free_pipe(struct Pipe *pipe)
 {
-  if (pipe != NULL) {
-    return;
-  }
-
-  // FIXME: kfree_page(pipe->data);
+  KASSERT(pipe != NULL);
+  
+  kfree_page(pipe->data);
 
   LIST_ADD_HEAD(&free_pipe_list, pipe, link);
 }
@@ -89,80 +87,98 @@ int sys_pipe(int *_fd)
   struct Filp *filp1 = NULL;
   struct Pipe *pipe = NULL;  
   struct VNode *vnode = NULL;
+  struct FileDesc *filedesc0;
+  struct FileDesc *filedesc1;  
   struct Process *current;
+  int sc;
   
   Info("sys_pipe");
   
   current = get_current_process();
 
+  // Can we have pipes, superblocks, vnodes as separate objects?
+  // Same for char device handles, maybe not a vnode?
+
   pipe = alloc_pipe();
 
-  if (pipe == NULL) {
-    return -ENOMEM;
-  }
-  
-  vnode = vnode_new(&pipe_sb);
+  if (pipe) {   
+    fd[0] = fd_alloc(current, 0, OPEN_MAX, &filedesc0);
 
-  if (vnode == NULL) {
-    free_pipe(pipe);
-    return -ENOMEM;
-  }
-  
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
+    if (fd[0] >= 0) {      
+      filp0 = filp_alloc();
+      
+      if (filp0) {
+        fd[1] = fd_alloc(current, 0, OPEN_MAX, &filedesc1);
 
-  fd[0] = alloc_fd_filp(current);
+        if (fd[1] >= 0) {
+          filp1 = filp_alloc();
+  
+          if (filp1) {
+            vnode = vnode_new(&pipe_sb);
 
-  if (fd[0] < 0) {
-    rwlock(&vnode->lock, LK_DRAIN);
-    vnode_discard(vnode);
-    free_pipe(pipe);
-    return -ENOMEM;
-  }
-  
-  fd[1] = alloc_fd_filp(current);
-  if (fd[1] < 0) {
-    free_fd_filp(current, fd[0]);
-    rwlock(&vnode->lock, LK_DRAIN);
-    vnode_discard(vnode);
-    free_pipe(pipe);
-    return -ENOMEM;
-  }
-  
-  Info ("sys_pipe alloced fds: %d, %d", fd[0], fd[1]);
+            if (vnode) {
+              vnode->pipe = pipe;
+                  
+              filp0->type = FILP_TYPE_PIPE;
+              filp0->u.vnode = vnode;
+              filp0->offset = 0;
+              filp0->flags = O_RDONLY;
+              
+              filp1->type = FILP_TYPE_PIPE;
+              filp1->u.vnode = vnode;
+              filp1->offset = 0;
+              filp1->flags = O_WRONLY;
+              
+              pipe->reader_cnt = 1;
+              pipe->writer_cnt = 1;  
+
+              filedesc0->flags = FDF_VALID;
+              filedesc0->filp = filp1;
+              
+              filedesc1->flags = FDF_VALID;
+              filedesc1->filp = filp1;
+              
+              sc = CopyOut(_fd, fd, sizeof fd);
+              
+              if (sc == 0) {
+                vnode_put(vnode);
+                filp_put(vnode);
+                return 0;
+              }
+            
+              vnode_discard(vnode);
+            } else {
+              sc = -ENOMEM;
+            }
+
+            filp_free(filp1);
+          } else {
+            sc = -ENOMEM;
+          }
+                  
+          fd_free(current, fd[1]);
+        } else {
+          sc = -ENOMEM;
+        }
+        
+        filp_free(filp0);           
+      } else {
+        sc = -ENOMEM;
+      }
+      
+      fd_free(current, fd[0]);
+    } else {
+      sc = -ENOMEM;
+    }
     
-  filp0 = get_filp(current, fd[0]);
-  filp0->type = FILP_TYPE_VNODE;
-  filp0->offset = 0;
-  filp0->flags = O_RDONLY;
-  filp0->u.vnode = vnode;
-  
-  filp1 = get_filp(current, fd[1]);
-  filp1->type = FILP_TYPE_VNODE;
-  filp1->offset = 0;
-  filp1->flags = O_WRONLY;
-  filp1->u.vnode = vnode;
-  
-  pipe->reader_cnt = 1;
-  pipe->writer_cnt = 1;
-  
-  vnode->pipe = pipe;
-  vnode->mode = _IFIFO | 0777;
-  vnode->inode_nr = pipe->inode_nr;
-  vnode->flags = V_VALID;
-  vnode_hash_enter(vnode);
-    
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  if (CopyOut(_fd, fd, sizeof fd) != 0) {
-    Info("Pipe, failed, EFAULT");
-    close(fd[0]);
-    close(fd[1]);
-    return -EFAULT;
+    free_pipe(pipe);
+  } else {
+    sc = -ENOMEM;
   }
 
-  Info ("sys_pipe success, fd[0] = %d, fd[1] = %d", fd[0], fd[1]);  
-  return 0;
+  return sc;
 }
+
 
 
 /*
@@ -179,6 +195,8 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
   ssize_t nbytes_read = 0;   
   int status = 0;
   struct Pipe *pipe;
+
+  KASSERT(vnode != NULL);
   
   Info("read_from_pipe dst:%08x, sz:%d", (uint32_t)_dst, sz);
   
@@ -264,6 +282,8 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
   ssize_t nbytes_written = 0;
   int status = 0;
   struct Pipe *pipe;
+
+  KASSERT(vnode != NULL);
 
   Info("write_to_pipe src:%08x, sz:$d", (uint32_t)_src, sz);
   

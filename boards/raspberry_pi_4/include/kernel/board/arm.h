@@ -50,43 +50,6 @@ typedef uint32_t    int_state_t;
 #define VECTOR_TABLE_ADDR   0x00000000
 
 
-/*
- * PmapVPTE virtual page table flags
- */
-#if 0
-#define VPTE_PHYS     (1 << 0)
-#define VPTE_LAZY     (1 << 2)
-#define VPTE_PROT_COW (1 << 3)
-#define VPTE_PROT_R   (1 << 4)
-#define VPTE_PROT_W   (1 << 5) 
-#define VPTE_PROT_X   (1 << 6)
-#define VPTE_ACCESSED (1 << 7) // FIXME: Should be part of Pageframe only
-#define VPTE_DIRTY    (1 << 8) // FIXME: Should be part of Pageframe only
-#define VPTE_WIRED    (1 << 9) // FIXME: Should be part of Pageframe only
-#define VPTE_PRESENT  (1 << 10)
-#endif
-
-/*
- */
-LIST_TYPE(Pmap, pmap_list_t, pmap_list_link_t);
-LIST_TYPE(PmapVPTE, pmap_vpte_list_t, pmap_vpte_list_link_t);
-
-struct Pmap
-{
-  uint32_t *l1_table; // Page table
-};
-
-struct PmapVPTE
-{
-  pmap_vpte_list_link_t link;
-  uint32_t flags;
-} __attribute__((packed));
-
-struct PmapPageframe
-{
-  pmap_vpte_list_t vpte_list;
-};
-
 
 // Macros
 #define VirtToPhys(va) ((vm_addr)va & 0x7FFFFFFF)
@@ -134,8 +97,6 @@ void FPUSwitchState(void);
 void SpinLock(spinlock_t *spinlock);
 void SpinUnlock(spinlock_t *spinlock);
 
-void PmapPageFault(void);
-uint32_t *PmapGetPageTable(struct Pmap *pmap, int pde_idx);
 
 
 

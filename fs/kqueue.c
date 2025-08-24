@@ -38,12 +38,48 @@
 int sys_kqueue(void)
 {
   struct Process *current;
+  struct KQueue *kqueue;
+  struct Filp *filp;
+  struct FileDesc *filedesc;
   int fd;
 
   Info("sys_kqueue");
   
   current = get_current_process();
-  fd = alloc_fd_kqueue(current);
+
+
+  fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
+ 
+  Info("fd allocated: %d", fd);
+ 
+  if (fd < 0) {
+    return -EMFILE;
+  }
+  
+  filp = filp_alloc();
+ 
+  if (filp == NULL) {
+    fd_free(current, fd);
+    return -EMFILE;
+  } 
+  
+  kqueue = alloc_kqueue();
+  
+  if (kqueue == NULL) {
+    filp_free(filp);
+    fd_free(current, fd);
+    return -EMFILE;
+  }
+    
+  filp->type = FILP_TYPE_KQUEUE;  
+  filp->u.kqueue = kqueue;
+  filp->offset = 0;
+  filp->flags = O_RDONLY | O_WRONLY;
+  
+  filedesc->filp = filp;
+  filedesc->flags |= FDF_VALID;
+
+  Info("kqueue() result:%d", fd);
 
   return fd;
 }
@@ -72,11 +108,9 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   struct Thread *current_thread;
   struct timespec timeout;
   struct timespec *timeoutp;
-  int_state_t int_state;
-  bool timedout = false;
   int sc = 0;
   
-//  Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
+  Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
   
   current = get_current_process();
   current_thread = get_current_thread();
@@ -90,9 +124,17 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   
   kqueue = get_kqueue(current, fd);
   
+  if (kqueue == NULL) {
+    Info("kevent, bad fd, not kqueue");
+    return -EBADF;
+  }
+  
   while (kqueue->busy == true) {
+    Info("kqueue busy, sleeping");
     TaskSleep(&kqueue->busy_rendez);
   }
+  
+  Info("kqueue acquired");
   kqueue->busy = true;
   
   // Processing of adding/removing/enabling and disabling events.  
@@ -115,10 +157,10 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
             ev.flags |= EV_ENABLE;
           }
                     
-          knote = alloc_knote(kqueue, &ev);
+          sc = alloc_knote(kqueue, &ev, &knote);
     
-          if (knote == NULL) {
-            sc = -ENOMEM;
+          if (sc != 0) {
+            Error("kqueue() alloc_knote failed, sc:%d", sc);
             goto exit;
           }          
         } else {
@@ -218,6 +260,13 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
 
 exit:
   // TODO: Any kevent cleanup
+  kqueue->busy = false;
+  
+  if (LIST_HEAD(&kqueue->pending_list) != NULL) {
+    TaskWakeup(&kqueue->busy_rendez);  
+  }
+
+
   Info("kqueue B sc:%d", sc);  
   return sc;
 }
@@ -242,7 +291,6 @@ void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
   }
   
   int_state = DisableInterrupts();
-  uint32_t pending_old = current_thread->pending_events;
   caught_events = (current_thread->pending_events & current_thread->event_mask);
   current_thread->pending_events &= ~caught_events;
   RestoreInterrupts(int_state);
@@ -251,7 +299,6 @@ void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
     return;
   }
 
-  Info("caught:%08x, pend:%08x", caught_events, pending_old);
   current_thread->event_knote->fflags = caught_events;
   knote(&current_thread->knote_list, 0);
 }
@@ -300,12 +347,13 @@ int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, 
  * @param   proc,
  * @param   fd,
  * @return  0 on success, negative errno on error
+ *
  */
-int close_kqueue(struct Process *proc, int fd)
+int close_kqueue(struct KQueue *kq)
 {
-  // Delete all Notes on list
-  
-  free_fd_kqueue(proc, fd);
+  // TODO: FIXME: Delete all Notes on list
+
+  free_kqueue(kq);
   return 0;
 }
 
@@ -408,7 +456,9 @@ struct KQueue *get_kqueue(struct Process *proc, int fd)
 {
   struct Filp *filp;
   
-  filp = get_filp(proc, fd);
+  Info("get_kqueue(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  
+  filp = filp_get(proc, fd);
   
   if (filp == NULL) {
     return NULL;
@@ -419,59 +469,6 @@ struct KQueue *get_kqueue(struct Process *proc, int fd)
   }
 
   return filp->u.kqueue;
-}
-
-
-/* @brief   Allocate a kqueue and associated file descriptor
- *
- * Allocates a handle structure.  Checks to see that free_handle_cnt is
- * non-zero should already have been performed prior to calling alloc_fd().
- */
-int alloc_fd_kqueue(struct Process *proc)
-{
-  int fd;
-  struct KQueue *kqueue;
-  
-  fd = alloc_fd_filp(proc);
-  
-  if (fd < 0) {
-    return -EMFILE;
-  }
-  
-  kqueue = alloc_kqueue();
-  
-  if (kqueue == NULL) {
-    free_fd_filp(proc, fd);
-    return -EMFILE;
-  }
-  
-  kqueue->reference_cnt=1;
-  set_fd(proc, fd, FILP_TYPE_KQUEUE, 0, kqueue);
-  
-  return fd;
-}
-
-
-/* @brief   Free a kqueue and associated file descriptor
- *
- * Marks the file descriptor as free, decrements reference counts
- * and if the kqueue is no longer referenced it is freed.
- */
-int free_fd_kqueue(struct Process *proc, int fd)
-{
-  struct KQueue *kqueue;
-  
-  Info("free_fd_kqueue");
-  
-  kqueue = get_kqueue(proc, fd);
-
-  if (kqueue == NULL) {
-    return -EINVAL;
-  }
-
-  free_fd_filp(proc, fd);
-  free_kqueue(kqueue);
-  return 0;
 }
 
 
@@ -491,7 +488,7 @@ struct KQueue *alloc_kqueue(void)
   LIST_REM_HEAD(&kqueue_free_list, free_link);
 
   kqueue->busy = false;
-  kqueue->reference_cnt = 0;
+  kqueue->reference_cnt = 1;
 
   InitRendez(&kqueue->busy_rendez);
   InitRendez(&kqueue->event_rendez);
@@ -522,13 +519,14 @@ void free_kqueue(struct KQueue *kqueue)
 /*
  *
  */
-struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
+int alloc_knote(struct KQueue *kqueue, struct kevent *ev, struct KNote **rknote)
 {
   int sc = 0;
   int hash;
   struct KNote *knote;
   struct SuperBlock *sb;
   struct VNode *vnode;
+  struct Filp *filp;
   struct Process *current;
   struct Thread *thread;
   
@@ -537,7 +535,7 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
   Info ("alloc_knote(kq:%08x, ev:%08x)", (uint32_t)kqueue, (uint32_t)ev);
   
   if ((knote = LIST_HEAD(&knote_free_list)) == NULL) {
-    return NULL;
+    return -ENOMEM;
   }
   
   LIST_REM_HEAD(&knote_free_list, link);  
@@ -573,14 +571,20 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
     case EVFILT_WRITE:
     // TODO: Add EVFILT_FS for mount/unmount events    
     case EVFILT_VNODE:
-      vnode = get_fd_vnode(current, knote->ident);
+      filp = filp_get(current, knote->ident);
       
-      if (vnode) {
-        knote->object = vnode;
-        LIST_ADD_TAIL(&vnode->knote_list, knote, object_link);
+      if (filp) {
+        vnode = vnode_get_from_filp(filp);
+        if (vnode) {
+          knote->object = vnode;
+          LIST_ADD_TAIL(&vnode->knote_list, knote, object_link);
+        } else {
+          sc = -EINVAL;
+        }
       } else {
-        sc = -EINVAL;
+        sc = -EBADF;
       }
+      
       break;
       
     case EVFILT_AIO:
@@ -640,14 +644,17 @@ struct KNote *alloc_knote(struct KQueue *kqueue, struct kevent *ev)
 
   if (sc != 0) {
     free_knote(kqueue, knote);
-    return NULL;
+    *rknote = NULL;
+    return sc;
   }
-
+  
   LIST_ADD_TAIL(&kqueue->knote_list, knote, kqueue_link);  
   hash = knote_calc_hash(kqueue, knote->ident, knote->filter);
   LIST_ADD_TAIL(&knote_hash[hash], knote, hash_link);
 
-  return knote;
+  *rknote = knote;
+
+  return 0;
 }
 
 
@@ -663,6 +670,7 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
   int hash;
   struct SuperBlock *sb;
   struct VNode *vnode;
+  struct Filp *filp;
   struct Process *current;
   struct Thread *thread;
   
@@ -675,11 +683,15 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
     case EVFILT_WRITE:
     // TODO: ADd EVFILT_FS for mount/unmount events
     case EVFILT_VNODE:
-      vnode = get_fd_vnode(current, knote->ident);
+      filp = filp_get(current, knote->ident);
       
-      if (vnode) {
-        knote->object = NULL;
-        LIST_REM_ENTRY(&vnode->knote_list, knote, object_link);
+      if (filp) {      
+        vnode = vnode_get_from_filp(filp);
+
+        if (vnode) {
+          knote->object = NULL;
+          LIST_REM_ENTRY(&vnode->knote_list, knote, object_link);
+        }
       }
       break;
       
@@ -715,7 +727,7 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
 
        Info("free kn EVFILT_THREAD_EVENT thread:%08x", (uint32_t)thread);
       
-      if (thread != NULL) {
+      if (thread) {
         knote->object = NULL;
         LIST_REM_ENTRY(&thread->knote_list, knote, object_link);
       }
@@ -740,6 +752,37 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
 }
 
 
+/*
+ *
+ */
+void drain_knote_list(knote_list_t *knote_list)
+{
+  int hash;
+  struct KQueue *kqueue;
+  struct KNote *knote;
+  
+  while((knote = LIST_HEAD(knote_list)) != NULL) {
+    LIST_REM_ENTRY(knote_list, knote, object_link);
+
+    kqueue = knote->kqueue;    
+    knote->object = NULL;
+
+    if (knote->on_pending_list == true) {
+      LIST_REM_ENTRY(&kqueue->pending_list, knote, pending_link);
+      knote->on_pending_list = false;
+    }
+    
+    knote->pending = false;
+    LIST_REM_ENTRY(&kqueue->knote_list, knote, kqueue_link);  
+
+    hash = knote_calc_hash(kqueue, knote->ident, knote->filter);
+    LIST_REM_ENTRY(&knote_hash[hash], knote, hash_link);
+
+    LIST_ADD_HEAD(&knote_free_list, knote, link);
+  }
+}
+
+
 /* @brief   Enable an existing knote
  *
  * TODO: Check if we need to raise any pending events,
@@ -754,6 +797,7 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
   struct Process *current;
   struct SuperBlock *sb;
   struct VNode *vnode;
+  struct Filp *filp;
   struct MsgPort *msgport;
   
   current = get_current_process();
@@ -782,9 +826,14 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
     case EVFILT_WRITE:
     // TODO: ADd EVFILT_FS for mount/unmount events
     case EVFILT_VNODE:
-      vnode = get_fd_vnode(current, knote->ident);
+      filp = filp_get(current, knote->ident);
       
-      if (vnode) {
+      if (filp) {
+        vnode = vnode_get_from_filp(filp);
+
+        if (vnode) {
+          // TODO:
+        }
       }
       break;
       
@@ -836,12 +885,10 @@ void enable_knote(struct KQueue *kqueue, struct KNote *knote)
  */
 void disable_knote(struct KQueue *kqueue, struct KNote *knote)
 {
-  if (knote->enabled == false) {
-    return;
-  }
-  
   knote->enabled = false;
-  
+
+  // TODO: Any special handling of knote->filter EVFILT_xyz ?
+
   if (knote->on_pending_list == true) {
     LIST_REM_ENTRY(&kqueue->pending_list, knote, pending_link);
     knote->on_pending_list = false;

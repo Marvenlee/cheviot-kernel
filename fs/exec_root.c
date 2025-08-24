@@ -17,7 +17,7 @@
  * Exec the first process, the IFS driver into existence.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <string.h>
 #include <kernel/arch.h>
@@ -54,7 +54,7 @@ void exec_root(void *arg)
   char *pool;
   void *ifs_exe_base;
 
-  Info ("exec_root ...");
+  Info ("exec_root() ...");
 
 #if 1
   // FIXME: Why is this here, shouldn't interrupts be enabled on task switch?
@@ -228,7 +228,6 @@ int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_
   char **envv;
   char *string_table;
   int remaining;
-  char *src;
   char *dst;
   int sz;
   char tmp[32];
@@ -266,15 +265,11 @@ int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_
 	Info ("... tmp:%s", tmp);  
   Info ("dst:%08x, tmp:%08x, remaining:%d", (uint32_t)dst, (uint32_t)tmp, remaining);
   StrLCpy(dst, tmp, remaining);
-	char *argv_ifs_sz = dst;
 	
   sz = StrLen(dst) + 1;
   dst += sz;
   remaining -= sz;
   
-
-	Info ("argv[2] user ifs_sz: %s", argv_ifs_sz);
-
   args->argc = 3;
   args->envc = 0;
 

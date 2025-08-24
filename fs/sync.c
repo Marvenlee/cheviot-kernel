@@ -33,24 +33,46 @@
 int sys_sync(void)
 {
   struct SuperBlock *sb;
+  struct VNode *vnode;
   int saved_sc = 0;
+  int sc;
+
+  Info("sys_sync(");
   
-  rwlock(&superblock_list_lock, LK_SHARED);
+  while (sync_in_progress == true) {
+    TaskSleep(&sync_rendez);
+  }
+  
+  sync_in_progress = true;
   
   sb = LIST_HEAD(&mounted_superblock_list);
   
   while (sb != NULL) {
-    if (sb->root != NULL && S_ISDIR(sb->root->mode) && (sb->flags & SF_READONLY) == 0) {
-      int sc = bsyncfs(sb, BSYNC_ALL_NOW);
-      if (sc != 0 && saved_sc == 0) {
-        saved_sc = sc;
-      }
-    }
+    if (sb->root != NULL && S_ISDIR(sb->root->mode) && (sb->flags & SBF_READONLY) == 0) {
+
+      sb->reference_cnt ++;
+      LIST_ADD_TAIL(&sync_superblock_list, sb, sync_link);
+    }      
         
     sb = LIST_NEXT(sb, link);
   }
 
-  rwlock(&superblock_list_lock, LK_RELEASE);
+  while((sb = LIST_HEAD(&sync_superblock_list)) != NULL) {
+    LIST_REM_HEAD(&sync_superblock_list, sync_link);
+    
+    sc = vfs_sync(sb);
+    
+    if (saved_sc == 0 && sc != 0) {
+      saved_sc = sc;
+    }
+    
+    // TODO: Add a superblock_deref() function, if 0 it frees superblock?
+    sb->reference_cnt--;
+    TaskWakeup(&sb->rendez);
+  }
+
+  sync_in_progress = false;
+  TaskWakeup(&sync_rendez);  
 
   return saved_sc;
 }
@@ -61,6 +83,7 @@ int sys_sync(void)
  */
 int sys_fsync(int fd)
 { 
+  struct Filp *filp;
   struct Process *current;
   struct VNode *vnode;
   int sc;
@@ -68,7 +91,14 @@ int sys_fsync(int fd)
   Info("sys_fsync(%d)", fd);
   
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
+  
+  filp = filp_get(current, fd);
+  
+  if (filp == NULL) {
+    return -EBADF;
+  }
+  
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
@@ -84,27 +114,11 @@ int sys_fsync(int fd)
   
   rwlock(&vnode->lock, LK_EXCLUSIVE);
 
-  sc = bsync(vnode, BSYNC_ALL_NOW);
+  sc = vfs_syncfile(vnode);  // TODO: vfs message to a filesystem handler to sync a specific file
   
   rwlock(&vnode->lock, LK_RELEASE);
   
   return sc;  
-}
-
-
-/* @brief   Force a filesystem sync from the server side
- *
- * @param   fd, file descriptor of server message port
- * @param   shutdown, if true then prevent further access to filesystem
- * @return  0 on success, negative errno on failure
- * 
- * This is a non-blocking function.
- */
-int sys_sync2(int fd, bool shutdown)
-{
-  // TODO: Notify bdflush task to sync
-
-  return -ENOSYS;
 }
 
 

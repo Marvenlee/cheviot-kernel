@@ -190,11 +190,17 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   
   // FIXME: Do we need to increment reference count of ld->start_vnode ?
   
-  ld->start_vnode = (ld->path[0] == '/') ? root_vnode : current->fproc->current_dir;    
+  ld->start_vnode = (ld->path[0] == '/') ? root_vnode : current->fproc.current_dir;    
 
   Info ("ld_start_vnode = %08x", (uint32_t)ld->start_vnode);
 
   KASSERT(ld->start_vnode != NULL);
+
+  if (ld->start_vnode == NULL) {
+    Error("Process has no root or current dir to search from");
+    kfree_page(ld->path);
+    return -EIO;
+  }
 
   if (!S_ISDIR(ld->start_vnode->mode)) {
     Error("init_lookup start vnode -ENOTDIR");
@@ -214,7 +220,6 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
  */
 int lookup_path(struct lookupdata *ld)
 {
-  struct VNode *vnode;
   int rc;
   
   Info ("lookup_path");
@@ -273,8 +278,6 @@ int lookup_path(struct lookupdata *ld)
  */
 int lookup_last_component(struct lookupdata *ld)
 {
-  char *name;
-  struct VNode *vnode;
   int rc;
  
   KASSERT(ld->parent != NULL);
@@ -380,7 +383,6 @@ bool is_last_component(struct lookupdata *ld)
  */
 int walk_component(struct lookupdata *ld)
 {
-  struct VNode *covered_vnode;
   struct VNode *vnode_mounted_here;
   int rc;
 

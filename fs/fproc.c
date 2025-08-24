@@ -35,22 +35,37 @@
  */
 int init_fproc(struct Process *proc)
 {
-  struct FProcess *fproc;
-  
+  Info("init_fproc(proc:%08x)", (uint32_t)proc);
+  Info("open_max = %d", OPEN_MAX);
+
+/*  
   fproc = kmalloc_page();
 
   if (fproc == NULL) {
+    Info("init_fproc -enomem");
     return -ENOMEM;
   }
     
   proc->fproc = fproc;
+*/
 
-  FD_ZERO(&fproc->fd_in_use_set);
-  FD_ZERO(&fproc->fd_close_on_exec_set);
+  proc->fproc.fd_table = kmalloc_page();
+
+  if (proc->fproc.fd_table == NULL) {
+    Info("init_fproc -enomem");
+    return -ENOMEM;
+  }
+
+  proc->fproc.umask = 0;
+  proc->fproc.current_dir = NULL;
+  proc->fproc.root_dir = NULL;
 
   for (int t=0; t<OPEN_MAX; t++) {  
-    fproc->fd_table[t] = NULL;
-  }  
+    proc->fproc.fd_table[t].filp = NULL;
+    proc->fproc.fd_table[t].flags = FDF_NONE;    
+  }
+
+  Info("fproc fd table initialized");
 
   return 0;
 }
@@ -60,83 +75,32 @@ int init_fproc(struct Process *proc)
  *
  * @param   proc, process whose files are to be closed
  * @return  0 on success, negative errno on error
+ *
+ * Note that no file descriptors should be busy.
  */
 int fini_fproc(struct Process *proc)
 {  
-  struct FProcess *fproc = proc->fproc;
-  
-  KASSERT(fproc != NULL);
-  
   for (int fd = 0; fd < OPEN_MAX; fd++) {
       do_close(proc, fd);
   }
   
-  if (fproc->current_dir != NULL) {
-    vnode_put(fproc->current_dir);
+  if (proc->fproc.current_dir != NULL) {
+    vnode_put(proc->fproc.current_dir);
   }
 
-  if (fproc->root_dir != NULL) {
-    vnode_put(fproc->root_dir);
+  if (proc->fproc.root_dir != NULL) {
+    vnode_put(proc->fproc.root_dir);
   }
 
-  kfree_page(proc->fproc);
-  proc->fproc = NULL;
+  proc->fproc.current_dir = NULL;
+  proc->fproc.root_dir = NULL;
+
+  kfree_page(proc->fproc.fd_table);
   return 0;
 }
 
 
-/* @brief   Fork the filesystem state of one process into another
- * 
- */
-int fork_process_fds(struct Process *newp, struct Process *oldp)
-{
-  struct Filp *filp;
-  struct FProcess *new_fproc;
-  struct FProcess *old_fproc;
-  
-  new_fproc = kmalloc_page();
 
-  if (new_fproc == NULL) {
-    return -ENOMEM;
-  }
-    
-  old_fproc = oldp->fproc;
-  newp->fproc = new_fproc;
-  
-  new_fproc->current_dir = old_fproc->current_dir;
-    
-  if (new_fproc->current_dir != NULL) {
-    vnode_add_reference(new_fproc->current_dir);
-  }
-
-  new_fproc->root_dir = old_fproc->root_dir;
-
-  if (new_fproc->root_dir != NULL) {
-    vnode_add_reference(new_fproc->root_dir);
-  }
-
-  for (int fd = 0; fd < OPEN_MAX; fd++) {          
-    if (old_fproc->fd_table[fd] != NULL) {
-      filp = old_fproc->fd_table[fd];
-      new_fproc->fd_table[fd] = filp;
-      filp->reference_cnt++;
-      
-      FD_SET(fd, &new_fproc->fd_in_use_set);
-
-      if (FD_ISSET(fd, &old_fproc->fd_close_on_exec_set)) {
-        FD_SET(fd, &new_fproc->fd_close_on_exec_set);
-      } else {
-        FD_CLR(fd, &new_fproc->fd_close_on_exec_set);
-      }
-    } else {
-      new_fproc->fd_table[fd] = NULL;
-      FD_CLR(fd, &new_fproc->fd_in_use_set);
-      FD_CLR(fd, &new_fproc->fd_close_on_exec_set);        
-    }
-  }
-
-  return 0;
-}
 
 
 

@@ -7,12 +7,13 @@
 #include <kernel/types.h>
 
 // Forward declarations
-struct Pageframe;
+struct Page;
 struct MemRegion;
+struct VNode;
 
 
 // Linked list types
-LIST_TYPE(Pageframe, pageframe_list_t, pageframe_link_t);
+LIST_TYPE(Page, page_list_t, page_link_t);
 LIST_TYPE(MemRegion, memregion_list_t, memregion_link_t);
 
 
@@ -20,33 +21,21 @@ LIST_TYPE(MemRegion, memregion_list_t, memregion_link_t);
 #define MEM_RESERVED  (0 << 28)
 #define MEM_GARBAGE   (1 << 28)
 
-//#define MEM_ALLOC     (2 << 28)
-//#define MEM_PHYS      (3 << 28)
-
 #define MEM_FREE      (4 << 28)
 
 #define MAP_COW       (1 << 26)
 #define MAP_USER      (1 << 27)
 
 // PROT_MASK and CACHE_MASK are defined in sys/syscalls.h
-#define MEM_MASK 0xF0000000
-#define VM_SYSTEM_MASK (MEM_MASK | MAP_COW | MAP_USER)
-
-
-// Pageframe.flags
-#define PGF_INUSE       (1 << 0)
-#define PGF_RESERVED    (1 << 1)
-#define PGF_CLEAR       (1 << 2)
-#define PGF_KERNEL      (1 << 3)
-#define PGF_USER        (1 << 4)
-#define PGF_PAGETABLE   (1 << 5)
+#define MEM_MASK        0xF0000000
+#define VM_SYSTEM_MASK  (MEM_MASK | MAP_COW | MAP_USER)
 
 
 // MemRegion types
-#define MR_TYPE_UNALLOCATED 0
-#define MR_TYPE_FREE 1
-#define MR_TYPE_ALLOC 2
-#define MR_TYPE_PHYS 3
+#define MR_TYPE_UNALLOCATED   0
+#define MR_TYPE_FREE          1
+#define MR_TYPE_ALLOC         2
+#define MR_TYPE_PHYS          3
 
 
 /* @brief   Structure representing an area of a process's address space
@@ -70,23 +59,68 @@ struct MemRegion
 
 /* @brief   Structure representing a physical page of memory
  */
-struct Pageframe
+struct Page
 {
-  vm_size size;                           // Pageframe is either 64k, 16k, or 4k
-  vm_addr physical_addr;
-//  struct MemRegion *mr;  
-  int reference_cnt;                      // Count of vpage references.
-  bits32_t flags;
-  pageframe_link_t link;            // cache lru, busy link.  (busy and LRU on separate lists?)
-  pageframe_link_t free_slab_link;
-  struct PmapPageframe pmap_pageframe;
-  size_t free_object_size;
-  int free_object_cnt;
-  void *free_object_list_head;
+  struct Rendez rendez;
+
+  vm_size size;                   // Pageframe is either 64k, 16k, or 4k  
+  vm_addr physical_addr;          // Physical address of page (constant)
+  void *vaddr;                    // Virtual address of page mapped into kernel (constant)
+  
+  uint32_t mflags;                // Page flags, also see flags in pmap per process.
+  
+  struct VNode *vnode;            // Vnode if a buffer belongs to a file
+  off64_t file_offset;            // Offset within the file of the page-sized buffer that is cached
+
+  uint32_t bflags;                // Buffer cache flags
+
+  page_link_t free_link;
+   
+  page_link_t lookup_link;        // Cached buffer lookup hash table entry
+                                  // The above lists, active, laundered, dirty and strategy
+                                  // are on the hashed lookup link.
+  
+  page_link_t vnode_link;         // All pages in cache belonging to vnode
+  page_link_t superblock_link;    // All pages belonging to the SuperBlock
+
+  page_link_t tmp_link;           // Link on temporary list of pages
+  
+  
+  // uint64_t expiration_ticks;   // Could be sent to filesystem driver as to how long it
+                                  // should delay writing block out to disk.
+
+  int reference_cnt;              // Number of references to this page.
+    
+  struct PmapPage pmap_page;      // Architecture-specific list of mappings in page tables  
 };
 
 
-/* @brief   Address space of a process
+// Page.mflags
+#define PGF_INUSE       (1 << 0)
+#define PGF_RESERVED    (1 << 1)
+#define PGF_CLEAR       (1 << 2)
+#define PGF_KERNEL      (1 << 3)
+#define PGF_USER        (1 << 4)
+#define PGF_PAGETABLE   (1 << 5)
+
+
+//#define B_READAHEAD (1 << 8)  // Hint to FS Handler to read additional blocks after this block has been read.
+
+//#define B_ERASED    (1 << 1)  // Block is zero filled.
+#define B_VALID     (1 << 2)  // Valid, on lookup hash list
+#define B_BUSY      (1 << 3)
+
+#define B_ERROR     (1 << 4)  // Buf is not valid (discarded in brelse)
+#define B_DISCARD   (1 << 5)
+
+#define B_DIRTY     (1 << 10)
+
+#define PAGE_LOOKUP_HASH_SZ   1024
+
+
+
+/*
+ * @brief   Address space of a process
  */
 struct AddressSpace
 {
@@ -134,9 +168,9 @@ int fork_memregions(struct AddressSpace *new_as, struct AddressSpace *old_as);
 // vm/page.c
 void *kmalloc_page(void);
 void kfree_page(void *vaddr);
-struct Pageframe *alloc_pageframe(vm_size);
-void free_pageframe(struct Pageframe *pf);
-void coalesce_slab(struct Pageframe *pf);
+struct Page *alloc_page(void);
+void free_page(struct Page *page);
+int ref_page(struct Page *page);
 
 // vm/pagefault.c
 int page_fault(vm_addr addr, bits32_t access);
@@ -158,7 +192,7 @@ int pmap_supports_cache_policy(bits32_t flags);
 int pmap_enter(struct AddressSpace *as, vm_addr addr, vm_addr paddr, int flags);
 int pmap_remove(struct AddressSpace *as, vm_addr addr);
 int pmap_protect(struct AddressSpace *as, vm_addr addr, int flags);
-int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, int *flags);
+int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *flags);
 
 // Could merge into PmapExtract, return a status flag, with -1 for no pte, -2
 // for no pde etc.
@@ -172,14 +206,15 @@ void pmap_flush_tlbs(void);
 void pmap_invalidate_all(void);
 void pmap_switch(struct Process *next, struct Process *current);
 
-void pmap_pageframe_init(struct PmapPageframe *ppf);
+void pmap_page_init(struct PmapPage *ppf);
 
-vm_addr pmap_pf_to_pa(struct Pageframe *pf);
-struct Pageframe *pmap_pa_to_pf(vm_addr pa);
+vm_addr pmap_page_to_pa(struct Page *page);
+struct Page *pmap_pa_to_page(vm_addr pa);
 vm_addr pmap_va_to_pa(vm_addr vaddr);
 vm_addr pmap_pa_to_va(vm_addr paddr);
-vm_addr pmap_pf_to_va(struct Pageframe *pf);
-struct Pageframe *pmap_va_to_pf(vm_addr va);
+vm_addr pmap_page_to_va(struct Page *page);
+struct Page *pmap_va_to_page(vm_addr va);
+struct Page *pmap_pa_to_page(vm_addr pa);
 
 int pmap_cache_enter(vm_addr addr, vm_addr paddr);
 int pmap_cache_remove(vm_addr va);

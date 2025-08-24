@@ -39,69 +39,53 @@
  * @param   fd, file descriptor to look up
  * @return  filp (file pointer) structure
  */
-struct Filp *get_filp(struct Process *proc, int fd)
+struct Filp *filp_get(struct Process *proc, int fd)
 {
+  struct Filp *filp;
+  
   if (fd < 0 || fd >= OPEN_MAX) {
+    Info("filp_get, fd:%d out of range", fd);
+    return NULL;
+  }
+
+  if ((proc->fproc.fd_table[fd].flags & FDF_VALID) == 0) {
+    Info("get_filp() fd:%d, not valid", fd);
     return NULL;
   }
   
-  return proc->fproc->fd_table[fd];
+  if (proc->fproc.fd_table[fd].filp == NULL) {
+    Error("get_filp() fd:%d, no filp", fd);
+    return NULL;
+  }
   
+  filp = proc->fproc.fd_table[fd].filp;
+  
+  filp->reference_cnt++;
+
+  while(filp->busy == true) {
+    TaskSleep(&filp->rendez);
+  }
+  
+//  filp->busy = true;
+  
+  return filp;
 }
 
 
-/* @brief   Allocate a file descriptor and filp
+/*
  *
- * Checks to see that free_handle_cnt is non-zero should already have
- * been performed prior to calling alloc_fd().
  */
-int alloc_fd_filp(struct Process *proc)
+void filp_put(struct Filp *filp)
 {
-  int fd;
-  struct Filp *filp;
-  
-  fd = alloc_fd(proc, 0, OPEN_MAX);
-  
-  if (fd < 0) {
-    return -EMFILE;
-  }
-  
-  filp = alloc_filp();
-  
-  if (filp == NULL) {
-    free_fd(proc, fd);
-    return -EMFILE;
-  }
-  
-  filp->reference_cnt=1;
-  
-  proc->fproc->fd_table[fd] = filp;
-  filp->type = FILP_TYPE_UNDEF;  
-  return fd;
+  filp->reference_cnt--;
+//  filp->busy = false;
+  TaskWakeup(&filp->rendez);
 }
-
-
-/* @brief   Free a file descriptor and filp
- */
-int free_fd_filp(struct Process *proc, int fd)
-{
-  struct Filp *filp;
-  
-  filp = get_filp(proc, fd);
-
-  if (filp == NULL) {
-    return -EINVAL;
-  }
-
-  free_filp(filp);
-  free_fd(proc, fd);
-  return 0;
-}
-
+ 
 
 /* @brief   Allocate a filp (file pointer)
  */
-struct Filp *alloc_filp(void)
+struct Filp *filp_alloc(void)
 {
   struct Filp *filp;
 
@@ -115,13 +99,18 @@ struct Filp *alloc_filp(void)
   filp->reference_cnt = 1;
   filp->type = FILP_TYPE_UNDEF;
   memset(&filp->u, 0, sizeof filp->u);
+  
+  filp->flags = 0;
+//  filp->busy = true;
+  InitRendez(&filp->rendez);
+  
   return filp;
 }
 
 
 /* @brief   Free a filp (file pointer)
  */
-void free_filp(struct Filp *filp)
+void filp_free(struct Filp *filp)
 {
   if (filp == NULL) {
     return;

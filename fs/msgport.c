@@ -53,9 +53,9 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   struct Process *current;
   struct VNode *vnode_covered = NULL;
   struct VNode *mount_root_vnode = NULL;
-  struct Filp *filp = NULL;
   struct SuperBlock *sb = NULL;
-  struct MsgPort *msgport;
+  struct Filp *filp = NULL;
+  struct FileDesc *filedesc;
   int fd = -1;
   int sc;
   bool do_lookup_cleanup;
@@ -101,72 +101,83 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     vnode_covered = NULL; 
   }
 
-
   rwlock(&superblock_list_lock, LK_EXCLUSIVE);
 
-  fd = alloc_fd_superblock(current);
+  fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
   
+  if (fd < 0) {
+    return -EMFILE;
+  }
+  
+  filp = filp_alloc();
+  
+  if (filp == NULL) {
+    fd_free(current, fd);
+    return -EMFILE;
+  }
+    
+  sb = alloc_superblock();
+  
+  if (sb == NULL) {
+    fd_free(current, fd);
+    filp_free(filp);
+    return -EMFILE;
+  }
+     
   if (fd < 0) {
     Error("createmsgport failed to alloc file descriptor");
     rwlock(&superblock_list_lock, LK_RELEASE);
     if (do_lookup_cleanup) {
       lookup_cleanup(&ld);
     }
+    
+    // FIXME: No freeing of fd, filp or superblock
+    
     return -ENOMEM;
   }
-  
-  sb = get_superblock(current, fd);
   
   mount_root_vnode = vnode_new(sb);
 
   if (mount_root_vnode == NULL) {
     Error("createmsgport failed to alloc vnode");
-    free_fd_superblock(current, fd);
+// FIXME:   filp_free(fd);
+// FIXME:   fd_free(current, fd);
+
     rwlock(&superblock_list_lock, LK_RELEASE);
     
     if (do_lookup_cleanup) {
       lookup_cleanup(&ld);
     }
+
     return -ENOMEM;
   }
 
   init_msgport(&sb->msgport);
+  
   sb->msgport.context = sb;
 
   sb->root = mount_root_vnode;
   sb->flags = flags;
-  sb->reference_cnt = 1;
-
+  sb->reference_cnt = 1;          // 1 reference count of the root vnode
+  
   sb->dev = stat.st_dev;
    
   mount_root_vnode->inode_nr = stat.st_ino;
-  mount_root_vnode->reference_cnt = 1;
   mount_root_vnode->uid = stat.st_uid;
   mount_root_vnode->gid = stat.st_gid;
   mount_root_vnode->mode = stat.st_mode;    
   mount_root_vnode->flags = V_VALID | V_ROOT;
 
+  vnode_add_reference(mount_root_vnode);
+    
   vnode_hash_enter(mount_root_vnode);
-
-  if (S_ISDIR(mount_root_vnode->mode) && (sb->flags & SF_READONLY) == 0) {
-    if (init_superblock_bdflush(sb) != 0) {
-      vnode_discard(mount_root_vnode);
-      free_fd_superblock(current, fd);
-      rwlock(&superblock_list_lock, LK_RELEASE);
-      if (do_lookup_cleanup) {
-        lookup_cleanup(&ld);
-      }
-      return -ENOMEM;
-    }
-
-  }
   
   if (S_ISBLK(mount_root_vnode->mode)) {    
     mount_root_vnode->size = (off64_t)stat.st_blocks * (off64_t)stat.st_blksize;
 
     // FIXME: Could we use blocks and blkize instead of vnode->size?
     // Add these fields to vnode?
-    //  blksize_t     st_blksize;
+    //  blksize_t     st_lksize;
     //  blkcnt_t	st_blocks;
   
   } else {
@@ -195,6 +206,14 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     lookup_cleanup(&ld);
   }
   
+  filp->type = FILP_TYPE_SUPERBLOCK;
+  filp->u.superblock = sb;
+  filp->offset = 0;
+  filp->flags = O_RDONLY | O_WRONLY;
+    
+  filedesc->filp = filp;
+  filedesc->flags |= FDF_VALID;
+
   Info("createmsgport returning fd:%d", fd);
   return fd;
 }
@@ -229,37 +248,73 @@ int sys_unmount(char *_path, uint32_t flags)
 }
 
 
-/*
- * Need to have separate function to sync the device,
- * flush all pending delayed writes and anything in message queue
- * Prevent further access
+/* @brief   Initialize a message port
  *
- * Do we leave it to close_vnode() to check if the superblock needs cleaning
- * up if there is no servers referencing it?
- */ 
-int close_msgport(struct Process *proc, int fd)
+ * @param   msgport, message port to initialize
+ * @return  0 on success, negative errno on error
+ */
+int init_msgport(struct MsgPort *msgport)
 {
-  struct SuperBlock *sb;
-  struct VNode *vnode_covered;
-
-  Info("close_msgport()");
+  LIST_INIT(&msgport->pending_msg_list);
+  LIST_INIT(&msgport->received_msg_list);
+  LIST_INIT(&msgport->knote_list);
   
-  KASSERT(proc != NULL);
+  InitRendez(&msgport->rendez);
   
-  sb = get_superblock(proc, fd);
-  
-  if (sb == NULL) {
-    return -EINVAL;
-  }
-
-  // TODO: Close the message port, if there are no vnodes active free the superblock
-  // and unmount.
-  
-  // TODO: Read-only filesystems don't need delayed writes so no need to sync
-  // or stop bdflush task.
+  msgport->context = NULL;
+  msgport->flags = 0;
   
   return 0;
 }
+
+
+/* @brief   Abort pending and received messages sent to a message port
+ *
+ * @param   msgport, message port to cleanup
+ * @return  0 on success, negative errno on error
+ *
+ * Removes any pending and received messages and places these on the messages's
+ * reply ports.  Removes any kquueue knotes associated with the message port.
+ *
+ * NOTE: Message port will be freed elsewhere. Therefore any messages or
+ * knote events should not rely on the message port still existing.
+ */
+int fini_msgport(struct MsgPort *port)
+{
+  struct Thread *current_thread = get_current_thread();
+  struct Msg *msg;
+  
+  port->flags |= MPF_SHUTDOWN;
+    
+  while ((msg = LIST_HEAD(&port->received_msg_list)) != NULL) {
+    LIST_REM_HEAD(&port->received_msg_list, link);
+
+    msg->msgid = INVALID_PID;
+    msg->reply_status = -ECONNABORTED;      
+    msg->port = msg->reply_port;
+    
+    LIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
+    TaskWakeup(&msg->reply_port->rendez);   // FIXME: Is this used?  
+  }
+  
+  while ((msg = LIST_HEAD(&port->pending_msg_list)) != NULL) {
+    LIST_REM_HEAD(&port->pending_msg_list, link);
+
+    msg->msgid = INVALID_PID;
+    msg->reply_status = -ECONNABORTED;      
+    msg->port = msg->reply_port;
+    
+    LIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
+    TaskWakeup(&msg->reply_port->rendez);   // FIXME: Is this used?
+  }
+  
+  drain_knote_list(&port->knote_list);
+  
+  knote(&msg->reply_port->knote_list, NOTE_MSG);
+  
+  return 0;
+}
+
 
 
 

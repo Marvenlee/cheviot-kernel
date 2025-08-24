@@ -52,7 +52,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
     return sc;
   }
-  
+
   while (vnode->char_read_busy == true) {
     if (TaskSleepInterruptible(&vnode->rendez, NULL, INTRF_ALL) != 0) {
       return -EINTR;
@@ -134,13 +134,18 @@ int sys_isatty(int fd)
   int sc;
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
   }
-
 
   if (check_access(vnode, filp, R_OK) != 0) {
     return -EACCES;
@@ -200,6 +205,7 @@ int ioctl_tcgetattr(int fd, struct termios *_termios)
  */
 int ioctl_tiocsctty(int fd, int arg)
 {  
+  struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;
   struct Session *session;
@@ -207,7 +213,13 @@ int ioctl_tiocsctty(int fd, int arg)
   
   current = get_current_process();
 
-  vnode = get_fd_vnode(current, fd);
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
@@ -254,12 +266,20 @@ int ioctl_tiocsctty(int fd, int arg)
  */
 int ioctl_tiocnotty(int fd)
 {
+  struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;
   struct Session *session;
 
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
@@ -300,13 +320,21 @@ int ioctl_tiocnotty(int fd)
  */
 int ioctl_tiocgsid(int fd, pid_t *_sid)
 {
+  struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;
   struct Session *session;
   pid_t sid;
   
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
@@ -346,13 +374,21 @@ int ioctl_tiocgsid(int fd, pid_t *_sid)
  */
 int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
 {
+  struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;
   struct Session *session;
   pid_t pgid;
 
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
@@ -391,13 +427,21 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
  */ 
 int ioctl_tiocspgrp(int fd, pid_t *_pgid)
 {
+  struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;
   struct Session *session;
   pid_t pgid;
   
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;

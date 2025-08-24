@@ -37,35 +37,34 @@ int sys_chdir(char *_path)
 {
   struct Process *current;
   struct lookupdata ld;
-  int err;
+  int sc;
   
-  Info("sys_chdir()");
-
   current = get_current_process();
 
-  if ((err = lookup(_path, 0, &ld)) != 0) {
-    return err;
-  }
+  if ((sc = lookup(_path, 0, &ld)) == 0) {
+    if (S_ISDIR(ld.vnode->mode)) {
 
-  if (!S_ISDIR(ld.vnode->mode)) {
+      if (check_access(ld.vnode, NULL, R_OK) == 0) {
+        if (current->fproc.current_dir != NULL) {
+          vnode_put(current->fproc.current_dir);
+        }
+
+        vnode_add_reference(ld.vnode);
+        current->fproc.current_dir = ld.vnode;
+
+        lookup_cleanup(&ld);
+        return 0;        
+      } else {
+        sc = -EPERM;
+      }
+    } else {
+      sc = -ENOTDIR;
+    }
+
     lookup_cleanup(&ld);
-    return -ENOTDIR;
   }
 
-  if (check_access(ld.vnode, NULL, R_OK) != 0) {
-    lookup_cleanup(&ld);
-    return -EPERM;
-  }
-
-  if (current->fproc->current_dir != NULL) {
-    vnode_put(current->fproc->current_dir);
-  }
-
-  vnode_add_reference(ld.vnode);
-  current->fproc->current_dir = ld.vnode;
-
-  lookup_cleanup(&ld);
-  return 0;
+  return sc;
 }
 
 
@@ -76,28 +75,43 @@ int sys_chdir(char *_path)
  */
 int sys_fchdir(int fd)
 {
+  struct Filp *filp;
   struct Process *current;
   struct VNode *vnode;
-
+  int sc;
+  
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    return -EINVAL;
+  filp = filp_get(current, fd);
+  
+  if (filp == NULL) {
+    vnode = vnode_get_from_filp(filp);
+
+    if (vnode) {
+      if (!S_ISDIR(vnode->mode)) {
+        if (check_access(vnode, NULL, R_OK) == 0) {
+          vnode_put(current->fproc.current_dir);
+          current->fproc.current_dir = vnode;
+          vnode_add_reference(vnode);
+          vnode_put(vnode);
+          filp_put(filp);
+          return 0;
+        } else {
+          sc = -EPERM;
+        }
+      } else {      
+        sc = -ENOTDIR;
+      }
+      vnode_put(vnode);
+    } else {
+      sc = -EINVAL;
+    }
+    filp_put(filp);
+  } else {
+    sc = -EBADF;
   }
 
-  if (!S_ISDIR(vnode->mode)) {
-    return -ENOTDIR;
-  }
-
-  if (check_access(vnode, NULL, R_OK) != 0) {
-    return -EPERM;
-  }
-
-  vnode_put(current->fproc->current_dir);
-  current->fproc->current_dir = vnode;
-  vnode_add_reference(vnode);
-  return 0;
+  return sc;
 }
 
 
@@ -119,41 +133,49 @@ int sys_opendir(char *_path)
   struct Process *current;
   struct lookupdata ld;
   struct Filp *filp = NULL;
+  struct FileDesc *filedesc;
   int fd;
   int sc;
 
   current = get_current_process();
 
-  if ((sc = lookup(_path, 0, &ld)) != 0) {
-    return sc;
-  }
+  if ((sc = lookup(_path, 0, &ld)) == 0) {
+    if (S_ISDIR(ld.vnode->mode)) {
+      if (check_access(ld.vnode, NULL, R_OK) == 0) {
+        fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
 
-  if (!S_ISDIR(ld.vnode->mode)) {
+        if (fd >= 0) {
+          filp = filp_alloc();
+
+          if (filp) {
+            filp->type = FILP_TYPE_VNODE;
+            filp->u.vnode = ld.vnode;
+            filp->offset = 0;
+
+            vnode_add_reference(ld.vnode);
+            lookup_cleanup(&ld);
+
+            filedesc->filp = filp;
+            filedesc->flags |= FDF_VALID;
+            return fd;
+          } else {
+            fd_free(current, fd);
+            sc = -ENOMEM;
+          }
+        } else {
+         sc = -ENOMEM;
+        }
+      } else {
+        sc = -EPERM;
+      }
+    } else {
+      sc = -ENOTDIR;
+    }
+
     lookup_cleanup(&ld);
-    return -EINVAL;
   }
 
-  if (check_access(ld.vnode, NULL, R_OK) != 0) {
-    lookup_cleanup(&ld);
-    return -EPERM;
-  }
-
-  fd = alloc_fd_filp(current);
-
-  if (fd < 0) {
-    free_fd_filp(current, fd);
-    lookup_cleanup(&ld);
-    return -ENOMEM;
-  }
-
-  filp = get_filp(current,fd);
-  filp->type = FILP_TYPE_VNODE;
-  filp->u.vnode = ld.vnode;
-  filp->offset = 0;
-
-  vnode_add_reference(ld.vnode);  
-  lookup_cleanup(&ld);
-  return fd;
+  return sc;
 }
 
 
@@ -166,8 +188,8 @@ int sys_opendir(char *_path)
  */
 ssize_t sys_readdir(int fd, void *dst, size_t sz)
 {
-  struct Filp *filp = NULL;
-  struct VNode *vnode = NULL;
+  struct Filp *filp;
+  struct VNode *vnode;
   ssize_t dirents_sz;
   off64_t cookie;
   struct Process *current;
@@ -177,8 +199,13 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   }
 
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;
@@ -207,13 +234,19 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
  */
 int sys_rewinddir(int fd)
 {
-  struct Filp *filp = NULL;
-  struct VNode *vnode = NULL;
+  struct Filp *filp;
+  struct VNode *vnode;
   struct Process *current;
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+
+  if (filp == NULL) {
+    return -EBADF;
+  }
+
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     return -EINVAL;

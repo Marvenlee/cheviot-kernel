@@ -80,9 +80,8 @@ void Main(void)
   max_pid = NPROCESS + NTHREAD;
   max_process = NPROCESS;
   max_thread = NTHREAD;
-  max_pageframe = mem_size / PAGE_SIZE;
-  max_memregion = max_pageframe / 32;
-  max_buf = max_pageframe / 32;
+  max_page = mem_size / PAGE_SIZE;
+  max_memregion = max_page / 32;
   max_superblock = NR_SUPERBLOCK;
   max_filp = NR_FILP;
   max_vnode = NR_VNODE;
@@ -95,11 +94,10 @@ void Main(void)
   init_bootstrap_allocator();
 
   vector_table      = bootstrap_alloc(PAGE_SIZE);
-  pagedir_table     = bootstrap_alloc(max_process * PAGE_SIZE * 4);
+  pagedir_table     = bootstrap_alloc(max_process * PAGEDIR_SIZE);
   pmappagedir_table = bootstrap_alloc(max_process * sizeof(struct PmapPagedir));
-  pageframe_table   = bootstrap_alloc(max_pageframe * sizeof(struct Pageframe));
+  page_table        = bootstrap_alloc(max_page * sizeof(struct Page));
   memregion_table   = bootstrap_alloc(max_memregion * sizeof(struct MemRegion));
-  buf_table         = bootstrap_alloc(max_buf * sizeof(struct Buf));
   pipe_table        = bootstrap_alloc(max_pipe * sizeof (struct Pipe));
   pid_table         = bootstrap_alloc(max_pid * sizeof (struct PidDesc));
   session_table     = bootstrap_alloc(max_pid * sizeof (struct Session));
@@ -153,7 +151,7 @@ void Main(void)
  */
 void init_bootstrap_allocator(void)
 {
-  _heap_base = ALIGN_UP((vm_addr)bootinfo->pagetable_ceiling, 16384);
+  _heap_base = ALIGN_UP((vm_addr)bootinfo->pagetable_ceiling, KERNEL_HEAP_ALIGN);
   _heap_current = _heap_base;
 }
 
@@ -167,11 +165,13 @@ void *bootstrap_alloc(vm_size sz)
 {
   vm_addr va = _heap_current;
 
-  sz = ALIGN_UP(sz, PAGE_SIZE * 4);
+  sz = ALIGN_UP(sz, KERNEL_HEAP_ALIGN);
 
   memset((void *)va, 0, sz);
 
-  _heap_current += ALIGN_UP(sz, PAGE_SIZE * 4);
+  _heap_current += ALIGN_UP(sz, KERNEL_HEAP_ALIGN);
   return (void *)va;
 }
+
+
 

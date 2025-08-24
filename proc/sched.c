@@ -152,10 +152,10 @@ void Reschedule(void)
  */
 void SchedReady(struct Thread *thread)
 {
-  struct Thread *next;
-  struct CPU *cpu;
+//  struct Thread *next;
+//  struct CPU *cpu;
 
-  cpu = get_cpu();
+//  cpu = get_cpu();
 
   if (thread->sched_policy == SCHED_RR || thread->sched_policy == SCHED_FIFO) {
     CIRCLEQ_ADD_TAIL(&sched_queue[thread->priority], thread, sched_entry);
@@ -179,9 +179,9 @@ void SchedReady(struct Thread *thread)
  */
 void SchedUnready(struct Thread *thread)
 {
-  struct CPU *cpu;
+//  struct CPU *cpu;
 
-  cpu = get_cpu();
+//  cpu = get_cpu();
 
   if (thread->sched_policy == SCHED_RR || thread->sched_policy == SCHED_FIFO) {
     CIRCLEQ_REM_ENTRY(&sched_queue[thread->priority], thread, sched_entry);
@@ -234,11 +234,10 @@ void thread_stop(void)
 {
   struct Thread *thread;
   struct Thread *current_thread;
-  int_state_t int_state;
   
   current_thread = get_current_thread();
   
-  int_state = DisableInterrupts();
+  DisableInterrupts();
 
   thread = LIST_HEAD(&bkl_blocked_list);
 

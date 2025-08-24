@@ -90,6 +90,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   struct VNode *vnode = NULL;
   int fd = -1;
   struct Filp *filp = NULL;
+  struct FileDesc *filedesc;
   int sc = 0;
   struct stat stat;
   
@@ -127,31 +128,40 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   
   rwlock(&vnode->lock, LK_EXCLUSIVE);
    
-  fd = alloc_fd_filp(current);
+  fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
   
   if (fd < 0) {
-    free_fd_filp(current, fd);
     rwlock(&vnode->lock, LK_RELEASE);
     return -ENOMEM;
   }
 
-  filp = get_filp(current, fd);
+  filp = filp_alloc();
+  
+  if (filp == NULL) {
+    fd_free(current, fd);
+    rwlock(&vnode->lock, LK_RELEASE);
+    return -ENOMEM;
+  }
+
   filp->type = FILP_TYPE_VNODE;
   filp->u.vnode = vnode;
   filp->flags = oflags;
-
+    
   if (oflags & O_TRUNC) {
     if (S_ISREG(vnode->mode)) {
 #if 0
       if (check_access(vnode, filp, W_OK) != 0) {
-        free_fd_filp(current, fd);
+        filp_free(filp);
+        fd_free(current, fd);
         rwlock(&vnode->lock, LK_RELEASE);
         return -EACCES;
       }
 #endif
       if ((sc = vfs_truncate(vnode, 0)) != 0) {
         Error("SysOpen O_TRUNC failed, sc=%d", sc);
-        free_fd_filp(current, fd);
+        filp_free(filp);
+        fd_free(current, fd);
+
         rwlock(&vnode->lock, LK_RELEASE);
         return sc;
       }
@@ -166,6 +176,10 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 
   rwlock(&vnode->lock, LK_RELEASE);
   vnode_add_reference(vnode);
+  
+  filedesc->filp = filp;
+  filedesc->flags |= FDF_VALID;
+
   return fd;  
 }
 

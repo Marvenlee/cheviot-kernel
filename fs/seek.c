@@ -38,30 +38,48 @@ off_t sys_lseek(int fd, off_t pos, int whence)
   struct Filp *filp;
   struct VNode *vnode;
   struct Process *current;
-
-  Info("sys_lseek");
+  int sc;
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    return -EINVAL;
-  }
+  filp = filp_get(current, fd);
+  
+  if (filp) {  
+    vnode = vnode_get_from_filp(filp);
+    
+    if (vnode) {      
+      if (!S_ISREG(vnode->mode) && !S_ISBLK(vnode->mode)) {
+        sc = -EINVAL;
+      } else if (whence == SEEK_SET) {
+        filp->offset = pos;
+        sc = 0;
+      } else if (whence == SEEK_CUR) {
+        filp->offset += pos;
+        sc = 0;
+      } else if (whence == SEEK_END) {
+        filp->offset = vnode->size + pos;
+        sc = 0;
+      } else {
+        sc = -EINVAL;
+      }
+            
+      if (sc == 0) {
+        vnode_put(vnode);
+        filp_put(filp);
+        return (off_t)filp->offset;    
+      }
+      
+      vnode_put(vnode);      
+    } else {
+      sc = -EINVAL;
+    }
 
-  if (!S_ISREG(vnode->mode) && !S_ISBLK(vnode->mode)) {
-    return -EINVAL;
-  } else if (whence == SEEK_SET) {
-    filp->offset = pos;
-  } else if (whence == SEEK_CUR) {
-    filp->offset += pos;
-  } else if (whence == SEEK_END) {
-    filp->offset = vnode->size + pos;
+    filp_put(filp);
   } else {
-    return -EINVAL;
+    sc = -EBADF;
   }
 
-  return (off_t)filp->offset;
+  return sc;
 }
 
 
@@ -71,42 +89,61 @@ off_t sys_lseek(int fd, off_t pos, int whence)
  * @param   whence,
  * @return  0 on success or negative errno on error
  */
-int sys_lseek64(int fd, off64_t *_pos, int whence) {
+int sys_lseek64(int fd, off64_t *_pos, int whence)
+{
   struct Process *current;
   struct Filp *filp;
   struct VNode *vnode;
   off64_t pos;
   int sc;
 
-  Info("sys_lseek64");
-  
-  pos = 0;
-
   sc = CopyIn(&pos, _pos, sizeof pos);
+
+  if(sc != 0) {
+    return -EFAULT;
+  }
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    return -EINVAL;
-  }
+  filp = filp_get(current, fd);
+  
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
 
-  if (!S_ISREG(vnode->mode) && !S_ISBLK(vnode->mode)) {
-    return -EINVAL;
-  } else if (whence == SEEK_SET) {
-    filp->offset = pos;
-  } else if (whence == SEEK_CUR) {
-    filp->offset += pos;
-  } else if (whence == SEEK_END) {
-    filp->offset = vnode->size + pos;
+    if (vnode) {
+      if (!S_ISREG(vnode->mode) && !S_ISBLK(vnode->mode)) {
+        sc = -EINVAL;
+      } else if (whence == SEEK_SET) {
+        filp->offset = pos;
+      } else if (whence == SEEK_CUR) {
+        filp->offset += pos;
+      } else if (whence == SEEK_END) {
+        filp->offset = vnode->size + pos;
+      } else {
+        sc = -EINVAL;
+      }
+
+      if (sc == 0) {
+        pos = filp->offset;  
+        CopyOut(_pos, &pos, sizeof pos);
+        vnode_put(vnode);
+        filp_put(filp);
+        return (off_t)filp->offset;    
+      }
+      
+      vnode_put(vnode);      
+    } else {
+      sc = -EINVAL;
+    }
+
+    filp_put(filp);
   } else {
-    return -EINVAL;
+    sc = -EBADF;
   }
 
-  pos = filp->offset;
+  return sc;
 
-  CopyOut(_pos, &pos, sizeof pos);
-  return 0;
+
 }
+
 

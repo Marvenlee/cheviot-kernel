@@ -28,6 +28,7 @@
 #include <sys/mount.h>
 #include <sys/syslimits.h>
 
+
 /* @brief   Read the contents of a file to a buffer
  *
  * @param   fd, file descriptor of file to read from
@@ -43,49 +44,60 @@
  */
 ssize_t sys_read(int fd, void *dst, size_t sz)
 {
+  struct Process *current;
   struct Filp *filp;
   struct VNode *vnode;
-  ssize_t xfered;
-  struct Process *current;
+  ssize_t retval;
   int sc;
   
-  if ((sc = bounds_check(dst, sz)) != 0) {
-    return sc;
+  if ((retval = bounds_check(dst, sz)) != 0) {
+    return retval;
   }  
     
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    return -EBADF;
-  }
+  filp = filp_get(current, fd);
+  
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);      // TODO: Could lock it here (free lock on vnode_put
 
-  rwlock(&vnode->lock, LK_SHARED);
-  
-  if (check_access(vnode, filp, R_OK) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return -EACCES;
-  }
-  
-  if (S_ISCHR(vnode->mode)) {
-    xfered = read_from_char (vnode, dst, sz);
-  } else if (S_ISREG(vnode->mode)) {
-    xfered = read_from_cache (vnode, dst, sz, &filp->offset, false);
-  } else if (S_ISFIFO(vnode->mode)) {
-    xfered = read_from_pipe (vnode, dst, sz);  
-  } else if (S_ISBLK(vnode->mode)) {
-    xfered = read_from_block (vnode, dst, sz, &filp->offset);
-  } else if (S_ISDIR(vnode->mode)) {
-    xfered = -EBADF;
-  } else if (S_ISSOCK(vnode->mode)) {
-    xfered = -EBADF;
+    if (vnode) {
+      rwlock(&vnode->lock, LK_SHARED);
+      
+      if (check_access(vnode, filp, R_OK) == 0) {  
+        if (S_ISCHR(vnode->mode)) {
+          retval = read_from_char(vnode, dst, sz);
+        } else if (S_ISREG(vnode->mode)) {
+          retval = read_from_file(vnode, dst, sz, &filp->offset, false);
+        } else if (S_ISFIFO(vnode->mode)) {
+          retval = read_from_pipe(vnode, dst, sz);  
+        } else if (S_ISBLK(vnode->mode)) {
+          retval = read_from_block(vnode, dst, sz, &filp->offset);
+        } else if (S_ISSOCK(vnode->mode)) {
+          retval = -ENOSYS; // TODO
+        } else {
+          retval = -EBADF;
+        }
+        
+        rwlock(&vnode->lock, LK_RELEASE);
+        vnode_put(vnode);
+        filp_put(filp);        
+        return retval;
+      }
+      
+      rwlock(&vnode->lock, LK_RELEASE);
+      vnode_put(vnode);
+      retval = -EACCES;
+    } else {
+      retval = -EINVAL;
+    }    
+
+    filp_put(filp);
   } else {
-    xfered = -EBADF;
+    retval = -EBADF;
   }
   
-  rwlock(&vnode->lock, LK_RELEASE);
-  return xfered;
+  return retval;
 }
 
 
@@ -97,37 +109,49 @@ ssize_t kread(int fd, void *dst, size_t sz)
 {
   struct Filp *filp;
   struct VNode *vnode;
-  ssize_t xfered;
   struct Process *current;
-  int sc;
+  ssize_t retval;
   
-  if ((sc = bounds_check_kernel(dst, sz)) != 0) {
-    return sc;
+  if ((retval = bounds_check_kernel(dst, sz)) != 0) {
+    return retval;
   }  
     
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
-    return -EBADF;
-  }
+  filp = filp_get(current, fd);
+  
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
 
-  rwlock(&vnode->lock, LK_SHARED);
-  
-  if (check_access(vnode, filp, R_OK) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return -EACCES;
-  }
-  
-  if (S_ISREG(vnode->mode)) {
-    xfered = read_from_cache (vnode, dst, sz, &filp->offset, true);
+    if (vnode) {
+      rwlock(&vnode->lock, LK_SHARED);
+      
+      if (check_access(vnode, filp, R_OK) == 0) {     
+        if (S_ISREG(vnode->mode)) {
+          retval = read_from_file(vnode, dst, sz, &filp->offset, true);
+        } else {
+          retval = -EBADF;
+        }
+          
+        rwlock(&vnode->lock, LK_RELEASE);
+        vnode_put(vnode);
+        filp_put(filp);
+        return retval;      
+      }
+      
+      rwlock(&vnode->lock, LK_RELEASE);      
+      vnode_put(vnode);      
+      retval = -EACCES;
+    } else {
+      retval = -EINVAL;
+    }
+
+    filp_put(filp);    
   } else {
-    xfered = -EBADF;
+    retval = -EBADF;
   }
-    
-  rwlock(&vnode->lock, LK_RELEASE);
-  return xfered;
+  
+  return retval;
 }
 
 
@@ -140,9 +164,9 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   off64_t offset;
   struct Filp *filp;
   struct VNode *vnode;
-  ssize_t xfered;
   struct Process *current;
   msgiov_t iov[IOV_MAX];
+  ssize_t retval;
     
   if (iov_cnt < 1 || iov_cnt > IOV_MAX) {
     return -EINVAL;
@@ -159,32 +183,40 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   }
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
-
-  if (vnode == NULL) {
-    return -EBADF;
-  }
-
-  rwlock(&vnode->lock, LK_SHARED);
-
-  if (check_access(vnode, filp, R_OK) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return -EACCES;
-  }
-
-  if (S_ISBLK(vnode->mode)) {
-    if (_offset == NULL) {
-      xfered = read_from_blockv (vnode, iov, iov_cnt, &filp->offset);
-    } else {
-      xfered = read_from_blockv (vnode, iov, iov_cnt, &offset);
-    }   
-  } else {
-    xfered = -EBADF;
-  }
+  filp = filp_get(current, fd);
+  
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
     
-  rwlock(&vnode->lock, LK_RELEASE);
-  return xfered;
+    if (vnode) {
+      rwlock(&vnode->lock, LK_SHARED);
+
+      if (check_access(vnode, filp, R_OK) == 0) {
+        if (S_ISBLK(vnode->mode)) {
+          if (_offset == NULL) {
+            retval = read_from_blockv(vnode, iov, iov_cnt, &filp->offset);
+          } else {
+            retval = read_from_blockv(vnode, iov, iov_cnt, &offset);
+          }   
+        } else {
+          retval = -EBADF;
+        }          
+      } else {
+        retval = -EACCES;
+      }
+      
+      rwlock(&vnode->lock, LK_RELEASE);
+      vnode_put(vnode);      
+    } else {
+      retval = -EINVAL;
+    }
+
+    filp_put(filp);
+  } else {
+    retval = -EBADF;
+  }
+  
+  return retval;
 }
 
 

@@ -71,14 +71,14 @@ struct MemRegion *memregion_find_sorted(struct AddressSpace *as, vm_addr addr)
     return as->hint;
   }
   
-  mr = LIST_HEAD (&as->sorted_memregion_list);
+  mr = LIST_HEAD(&as->sorted_memregion_list);
 
   while (mr != NULL) {
     if (mr->base_addr <= addr && addr < mr->ceiling_addr) {
       break;
     }
     
-    mr = LIST_NEXT (mr, sorted_link);
+    mr = LIST_NEXT(mr, sorted_link);
   }
 
   if (mr != NULL) {
@@ -200,6 +200,8 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
 
   Info("memregion_free");
   
+  // TODO: Check addr and addr + size are <= USER_CEILING
+  
   sc1 = memregion_split(as, addr);
   sc2 = memregion_split(as, addr + size);
 
@@ -216,10 +218,11 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
   as->hint = NULL;
    
   while (mr != NULL && mr->base_addr < addr + size) {    
-    if (mr->base_addr >= addr && mr->ceiling_addr <= addr + size) {
-      mr_prev = LIST_PREV(mr, sorted_link);
-      mr_next = LIST_NEXT(mr, sorted_link);
+    mr_prev = LIST_PREV(mr, sorted_link);
+    mr_next = LIST_NEXT(mr, sorted_link);
 
+    if (mr->base_addr >= addr && mr->ceiling_addr <= addr + size) {
+    
       if (mr_prev != NULL && mr_prev->type == MR_TYPE_FREE) {
         /* mr_prev is on AS Free list, destroy MR and extend prev_mr */
         mr_prev->ceiling_addr = mr->ceiling_addr;

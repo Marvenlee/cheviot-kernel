@@ -32,18 +32,21 @@ int sys_fcntl(int fd, int cmd, int arg)
   struct Process *current;
   struct Filp *filp;
 	int new_fd;
-    
+  
+  Info("sys_fcntl(fd:%d, cmd:%d, arg:%08x", fd, cmd, arg);
+  
   current = get_current_process();
-  
-  if ((filp = get_filp(current, fd)) == NULL) {
-    Info("Fcntl fd %d does not exist", fd);
-    return -EINVAL;
-  }
-  
-  if (!FD_ISSET(fd, &current->fproc->fd_in_use_set)) {  
+
+  if ((current->fproc.fd_table[fd].flags & FDF_VALID) == 0) {  
+    Info("fd %d not valid -EBADF", fd);
     return -EBADF;
   }
-  
+    
+  if ((filp = filp_get(current, fd)) == NULL) {
+    Info("fd %d cannot get filp -EINVAL", fd);
+    return -EINVAL;
+  }
+    
 	switch(cmd) {
     case F_DUPFD:	/* Duplicate fildes */
 	    if (arg < 0 || arg >= OPEN_MAX) {
@@ -52,24 +55,24 @@ int sys_fcntl(int fd, int cmd, int arg)
       }
 
       new_fd = dup_fd(current, fd, arg, OPEN_MAX);	      
+
+      Info("dup_fd old fd:%d, new fd:%d", fd, new_fd);
       return new_fd;
   	
-    case F_GETFD:	/* Get fildes flags */
-      
-      if (FD_ISSET(fd, &current->fproc->fd_close_on_exec_set)) {
+    case F_GETFD:	/* Get fildes flags */      
+      if (current->fproc.fd_table[fd].flags & FDF_CLOSE_ON_EXEC) {
         return 1; 
       } else {  
         return 0;
       }
         		  
 		case F_SETFD:	/* Set fildes flags */
-	    if (FD_ISSET(fd, &current->fproc->fd_in_use_set)) {
-	      if (arg) {
-          FD_SET(fd, &current->fproc->fd_close_on_exec_set);
-	      } else {
-          FD_CLR(fd, &current->fproc->fd_close_on_exec_set);
-        }
+      if (arg) {
+        current->fproc.fd_table[fd].flags |= FDF_CLOSE_ON_EXEC;
+      } else {
+        current->fproc.fd_table[fd].flags &= ~FDF_CLOSE_ON_EXEC;
       }
+
 			return arg;
       		
 		case F_GETFL:	/* Get file flags */
@@ -81,7 +84,6 @@ int sys_fcntl(int fd, int cmd, int arg)
       
 		case F_SETFL:	/* Set file flags */
       Info("Fcntl F_SETFL unimplemented");
-
       // TODO: Effectively open flags bit O_RW, O_APPEND, O_NONBLOCK
 			return -EINVAL;
       
@@ -123,7 +125,8 @@ int sys_dup2(int fd, int new_fd)
     return -EINVAL;
   }
 
-  if (current->fproc->fd_table[new_fd] != NULL) {
+  if (current->fproc.fd_table[new_fd].flags == FDF_VALID) {
+    KASSERT(current->fproc.fd_table[new_fd].filp != NULL);
     do_close(current, new_fd);    
   }
     
@@ -141,22 +144,28 @@ int sys_dup2(int fd, int new_fd)
 int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd)
 {
   struct Filp *filp;
+  struct FileDesc *filedesc;
   int new_fd;
   
-  filp = get_filp(proc, fd);
+  Info("dup_fd(fd:%d, min:%d, max:%d)", fd, min_fd, max_fd);
+  
+  filp = filp_get(proc, fd);
   
   if (filp == NULL) {
     return -EINVAL;
   }
   
-  new_fd = alloc_fd(proc, min_fd, max_fd);
+  new_fd = fd_alloc(proc, min_fd, max_fd, &filedesc);
   
   if (new_fd < 0) {
     return -EMFILE;
   }
   
-  proc->fproc->fd_table[new_fd] = filp;
+  filedesc->filp = filp;
   filp->reference_cnt++;
+
+  filedesc->flags = FDF_VALID;    // FIXME: Do we copy CLOSE_ON_EXEC ?
+
   return new_fd;
 }
 
@@ -164,18 +173,23 @@ int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd)
 /* @brief   Mark entry in file descriptor table as in use
  *
  */
-int alloc_fd(struct Process *proc, int min_fd, int max_fd)
+int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **filedesc)
 {  
+  Info("fd_alloc(proc:%08x, min:%d, max:%d, fdesc**:%08x)", (uint32_t)proc, min_fd, max_fd, (uint32_t)filedesc);
+
   for (int fd=min_fd; fd <= max_fd; fd++) {
-    if (FD_ISSET(fd, &proc->fproc->fd_in_use_set) == 0) {
-      proc->fproc->fd_table[fd] = NULL;
-      FD_SET(fd, &proc->fproc->fd_in_use_set);
-      FD_CLR(fd, &proc->fproc->fd_close_on_exec_set);
+    if ((proc->fproc.fd_table[fd].flags & FDF_VALID) == 0) {
+      proc->fproc.fd_table[fd].filp = NULL;
+      proc->fproc.fd_table[fd].flags = FDF_VALID;
+      
+      *filedesc = &proc->fproc.fd_table[fd];      
       return fd; 
     }
   }
   
-  Error("alloc_fd failed");
+  Error("fd_alloc failed");
+  
+  *filedesc = NULL;
   return -EMFILE;
 }
 
@@ -183,79 +197,66 @@ int alloc_fd(struct Process *proc, int min_fd, int max_fd)
 /* @brief   Mark entry in file descriptor table as free
  * 
  */
-int free_fd(struct Process *proc, int fd)
+int fd_free(struct Process *proc, int fd)
 {
+  Info("fd_free(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  
   if (fd < 0 || fd >= OPEN_MAX) {
+    Error("fd out of range");
     return -EINVAL;
   }
+
+  Info("proc->fproc.fd_table = %08x", (uint32_t)proc->fproc.fd_table);
+  Info("&proc->fproc.fd_table[fd] = %08x", (uint32_t)&proc->fproc.fd_table[fd]); 
     
-  if (proc->fproc->fd_table[fd] == NULL) {
+  if ((proc->fproc.fd_table[fd].flags & FDF_VALID) == 0 && proc->fproc.fd_table[fd].filp == NULL) {
     return -EINVAL;  
   }
 
-  proc->fproc->fd_table[fd] = NULL;
-  FD_CLR(fd, &proc->fproc->fd_in_use_set);
-  FD_CLR(fd, &proc->fproc->fd_close_on_exec_set);
-    
-  return 0;
-}
-
-
-/* @brief   Enable and configure a filp
- *
- */
-int set_fd(struct Process *proc, int fd, int type, uint32_t flags, void *item)
-{
-  struct Filp *filp;
-  
-  filp = get_filp(proc, fd);
-  
-  if (filp == NULL) {
-    Error("set_fd, filp invalid");
-    return -EINVAL;  
-  }
-
-  filp->type = type;
-  
-  switch (type)
-  {
-    case FILP_TYPE_VNODE:
-      Info("Filp type vnode");
-      filp->u.vnode = item;
-      break;
-    case FILP_TYPE_SUPERBLOCK:
-      Info("Filp type superblock");
-      filp->u.superblock = item;
-      break;
-    case FILP_TYPE_KQUEUE:
-      Info("Filp type kqueue");
-      filp->u.kqueue = item;
-      break;
-  }
-
-  FD_SET(fd, &proc->fproc->fd_in_use_set);
-  
-  if (flags & FD_FLAG_CLOEXEC) {
-    FD_SET(fd, &proc->fproc->fd_close_on_exec_set);
-  }
+  proc->fproc.fd_table[fd].filp = NULL;
+  proc->fproc.fd_table[fd].flags = FDF_NONE;
   
   return 0;
 }
 
 
-/* @brief   Close file descriptors during an exec syscall
- *
- * @return  0 on sucess, negative errno on failure
+/* @brief   Fork the filesystem state of one process into another
+ * 
  */
-int close_on_exec_process_fds(void)
+int fork_fds(struct Process *newp, struct Process *oldp)
 {
-  struct Process *current;
+  int sc;
   
-  current = get_current_process();
+  Info("fork_fds(newp:%08x, oldp:%08x", (uint32_t)newp, (uint32_t)oldp);
+  
+  if ((sc = init_fproc(newp)) != 0) {
+    Info("init_fproc failed in fork_fds, sc:%d", sc);
+    return sc;
+  }
+  
+  newp->fproc.umask = oldp->fproc.umask;  
+  newp->fproc.current_dir = oldp->fproc.current_dir;
+    
+  if (newp->fproc.current_dir != NULL) {
+    vnode_add_reference(newp->fproc.current_dir);
+  }
 
-  for (int fd = 0; fd < OPEN_MAX; fd++) {
-    if (FD_ISSET(fd, &current->fproc->fd_close_on_exec_set)) {
-      do_close(current, fd);
+  newp->fproc.root_dir = oldp->fproc.root_dir;
+
+  if (newp->fproc.root_dir != NULL) {
+    vnode_add_reference(newp->fproc.root_dir);
+  }
+
+  for (int fd = 0; fd < OPEN_MAX; fd++) {          
+    if (oldp->fproc.fd_table[fd].flags & FDF_VALID) {
+      KASSERT(oldp->fproc.fd_table[fd].filp != NULL);
+      
+      newp->fproc.fd_table[fd].filp = oldp->fproc.fd_table[fd].filp;      
+      newp->fproc.fd_table[fd].flags = oldp->fproc.fd_table[fd].flags;
+      newp->fproc.fd_table[fd].filp->reference_cnt++;            
+    } else {
+      newp->fproc.fd_table[fd].filp = NULL;
+      newp->fproc.fd_table[fd].flags = FDF_NONE;
     }
   }
 
@@ -263,5 +264,23 @@ int close_on_exec_process_fds(void)
 }
 
 
+/* @brief   Close file descriptors marked as "close on exec" during an exec syscall
+ *
+ * @return  0 on sucess, negative errno on failure
+ *
+ * Close any file descriptors marked as "close on exec" and reset the close on exec
+ * flag.
+ */
+int exec_fds(struct Process *proc)
+{
+  for (int fd = 0; fd < OPEN_MAX; fd++) {
+    if (proc->fproc.fd_table[fd].flags & FDF_CLOSE_ON_EXEC) {
+      proc->fproc.fd_table[fd].flags &= ~FDF_CLOSE_ON_EXEC;
+      do_close(proc, fd);      
+    }
+  }
+
+  return 0;
+}
 
 

@@ -34,15 +34,21 @@
 int sys_ioctl(int fd, int cmd, intptr_t arg)
 {
   int sc;
-  struct Filp *filp;
   struct VNode *vnode;
+  struct Filp *filp;
   struct Process *current;
   
   Info("sys_ioctl(fd:%d, cmd:%d", fd, cmd);
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+
+  filp = filp_get(current, fd);
+  
+  if (filp == NULL) {
+    return -EBADF;
+  }
+  
+  vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
     Error("iotctl - FD invalid, no vnode");

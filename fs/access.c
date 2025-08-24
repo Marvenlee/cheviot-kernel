@@ -33,15 +33,12 @@
  */
 int sys_access(char *pathname, mode_t amode)
 {
-#if 1
-	// FIXME: Enable sys_access - remove return 0
-  return 0;
-#endif
-
   struct Process *current;
   struct lookupdata ld;
   struct VNode *vnode;
   int sc;
+
+  Info("sys_access()");
 
   current = get_current_process();
 
@@ -63,15 +60,15 @@ int sys_access(char *pathname, mode_t amode)
 /* @brief   umask system call
  *
  */
-mode_t sys_umask (mode_t mode)
+mode_t sys_umask(mode_t mode)
 {
   mode_t old_mode;
   struct Process *current;
   
   current = get_current_process();
   
-  old_mode = current->fproc->umask;
-  current->fproc->umask = mode;
+  old_mode = current->fproc.umask;
+  current->fproc.umask = mode;
   return old_mode;
 }
 
@@ -88,29 +85,28 @@ int sys_chmod(char *_path, mode_t mode)
 
   current = get_current_process();
 
-  if ((sc = lookup(_path, 0, &ld)) != 0) {
+  if ((sc = lookup(_path, 0, &ld)) == 0) {
+    vnode = ld.vnode;
+
+    rwlock(&vnode->lock, LK_EXCLUSIVE);
+
+    if (vnode->uid == current->uid || current->uid == SUPERUSER) {
+      sc = vfs_chmod(vnode, mode);
+
+      if (sc == 0) {
+        vnode->mode = mode;
+      }
+    } else {
+      sc = -EPERM;
+    }
+
+    rwlock(&vnode->lock, LK_RELEASE);
+
+    knote(&vnode->knote_list, NOTE_ATTRIB);
+    lookup_cleanup(&ld);
     return sc;
   }
 
-  vnode = ld.vnode;
-
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-  if (vnode->uid == current->uid || current->uid == SUPERUSER) {
-    sc = vfs_chmod(vnode, mode);
-    
-    if (sc == 0) {
-      vnode->mode = mode;
-    }
-  } else {
-    Warn("chmod -EPERM");
-    sc = EPERM;
-  }
-
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  knote(&vnode->knote_list, NOTE_ATTRIB);  
-  lookup_cleanup(&ld);
   return sc;
 }
 
@@ -128,31 +124,30 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
 
   current = get_current_process();
 
-  if ((sc = lookup(_path, 0, &ld)) != 0) {
-    return sc;
+  if ((sc = lookup(_path, 0, &ld)) == 0) {
+    vnode = ld.vnode;
+
+    rwlock(&vnode->lock, LK_EXCLUSIVE);
+
+    if (vnode->uid == current->euid || current->euid == SUPERUSER) {
+      sc = vfs_chown(vnode, uid, gid);
+
+      if (sc == 0) {
+        vnode->uid = uid;
+        vnode->gid = gid;
+      }
+    } else {
+      sc = -EPERM;
+    }
+
+    rwlock(&vnode->lock, LK_RELEASE);
+
+    knote(&vnode->knote_list, NOTE_ATTRIB);
+    lookup_cleanup(&ld);
+    return 0;
   }
 
-  vnode = ld.vnode;
-
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-  if (vnode->uid == current->euid || current->euid == SUPERUSER) {
-    sc = vfs_chown(vnode, uid, gid);
-    
-    if (sc == 0) {
-      vnode->uid = uid;
-      vnode->gid = gid;
-    }    
-  } else {
-    Warn("chown -EPERM");
-    sc = -EPERM;
-  }
-
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  knote(&vnode->knote_list, NOTE_ATTRIB);
-  lookup_cleanup(&ld);
-  return 0;
+  return sc;
 }
 
 
@@ -163,73 +158,87 @@ int sys_fchmod(int fd, mode_t mode)
 {
   struct Process *current;
   struct VNode *vnode;
+  struct Filp *filp;
   int sc;
 
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
+  filp = filp_get(current, fd);
+
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
+    
+    if (vnode) {
+      rwlock(&vnode->lock, LK_EXCLUSIVE);
+
+      if (vnode->uid == current->euid || current->euid == SUPERUSER) {
+        sc = vfs_chmod(vnode, mode);
+
+        if (sc == 0) {
+          vnode->mode = mode;
+        }
+      } else {
+        Warn("fchmod -EPERM");
+        sc = EPERM;
+      }
+
+      rwlock(&vnode->lock, LK_RELEASE);
+
+      knote(&vnode->knote_list, NOTE_ATTRIB);
+      vnode_put(vnode);
+      return sc;
+    }
+    
     return -EINVAL;
   }
-
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-  if (vnode->uid == current->euid || current->euid == SUPERUSER) {
-    sc = vfs_chmod(vnode, mode);
-    
-    if (sc == 0) {
-      vnode->mode = mode;
-    }
-  } else {
-    Warn("fchmod -EPERM");
-    sc = EPERM;
-  }
-
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  knote(&vnode->knote_list, NOTE_ATTRIB);
   
-  vnode_put(vnode);
-  return sc;
+  return -EBADF;
 }
 
 
 /* @brief   fchown system call
  *
- * FIXME: does get_fd_vnode lock the vnode?
+ * FIXME: does filp_get lock the vnode?
  */
 int sys_fchown(int fd, uid_t uid, gid_t gid)
 {
-  struct Process *current;
-  struct VNode *vnode;
   int sc;
+  struct VNode *vnode;
+  struct Filp *filp;
+  struct Process *current;
 
   current = get_current_process();
-  vnode = get_fd_vnode(current, fd);
 
-  if (vnode == NULL) {
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
+
+    if (vnode) {
+      rwlock(&vnode->lock, LK_EXCLUSIVE);
+
+      if (vnode->uid == current->euid || current->euid == SUPERUSER) {
+        sc = vfs_chown(vnode, uid, gid);
+
+        if (sc == 0) {
+          vnode->uid = uid;
+          vnode->gid = gid;
+        }
+      } else {
+        Warn("fchown -EPERM");
+        sc = -EPERM;
+      }
+
+      rwlock(&vnode->lock, LK_RELEASE);
+
+      knote(&vnode->knote_list, NOTE_ATTRIB);
+
+      vnode_put(vnode);
+      return sc;
+    }
+
     return -EINVAL;
   }
 
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-  if (vnode->uid == current->euid || current->euid == SUPERUSER) {
-    sc = vfs_chown(vnode, uid, gid);
-    
-    if (sc == 0) {
-      vnode->uid = uid;
-      vnode->gid = gid;
-    }    
-  } else {
-    Warn("fchown -EPERM");
-    sc = EPERM;
-  }
-
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  knote(&vnode->knote_list, NOTE_ATTRIB);
-  vnode_put(vnode);
-  return 0;
+  return -EBADF;
 }
 
 
@@ -249,13 +258,9 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   int shift;
   struct Process *current;
   
+  Info("check_access");
+  
   current = get_current_process();
-  
-#if 1
-  return 0;
-#endif
-  
-  // FIXME: check_access
   
   if (current->euid == SUPERUSER) {
     return 0;
@@ -263,7 +268,7 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   
   desired_access &= (R_OK | W_OK | X_OK);
 
-  if ((desired_access & W_OK) && (vnode->superblock->flags & SF_READONLY)) {
+  if ((desired_access & W_OK) && (vnode->superblock->flags & SBF_READONLY)) {
     return -EPERM;
   }
 

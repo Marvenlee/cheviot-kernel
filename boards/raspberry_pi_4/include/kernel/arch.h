@@ -3,6 +3,7 @@
 
 
 #include <kernel/board/arm.h>
+#include <kernel/board/pmap.h>
 #include <kernel/board/task.h>
 #include <kernel/board/interrupt.h>
 

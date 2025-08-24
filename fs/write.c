@@ -42,44 +42,58 @@ ssize_t sys_write(int fd, void *src, size_t sz)
 {
   struct Filp *filp;
   struct VNode *vnode;
-  ssize_t xfered;
+  ssize_t retval;
   struct Process *current;
-  int sc;
+
   
-  if ((sc = bounds_check(src, sz)) != 0) {
-    return sc;
+  if ((retval = bounds_check(src, sz)) != 0) {
+    return retval;
   }  
   
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+  filp = filp_get(current, fd);
 
-  if (vnode == NULL) {
-    return -EINVAL;
-  }
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
 
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-  
-  if (check_access(vnode, filp, W_OK) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return -EACCES;
-  }
-    
-  if (S_ISCHR(vnode->mode)) {
-    xfered = write_to_char(vnode, src, sz);  
-  } else if (S_ISREG(vnode->mode)) {
-    xfered = write_to_cache(vnode, src, sz, &filp->offset);
-  } else if (S_ISBLK(vnode->mode)) {
-    xfered = write_to_block(vnode, src, sz, &filp->offset);
-  } else if (S_ISFIFO(vnode->mode)) {
-    xfered = write_to_pipe(vnode, src, sz);
+    if (vnode) {
+      rwlock(&vnode->lock, LK_EXCLUSIVE);
+      
+      if (check_access(vnode, filp, W_OK) == 0) {        
+        if (S_ISCHR(vnode->mode)) {
+          retval = write_to_char(vnode, src, sz);  
+        } else if (S_ISREG(vnode->mode)) {
+          retval = write_to_file(vnode, src, sz, &filp->offset);
+        } else if (S_ISFIFO(vnode->mode)) {
+          retval = write_to_pipe(vnode, src, sz);
+        } else if (S_ISBLK(vnode->mode)) {
+          retval = write_to_block(vnode, src, sz, &filp->offset);
+        } else if (S_ISSOCK(vnode->mode)) {
+          retval = -ENOSYS; // TODO
+        } else {
+          retval = -EINVAL;
+        }  
+                
+        rwlock(&vnode->lock, LK_RELEASE);
+        vnode_put(vnode);
+        filp_put(filp);        
+        return retval;
+      }
+      
+      rwlock(&vnode->lock, LK_RELEASE);
+      vnode_put(vnode);
+      retval = -EACCES;
+    } else {
+      retval = -EINVAL;
+    }    
+
+    filp_put(filp);
   } else {
-    Error("sys_write fd:%d unknown type -EINVAL", fd);
-    xfered = -EINVAL;
-  }  
+    retval = -EBADF;
+  }
   
-  rwlock(&vnode->lock, LK_RELEASE);
-  return xfered;
+  return retval;
+  
 }
 
 
@@ -92,10 +106,10 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   off64_t offset;
   struct Filp *filp;
   struct VNode *vnode;
-  ssize_t xfered;
+  ssize_t retval;
   struct Process *current;
   msgiov_t iov[IOV_MAX];
-    
+  
   if (iov_cnt < 1 || iov_cnt > IOV_MAX) {
     return -EINVAL;
   }
@@ -111,32 +125,41 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
   }
       
   current = get_current_process();
-  filp = get_filp(current, fd);
-  vnode = get_fd_vnode(current, fd);
+  filp = filp_get(current, fd);
 
-  if (vnode == NULL) {
-    return -EBADF;
-  }
+  if (filp) {
+    vnode = vnode_get_from_filp(filp);
+    
+    if (vnode) {
+      rwlock(&vnode->lock, LK_EXCLUSIVE);
 
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-  
-  if (check_access(vnode, filp, W_OK) != 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
-    return -EACCES;
-  }
-
-  if (S_ISBLK(vnode->mode)) {
-    if (_offset == NULL) {
-      xfered = write_to_blockv (vnode, iov, iov_cnt, &filp->offset);
+      if (check_access(vnode, filp, R_OK) == 0) {
+        if (S_ISBLK(vnode->mode)) {
+          if (_offset == NULL) {
+            retval = write_to_blockv (vnode, iov, iov_cnt, &filp->offset);
+          } else {
+            retval = write_to_blockv (vnode, iov, iov_cnt, &offset);
+          }   
+        } else {
+          retval = -EBADF;
+        }
+          
+        rwlock(&vnode->lock, LK_RELEASE);
+        vnode_put(vnode);
+      }
+      
+      rwlock(&vnode->lock, LK_RELEASE);
+      vnode_put(vnode);      
+      retval = -EACCES;
     } else {
-      xfered = write_to_blockv (vnode, iov, iov_cnt, &offset);
-    }   
-  } else {
-    xfered = -EBADF;
-  }
+      retval = -EINVAL;
+    }
 
-  rwlock(&vnode->lock, LK_RELEASE);
+    filp_put(filp);
+  } else {
+    retval = -EBADF;
+  }
   
-  return xfered;
+  return retval;
 }
 

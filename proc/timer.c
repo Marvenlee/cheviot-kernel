@@ -214,7 +214,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   struct Process *current_proc;
   struct Thread *current;
   struct Timer *timer;
-  struct timespec req, rem;
+  struct timespec req;
 
   current_proc = get_current_process();
   current = get_current_thread();
@@ -250,8 +250,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
     TaskSleep(&current->rendez);
   }
 
-  // TODO: if interrupted, work out remaining time and store in _rem
-//  Info ("sys_nanosleep awakened");
+  // TODO: if interrupted, work out remaining time and store in _rem, return -EINTR
   
   return 0;
 }
@@ -328,8 +327,6 @@ uint64_t get_hardclock(void)
  */
 void TimerTopHalf(void)
 {
-  int_state_t int_state;
-  
   KASSERT(max_cpu == 1);
   
   for (int t = 0; t < max_cpu; t++) {
@@ -357,7 +354,6 @@ static int timer_log_count;
 void timer_bottom_half_task(void *arg)
 {
   int_state_t int_state;
-  bool logtimerwakeup = false;  
   struct Timer *timer, *next_timer;
 
   

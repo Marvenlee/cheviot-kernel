@@ -66,7 +66,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
 {
   vm_addr vpt, va, pa;
   bits32_t flags;
-  struct Pageframe *pf;
+  struct Page *page;
 
   Info ("fork address space(new_as:%08x, old_ad:%08x)", (uint32_t)new_as, (uint32_t)old_as);
 	Info("new as:%08x, current as:%08x", (uint32_t)new_as, (uint32_t)old_as);
@@ -116,8 +116,8 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
           goto cleanup;
         }
 
-        pf = pmap_pa_to_pf(pa);
-        pf->reference_cnt++;
+        page = pmap_pa_to_page(pa);
+        page->reference_cnt++;
         
       } else if ((flags & MAP_PHYS) != MAP_PHYS) {
         // TODO: Should flags also map it as COW?
@@ -126,8 +126,8 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
           goto cleanup;
         }
 
-        pf = pmap_pa_to_pf(pa);
-        pf->reference_cnt++;
+        page = pmap_pa_to_page(pa);
+        page->reference_cnt++;
       } else {
         // Physical Mapping
 #if 1
@@ -162,7 +162,7 @@ cleanup:
  */
 int cleanup_address_space(struct AddressSpace *as)
 {
-  struct Pageframe *pf;
+  struct Page *page;
   vm_addr pa;
   vm_addr vpt;
   vm_addr va;
@@ -190,11 +190,11 @@ int cleanup_address_space(struct AddressSpace *as)
         continue;
       }
 
-      pf = pmap_pa_to_pf(pa);
-      pf->reference_cnt--;
+      page = pmap_pa_to_page(pa);
+      page->reference_cnt--;
 
-      if (pf->reference_cnt == 0) {
-        free_pageframe(pf);
+      if (page->reference_cnt == 0) {
+        free_page(page);
       }
     }
   }

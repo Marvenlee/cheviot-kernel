@@ -30,7 +30,17 @@ int max_superblock;
 struct SuperBlock *superblock_table;
 superblock_list_t free_superblock_list;
 superblock_list_t mounted_superblock_list;
+
+
+//uint32_t _scanary1001 = 0xdeadbeef;
+//uint32_t _scanary1000 = 0xdeadbeef;
 struct RWLock superblock_list_lock;
+//uint32_t _scanary1003 = 0xdeadbeef;
+//uint32_t _scanary1004 = 0xdeadbeef;
+
+superblock_list_t sync_superblock_list;
+struct Rendez sync_rendez;
+bool sync_in_progress;
 
 
 int max_vnode;
@@ -48,16 +58,6 @@ struct Pipe *pipe_table;
 pipe_list_t free_pipe_list;
 struct SuperBlock pipe_sb;
 
-
-/*
- * VFS file cache
- */ 
-int max_buf;
-struct Buf *buf_table;
-struct Rendez buf_list_rendez;
-buf_list_t buf_hash[BUF_HASH];
-buf_list_t buf_avail_list;
-struct RWLock cache_lock;         // FIXME: May not be needed
 
 /*
  * Directory Name Lookup Cache

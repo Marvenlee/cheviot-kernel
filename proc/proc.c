@@ -60,10 +60,12 @@ int sys_fork(void)
     return -ENOMEM;
   }
 
+
   // FIXME: Can any of these fail? check return codes
   fork_session_pgrp(new_proc, current_proc);
   fork_ids(new_proc, current_proc);
-  fork_process_fds(new_proc, current_proc);
+  
+  fork_fds(new_proc, current_proc);       // FIXME: Need to check error code, can fail if fd_table alloc fails
   fork_signals(new_proc, current_proc);  
   fork_privileges(new_proc, current_proc);
 
@@ -334,9 +336,10 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
     return NULL;
   }
 
+  // FIXME: Can any of these fail? check return codes
   init_session_pgrp(new_proc);
   init_ids(new_proc);
-  init_fproc(new_proc);
+  init_fproc(new_proc);   // FIXME: Need to check error code, fproc could fail to alloc
   init_signals(new_proc);
   init_privileges(new_proc);
   
@@ -369,6 +372,8 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
   struct Process *proc = NULL;
   pid_t pid;
     
+  Info("alloc_process");
+
   proc = alloc_process_struct();
   
   if (proc == NULL) {

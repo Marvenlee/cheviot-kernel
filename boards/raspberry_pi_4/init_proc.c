@@ -18,7 +18,7 @@
  * Kernel initialization.
  */
 
-//#define KDEBUG  1
+#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -51,7 +51,7 @@ void init_processes(void)
   struct Process *proc;
   struct Thread *thread;
   
-  Info("InitProcesses.,");
+  Info("init_processes() ...");
   
   bkl_locked = false;
   bkl_owner = NULL;
@@ -199,6 +199,8 @@ void init_processes(void)
   cpu_table[0].idle_thread->state = THREAD_STATE_READY;
 
   Info("idle thread created for cpu 0, tid:%d", get_thread_tid(cpu_table[0].idle_thread));
+
+  Info("... init_processes() done");
 }
 
 

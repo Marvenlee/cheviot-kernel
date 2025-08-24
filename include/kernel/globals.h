@@ -16,12 +16,26 @@
  * Memory
  */
 extern vm_size mem_size;
-extern int max_pageframe;
-extern struct Pageframe *pageframe_table;
+extern int max_page;
+extern struct Page *page_table;
 
-extern pageframe_list_t free_4k_pf_list;
-extern pageframe_list_t free_16k_pf_list;
-extern pageframe_list_t free_64k_pf_list;
+
+extern int free_page_cnt;
+extern int dirty_page_cnt;
+extern int busy_page_cnt;
+
+//extern bool dirty_queues_busy;
+//extern struct Rendez dirty_queues_rendez;
+
+//extern struct RWLock cache_lock;
+
+extern page_list_t free_page_queue;
+
+//extern page_list_t dirty_page_queue[DIRTY_HASH];
+
+extern page_list_t page_lookup_hash[PAGE_LOOKUP_HASH_SZ];
+
+extern struct Rendez page_list_rendez;
 
 extern int max_memregion;
 extern struct MemRegion *memregion_table;
@@ -137,6 +151,10 @@ extern superblock_list_t free_superblock_list;
 extern superblock_list_t mounted_superblock_list;
 extern struct RWLock superblock_list_lock;
 
+extern superblock_list_t sync_superblock_list;
+extern struct Rendez sync_rendez;
+extern bool sync_in_progress;
+
 extern struct VNode *root_vnode;
 
 extern int max_vnode;
@@ -180,15 +198,6 @@ extern dname_list_t dname_hash[DNAME_HASH];
  */
 extern struct VNode *logger_vnode;
 
-/*
- * File Cache
- */
-extern int max_buf;
-extern struct Buf *buf_table;
-extern struct Rendez buf_list_rendez;
-extern buf_list_t buf_hash[BUF_HASH];
-extern buf_list_t buf_avail_list;
-extern struct RWLock cache_lock;         // FIXME: May not be needed
 
 
 #endif

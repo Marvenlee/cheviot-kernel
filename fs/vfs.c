@@ -509,7 +509,6 @@ int vfs_rename(struct VNode *src_dvnode, char *src_name,
   iorequest_t req = {0};
   struct SuperBlock *sb;
   msgiov_t siov[2];
-  struct VNode *vnode = NULL;
   int sc;
 
   sb = src_dvnode->superblock;
@@ -734,4 +733,25 @@ ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, s
 
   return nbytes_written;
 }
+
+
+/*
+ * TODO: vfs_sync
+ */
+int vfs_sync(struct SuperBlock *sb)
+{
+  return 0;
+}
+
+
+/*
+ * TODO: vfs_syncfile
+ */
+int vfs_syncfile(struct VNode *vnode)
+{
+  return 0;
+}
+
+
+
 

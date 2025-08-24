@@ -38,5 +38,35 @@ struct PmapPagedir
 
 
 
+/*
+ */
+LIST_TYPE(Pmap, pmap_list_t, pmap_list_link_t);
+LIST_TYPE(PmapVPTE, pmap_vpte_list_t, pmap_vpte_list_link_t);
+
+struct Pmap
+{
+  uint32_t *l1_table; // Page table
+};
+
+
+struct PmapVPTE
+{
+  pmap_vpte_list_link_t link;
+  uint32_t flags;
+} __attribute__((packed));
+
+
+struct PmapPage
+{
+  pmap_vpte_list_t vpte_list;
+};
+
+
+// Prototypes
+void PmapPageFault(void);
+uint32_t *PmapGetPageTable(struct Pmap *pmap, int pde_idx);
+
+
+
 #endif
 

@@ -197,7 +197,7 @@ syscall_table:
 
     .long sys_ismount                   // 104
     
-    .long sys_sync2                     // 105
+    .long sys_deprecatedsyscall         // 105   // Was sys_sync2 for non-blocking flush from fs handlers
     
     .long sys_setsid                    // 106
     .long sys_getsid                    // 107
@@ -263,9 +263,11 @@ syscall_table:
     .long sys_beginio                   // 149
     .long sys_alloc_asyncio             // 150
     .long sys_free_asyncio              // 151
+    .long sys_waitio                    // 152
+    .long sys_abortio                   // 153
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 151
+#define MAX_SYSCALL                 153
 
 
 /* @brief   System call entry point

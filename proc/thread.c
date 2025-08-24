@@ -85,7 +85,7 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
     //return -EINVAL;
   }
     
-  if (attr.stackaddr == NULL || user_stack_sz == 0) {
+  if (attr.stackaddr == NULL || attr.stacksize == 0) {
     user_stack_sz = USER_STACK_SZ;
     if ((user_stack = sys_mmap((void *)0x30000000, user_stack_sz, PROT_READ | PROT_WRITE, 
                                0, -1, 0)) == MAP_FAILED) {

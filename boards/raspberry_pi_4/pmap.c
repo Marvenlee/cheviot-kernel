@@ -21,7 +21,7 @@
  * The CPU's page directories are 16k and the page tables are 1k.  We use 4K
  * page size and so are able to fit 1K of page tables plus a further 12 bytes
  * per page table entry for flags and linked list next/prev pointers to keep
- * track of page table entries referencing a Pageframe.
+ * track of page table entries referencing a Page.
  */
 
 //#define KDEBUG
@@ -138,8 +138,8 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, int flags)
   uint32_t *pt, *phys_pt;
   int pde_idx, pte_idx;
   uint32_t pa_bits;
-  struct Pageframe *pf;
-  struct Pageframe *ptpf;
+  struct Page *page;
+  struct Page *ptpage;
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
@@ -176,15 +176,15 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, int flags)
   }
 
   if ((flags & MAP_PHYS) == 0) {
-    pf = &pageframe_table[pa / PAGE_SIZE];
-    LIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
+    page = &page_table[pa / PAGE_SIZE];
+    LIST_ADD_HEAD(&page->pmap_page.vpte_list, vpte, link);
   }
   
   vpte->flags = flags;
   
 
-  ptpf = pmap_va_to_pf((vm_addr)pt);
-  ptpf->reference_cnt++;
+  ptpage = pmap_va_to_page((vm_addr)pt);
+  ptpage->reference_cnt++;
 
 	pmap_write_l2(pt, pte_idx, pa | pa_bits);
   hal_invalidate_tlb_va(va);
@@ -202,8 +202,8 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
   uint32_t *pt, *phys_pt;
   int pde_idx, pte_idx;
   vm_addr current_paddr;
-  struct Pageframe *pf;
-  struct Pageframe *ptpf;
+  struct Page *page;
+  struct Page *ptpage;
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
@@ -235,8 +235,8 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
   }
 
   if ((vpte->flags & MAP_PHYS) == 0) {
-    pf = pmap_pa_to_pf(current_paddr);
-    LIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
+    page = pmap_pa_to_page(current_paddr);
+    LIST_REM_ENTRY(&page->pmap_page.vpte_list, vpte, link);
   }
 
   vpte->flags = 0;
@@ -244,10 +244,10 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
   pmap_write_l2(pt, pte_idx, L2_TYPE_INV);
   hal_invalidate_tlb_va(va);
 
-  ptpf = pmap_va_to_pf((vm_addr)pt);
-  ptpf->reference_cnt--;
+  ptpage = pmap_va_to_page((vm_addr)pt);
+  ptpage->reference_cnt--;
 
-  if (ptpf->reference_cnt == 0) {
+  if (ptpage->reference_cnt == 0) {
     pmap_write_l1(pmap->l1_table, pde_idx, L1_TYPE_INV);
     pmap_free_pagetable(pt);    
   }
@@ -309,7 +309,7 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, int flags)
 /*
  * Extract the physical address and flags associates with a virtual address
  */
-int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, int *flags)
+int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *flags)
 {
   struct Pmap *pmap;
   uint32_t *pt, *phys_pt;
@@ -345,8 +345,14 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, int *flags)
 
   Info("pmap_extract: va:%08x, pte:%08x", (uint32_t)va, (uint32_t)pt[pte_idx]);
 
-  *pa = current_paddr;
-  *flags = vpte->flags;
+  if (pa != NULL) {
+    *pa = current_paddr;
+  }
+  
+  if (flags != NULL) {
+    *flags = vpte->flags;
+  }
+  
   return 0;
 }
 
@@ -411,15 +417,15 @@ uint32_t *pmap_alloc_pagetable(void)
 {
   int t;
   uint32_t *pt;
-  struct Pageframe *pf;
+  struct Page *page;
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
-  if ((pf = alloc_pageframe(VPAGETABLE_SZ)) == NULL) {
+  if ((page = alloc_page()) == NULL) {
     return NULL;
   }
   
-  pt = (uint32_t *)pmap_pf_to_va(pf);
+  pt = (uint32_t *)pmap_page_to_va(page);
   vpte_base = (struct PmapVPTE *)((uint8_t *)pt + VPTE_TABLE_OFFS);
 
   for (t = 0; t < 256; t++) {
@@ -440,9 +446,9 @@ uint32_t *pmap_alloc_pagetable(void)
 /*
  *
  */
-void pmap_pageframe_init(struct PmapPageframe *ppf)
+void pmap_page_init(struct PmapPage *ppage)
 {
-  LIST_INIT(&ppf->vpte_list);
+  LIST_INIT(&ppage->vpte_list);
 }
 
 
@@ -452,10 +458,10 @@ void pmap_pageframe_init(struct PmapPageframe *ppf)
  */
 void pmap_free_pagetable(uint32_t *pt)
 {
-  struct Pageframe *pf;
-  pf = pmap_va_to_pf((vm_addr)pt);
+  struct Page *ptpage;
+  ptpage = pmap_va_to_page((vm_addr)pt);
 
-  free_pageframe(pf);
+  free_page(ptpage);
 }
 
 
@@ -525,36 +531,36 @@ int pmap_supports_cache_policy(bits32_t flags)
 /*
  *
  */
-vm_addr pmap_pf_to_pa(struct Pageframe *pf)
+vm_addr pmap_page_to_pa(struct Page *page)
 {
-  return (vm_addr)pf->physical_addr;
+  return (vm_addr)page->physical_addr;
 }
 
 
 /*
  *
  */
-struct Pageframe *pmap_pa_to_pf(vm_addr pa)
+struct Page *pmap_pa_to_page(vm_addr pa)
 {
-  return &pageframe_table[(vm_addr)pa / PAGE_SIZE];
+  return &page_table[(vm_addr)pa / PAGE_SIZE];
 }
 
 
 /*
  *
  */
-vm_addr pmap_pf_to_va(struct Pageframe *pf)
+vm_addr pmap_page_to_va(struct Page *page)
 {
-  return pmap_pa_to_va((pf->physical_addr));
+  return pmap_pa_to_va((page->physical_addr));
 }
 
 
 /*
  *
  */
-struct Pageframe *pmap_va_to_pf(vm_addr va)
+struct Page *pmap_va_to_page(vm_addr va)
 {
-  return &pageframe_table[pmap_va_to_pa(va) / PAGE_SIZE];
+  return &page_table[pmap_va_to_pa(va) / PAGE_SIZE];
 }
 
 
@@ -617,7 +623,7 @@ int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, v
 {
   vm_addr bvaddr;
   vm_addr bpaddr;
-  int flags;
+  uint32_t flags;
   bool fault = false;
   uint32_t page_offset;
   

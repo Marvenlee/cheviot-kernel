@@ -41,13 +41,17 @@ int page_fault(vm_addr addr, bits32_t access)
   vm_addr paddr;
   vm_addr src_kva;
   vm_addr dst_kva;
-  struct Pageframe *pf;
+  struct Page *page;
 
   Info("page_fault(addr:%08x, access:%08x)", addr, access);
   	
   current = get_current_process();
  
   addr = ALIGN_DOWN(addr, PAGE_SIZE);
+  
+  // TODO:  Add MemRegion lookup here
+  // Handle lazy mapping
+  
   
   if (pmap_extract(&current->as, addr, &paddr, &page_flags) != 0) {
     // Page is not present    
@@ -76,12 +80,12 @@ int page_fault(vm_addr addr, bits32_t access)
     return -1;
   }
 
-  pf = pmap_pa_to_pf(paddr);
+  page = pmap_pa_to_page(paddr);
 
-  KASSERT(pf->physical_addr == paddr);
+  KASSERT(page->physical_addr == paddr);
 
-  if (pf->reference_cnt > 1) {
-    pf->reference_cnt--;
+  if (page->reference_cnt > 1) {
+    page->reference_cnt--;
 
     if (pmap_remove(&current->as, addr) != 0) {
       Info("pmap_remove failed");
@@ -89,26 +93,26 @@ int page_fault(vm_addr addr, bits32_t access)
     }
 
     // Now new page frame
-    if ((pf = alloc_pageframe(PAGE_SIZE)) == NULL) {
-      Info("alloc_pageframe failed");
+    if ((page = alloc_page()) == NULL) {
+      Info("alloc_page failed");
       return -1;
     }
 
     src_kva = pmap_pa_to_va(paddr);
-    dst_kva = pmap_pa_to_va(pf->physical_addr);
+    dst_kva = pmap_pa_to_va(page->physical_addr);
 
     memcpy((void *)dst_kva, (void *)src_kva, PAGE_SIZE);
 
     page_flags = (page_flags | PROT_WRITE) & ~MAP_COW;
 
-    if (pmap_enter(&current->as, addr, pf->physical_addr, page_flags) != 0) {
-      free_pageframe(pf);
+    if (pmap_enter(&current->as, addr, page->physical_addr, page_flags) != 0) {
+      free_page(page);
       Info("pmap_enter failed");
       return -1;
     }
 
-    pf->reference_cnt++;
-  } else if (pf->reference_cnt == 1) {
+    page->reference_cnt++;
+  } else if (page->reference_cnt == 1) {
     
     // FIXME: Add pmap_modify(as, PMAP_MOD_PADDR | PMAP_MOD_FLAGS, paddr, page_flags); 
     
@@ -121,7 +125,7 @@ int page_fault(vm_addr addr, bits32_t access)
     page_flags = (page_flags | PROT_WRITE) & ~MAP_COW;
 
     if (pmap_enter(&current->as, addr, paddr, page_flags) != 0) {
-      pf->reference_cnt--;
+      page->reference_cnt--;
       
       
       Info("pmap_enter failed on refcnt==1");

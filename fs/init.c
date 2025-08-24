@@ -17,9 +17,11 @@
  * Initialization of the kernel's filesystem state
  */
 
+#define KDEBUG
+
+#include <kernel/dbg.h>
 #include <kernel/board/boot.h>
 #include <kernel/board/globals.h>
-#include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
@@ -31,14 +33,23 @@
  */
 void init_vfs(void)
 {  
+  Info("init_vfs() ...");
+
   init_vfs_lists();
-  init_vfs_cache();
   init_vfs_pipes();
  
   rwlock_init(&superblock_list_lock); 
   rwlock_init(&vnode_list_lock);
-  rwlock_init(&cache_lock);
+  
+//  dirty_queues_busy = false;
+//  InitRendez(&dirty_queues_rendez);
+  
+//  rwlock_init(&cache_lock);
+
+  
   root_vnode = NULL;
+
+  Info("... init_vfs() done");
 }
 
 
@@ -61,6 +72,9 @@ void init_vfs_lists(void)
 
   for (int t = 0; t < NR_VNODE; t++) {
     LIST_ADD_TAIL(&vnode_free_list, &vnode_table[t], vnode_link);
+    vnode_table[t].flags = 0;
+    InitRendez(&vnode_table[t].rendez);
+    rwlock_init(&vnode_table[t].lock);
   }
 
   for (int t = 0; t <VNODE_HASH; t++) {
@@ -82,6 +96,7 @@ void init_vfs_lists(void)
 
   for (int t = 0; t < max_superblock; t++) {
     LIST_ADD_TAIL(&free_superblock_list, &superblock_table[t], link);
+    rwlock_init(&superblock_table[t].lock);
   }
 
   for (int t = 0; t < max_kqueue; t++) {
@@ -102,38 +117,11 @@ void init_vfs_lists(void)
 }
 
 
-/* @brief   Initialize the VFS's file cache
- *
- */
-void init_vfs_cache(void)
-{
-  LIST_INIT(&buf_avail_list);
-
-  for (int t = 0; t < max_buf; t++) {
-    InitRendez(&buf_table[t].rendez);
-    buf_table[t].flags = 0;
-    buf_table[t].vnode = NULL;
-    buf_table[t].file_offset = 0;
-    buf_table[t].data = (void *)kmalloc_page();
-    
-    KASSERT(buf_table[t].data != NULL);
-
-    LIST_ADD_TAIL(&buf_avail_list, &buf_table[t], free_link);
-  }
-
-  for (int t = 0; t < BUF_HASH; t++) {
-    LIST_INIT(&buf_hash[t]);
-  }
-}
-
-
 /*
  *
  */
 void init_vfs_pipes(void)
 {
-  struct Pipe *pipe;
-  
   LIST_INIT(&free_pipe_list);
   
   for (int t=0; t<max_pipe; t++) {
@@ -141,4 +129,6 @@ void init_vfs_pipes(void)
     LIST_ADD_TAIL(&free_pipe_list, &pipe_table[t], link);
   }
 }
+
+
 
