@@ -265,9 +265,11 @@ syscall_table:
     .long sys_free_asyncio              // 151
     .long sys_waitio                    // 152
     .long sys_abortio                   // 153
+    
+    .long sys_dumpkerneltables          // 154
 
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 153
+#define MAX_SYSCALL                 154
 
 
 /* @brief   System call entry point

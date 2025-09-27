@@ -22,7 +22,7 @@
  * file oflags access type.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -43,18 +43,20 @@ struct Filp *filp_get(struct Process *proc, int fd)
 {
   struct Filp *filp;
   
-  if (fd < 0 || fd >= OPEN_MAX) {
-    Info("filp_get, fd:%d out of range", fd);
+  Info("filp_get(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  
+  if (fd < 0 || fd >= FILEDESC_MAX) {
+    Info("filp_get, fd:%d error out of range", fd);
     return NULL;
   }
 
   if ((proc->fproc.fd_table[fd].flags & FDF_VALID) == 0) {
-    Info("get_filp() fd:%d, not valid", fd);
+    Info("get_filp() fd:%d, error not valid", fd);
     return NULL;
   }
   
   if (proc->fproc.fd_table[fd].filp == NULL) {
-    Error("get_filp() fd:%d, no filp", fd);
+    Error("get_filp() fd:%d, error no filp", fd);
     return NULL;
   }
   
@@ -68,6 +70,8 @@ struct Filp *filp_get(struct Process *proc, int fd)
   
 //  filp->busy = true;
   
+//  Info("filp_get(fd:%d) => filp: %08x", fd, (uint32_t)filp);
+  
   return filp;
 }
 
@@ -79,6 +83,9 @@ void filp_put(struct Filp *filp)
 {
   filp->reference_cnt--;
 //  filp->busy = false;
+
+  Info("filp_put(%08x) after ref_cnt:%d", (uint32_t)filp, filp->reference_cnt);
+
   TaskWakeup(&filp->rendez);
 }
  
@@ -92,11 +99,13 @@ struct Filp *filp_alloc(void)
   filp = LIST_HEAD(&filp_free_list);
 
   if (filp == NULL) {
+    Info("filp_alloc() failed, out of filps");
     return NULL;
   }
 
   LIST_REM_HEAD(&filp_free_list, filp_entry);
   filp->reference_cnt = 1;
+  Info("filp_alloc, setting type initially to FILP_TYPE_UNDEF");
   filp->type = FILP_TYPE_UNDEF;
   memset(&filp->u, 0, sizeof filp->u);
   
@@ -113,15 +122,43 @@ struct Filp *filp_alloc(void)
 void filp_free(struct Filp *filp)
 {
   if (filp == NULL) {
+    Error("filp_free() ERROR, freeing null filp");
     return;
   }
 
   filp->reference_cnt--;
  
   if (filp->reference_cnt == 0) {
+    Info("filp:%08x ref_cnt is 0, setting type to FILP_TYPE_UNDEF");
     filp->type = FILP_TYPE_UNDEF;
+
+    Info("setting filp->u to NULL, adding to free list");
     memset(&filp->u, 0, sizeof filp->u);
     LIST_ADD_HEAD(&filp_free_list, filp, filp_entry);
   }
+}
+
+
+/* @brief   Lookup a vnode from a file pointer
+ *
+ * @param   filp, file pointer object that points to the vnode
+ */
+struct VNode *vnode_get_from_filp(struct Filp *filp)
+{
+  if (filp == NULL) {
+    Error("vnode_get_from_filp, filp is NULL");
+    return NULL;
+  }
+  
+  if (filp->type != FILP_TYPE_VNODE) {
+    Info("vnode_get_from_filp, filp->type is not vnode: %d", filp->type);
+    return NULL;
+  }
+  
+  vnode_add_reference(filp->u.vnode);
+
+  Info("vnode_get_from_filp(filp:%08x) vnode:%08x", (uint32_t)filp, (uint32_t)filp->u.vnode);
+  
+  return filp->u.vnode;
 }
 

@@ -17,7 +17,7 @@
  * Process management
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>

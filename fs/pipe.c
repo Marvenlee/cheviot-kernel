@@ -17,7 +17,7 @@
  * Unnamed pipe handling.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -25,56 +25,6 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <sys/privileges.h>
-
-
-/*
- *
- */
-struct Pipe *alloc_pipe(void)
-{
-  struct Pipe *pipe;
-    
-  pipe = LIST_HEAD(&free_pipe_list);
-  
-  if (pipe == NULL) {
-    Error("alloc_pipe, failed, list empty");
-    return NULL;
-  }
-  
-  LIST_REM_HEAD(&free_pipe_list, link);
-
-  pipe->w_pos = 0;
-  pipe->r_pos = 0;
-  pipe->data_sz = 0;
-  pipe->free_sz = PIPE_BUF_SZ;
-  
-  pipe->reader_cnt = 0;
-  pipe->writer_cnt = 0;
-  
-  pipe->data = kmalloc_page();
-  
-  if (pipe->data == NULL) {
-    LIST_ADD_HEAD(&free_pipe_list, pipe, link);
-    return NULL;
-  }   
-  
-  InitRendez(&pipe->rendez);
-  
-  return pipe;
-}
-
-
-/*
- *
- */
-void free_pipe(struct Pipe *pipe)
-{
-  KASSERT(pipe != NULL);
-  
-  kfree_page(pipe->data);
-
-  LIST_ADD_HEAD(&free_pipe_list, pipe, link);
-}
 
 
 /*
@@ -101,14 +51,16 @@ int sys_pipe(int *_fd)
 
   pipe = alloc_pipe();
 
-  if (pipe) {   
-    fd[0] = fd_alloc(current, 0, OPEN_MAX, &filedesc0);
+  if (pipe) {
+    Info("sys_pipe calling fd_alloc for fd[0]");
+    fd[0] = fd_alloc(current, 0, FILEDESC_MAX, &filedesc0);
 
     if (fd[0] >= 0) {      
       filp0 = filp_alloc();
       
       if (filp0) {
-        fd[1] = fd_alloc(current, 0, OPEN_MAX, &filedesc1);
+      Info("sys_pipe calling fd_alloc for fd[1]");
+        fd[1] = fd_alloc(current, 0, FILEDESC_MAX, &filedesc1);
 
         if (fd[1] >= 0) {
           filp1 = filp_alloc();
@@ -117,35 +69,55 @@ int sys_pipe(int *_fd)
             vnode = vnode_new(&pipe_sb);
 
             if (vnode) {
+//              Info("sys_pipe, vnode:%08x", (uint32_t)vnode);
               vnode->pipe = pipe;
-                  
-              filp0->type = FILP_TYPE_PIPE;
+              vnode->mode |= S_IFIFO | S_IRUSR | S_IWUSR;
+              vnode->uid = current->uid;
+              vnode->gid = current->gid;
+                               
+              filp0->type = FILP_TYPE_VNODE;
               filp0->u.vnode = vnode;
               filp0->offset = 0;
               filp0->flags = O_RDONLY;
               
-              filp1->type = FILP_TYPE_PIPE;
+              
+              filp1->type = FILP_TYPE_VNODE;
               filp1->u.vnode = vnode;
               filp1->offset = 0;
               filp1->flags = O_WRONLY;
               
+              // TODO: counts are number of filps refering to pipe vnode.
+              // When reader filp is deleted, writers must be awakened (pipe rendez).
+              
               pipe->reader_cnt = 1;
               pipe->writer_cnt = 1;  
 
-              filedesc0->flags = FDF_VALID;
-              filedesc0->filp = filp1;
-              
-              filedesc1->flags = FDF_VALID;
+              filedesc0->filp = filp0;
               filedesc1->filp = filp1;
+
+              vnode_add_reference(vnode);     // Add second reference for filp0.
+              vnode_add_reference(vnode);     // Add second reference for filp1.
+
+              Info("pipe vnode:%08x", (uint32_t)vnode);
+              Info("pipe:%08x", (uint32_t)pipe);
+              Info("fd[0] = %d, fd[1] = %d", fd[0], fd[1]);
+              Info("filedesc0:%08x, filedesc1:%08x", (uint32_t)filedesc0, (uint32_t)filedesc1);
               
               sc = CopyOut(_fd, fd, sizeof fd);
               
               if (sc == 0) {
-                vnode_put(vnode);
-                filp_put(vnode);
+                filedesc0->flags |= FDF_VALID;
+                filedesc1->flags |= FDF_VALID;
+              
+                //vnode_put(vnode);    FIXME: Should we be putting the vnode or not?  Same for filps?
+                //filp_put(filp0);
+                //filp_put(filp1);
                 return 0;
               }
             
+            
+              Info("pipe() failed to copyout fds, discarding");
+              vnode_put(vnode);   // remve second reference
               vnode_discard(vnode);
             } else {
               sc = -ENOMEM;
@@ -176,9 +148,65 @@ int sys_pipe(int *_fd)
     sc = -ENOMEM;
   }
 
+  Error("***** sys_pipe() failed, sc:%d *********", sc);
+
   return sc;
 }
 
+
+/*
+ *
+ */
+struct Pipe *alloc_pipe(void)
+{
+  struct Pipe *pipe;
+  
+  Info("alloc_pipe()");
+    
+  pipe = LIST_HEAD(&free_pipe_list);
+  
+  if (pipe == NULL) {
+    Error("alloc_pipe, failed, list empty");
+    return NULL;
+  }
+  
+  LIST_REM_HEAD(&free_pipe_list, link);
+
+  pipe->w_pos = 0;
+  pipe->r_pos = 0;
+  pipe->data_sz = 0;
+  pipe->free_sz = PIPE_BUF_SZ;
+  
+  pipe->reader_cnt = 0;
+  pipe->writer_cnt = 0;
+  
+  pipe->data = kmalloc_page();
+  
+  if (pipe->data == NULL) {
+    Error("alloc_pipe() failed to allocate buffer page");
+    LIST_ADD_HEAD(&free_pipe_list, pipe, link);
+    return NULL;
+  }   
+  
+  InitRendez(&pipe->rendez);
+  
+  return pipe;
+}
+
+
+/*
+ *
+ */
+void free_pipe(struct Pipe *pipe)
+{
+  KASSERT(pipe != NULL);
+  
+  Info("free_pipe()");
+  
+  kfree_page(pipe->data);
+
+  LIST_ADD_HEAD(&free_pipe_list, pipe, link);
+}
 
 
 /*
@@ -202,7 +230,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
   
   pipe = vnode->pipe;
   
-  while (nbytes_read == 0 && status == 0) {         
+  while (nbytes_read == 0 && status == 0) {
     remaining = sz - nbytes_read;
 
     Info ("..Pipe read remaining = %d, data_sz = %d, vref = %d", remaining, pipe->data_sz, vnode->reference_cnt);
@@ -212,6 +240,10 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     }
     
     while (pipe->data_sz == 0 && pipe->writer_cnt > 0) {
+      Info("pipe->free_sz = %d", pipe->free_sz);
+      Info("pipe->data_sz = %d", pipe->data_sz);
+      Info("pipe->reader_cnt = %d", pipe->reader_cnt);
+      Info("pipe->writer_cnt = %d", pipe->writer_cnt);
       Info ("..Pipe read sleeping");
       TaskSleep (&pipe->rendez);
     }
@@ -231,7 +263,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     if ((pipe->r_pos + nbytes_to_copy) > PIPE_BUF_SZ) {
       sz1 = PIPE_BUF_SZ - pipe->r_pos;
 
-      if (CopyOut (dst, pipe->data + pipe->r_pos, sz1) != 0) {
+      if (CopyOut(dst, pipe->data + pipe->r_pos, sz1) != 0) {
         Info("pipe read, copyout -a- failed");
 
         status = -EIO;
@@ -246,7 +278,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     }
     
     if (sz2) {
-      if (CopyOut (dst, pipe->data, sz2) != 0) {
+      if (CopyOut(dst, pipe->data, sz2) != 0) {
         Info("pipe read, copyout -b- failed");
         status = -EIO;
         break;
@@ -285,7 +317,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
 
   KASSERT(vnode != NULL);
 
-  Info("write_to_pipe src:%08x, sz:$d", (uint32_t)_src, sz);
+  Info("write_to_pipe src:%08x, sz:%d", (uint32_t)_src, sz);
   
   pipe = vnode->pipe;
 
@@ -301,6 +333,12 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
 
     while (pipe->free_sz < PIPE_BUF && pipe->reader_cnt > 0) {
       Info ("..Pipe write sleeping");
+      Info("pipe->free_sz = %d", pipe->free_sz);
+      Info("pipe->data_sz = %d", pipe->data_sz);
+      
+      Info("pipe->reader_cnt = %d", pipe->reader_cnt);
+      Info("pipe->writer_cnt = %d", pipe->writer_cnt);
+
       TaskSleep (&pipe->rendez);
     }
 
@@ -315,7 +353,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
     if ((pipe->w_pos + nbytes_to_copy) > PIPE_BUF_SZ) {
       sz1 = PIPE_BUF_SZ - pipe->w_pos;   
 
-      if (CopyIn (pipe->data + pipe->w_pos, src, sz1) != 0) {
+      if (CopyIn(pipe->data + pipe->w_pos, src, sz1) != 0) {
         Info("pipe write, copyin -a- failed");
         status = -EIO;
         break;
@@ -329,7 +367,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
     }
   
     if (sz2) {
-      if (CopyIn (pipe->data, src2, sz2) != 0) {
+      if (CopyIn(pipe->data, src2, sz2) != 0) {
         Info("pipe write, copyin -b- failed");
 
         status = -EIO;

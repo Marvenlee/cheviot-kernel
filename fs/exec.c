@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
@@ -83,6 +83,8 @@ int sys_exec(char *_path, struct execargs *_args)
   
   if (filp == NULL) {
     lookup_cleanup(&ld);
+
+    Info("sys_exec() -EBADF");
     return -EBADF;
   }
   
@@ -495,7 +497,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
 /*
  *
  */
-ssize_t read_file (int fd, off_t offset, void *vaddr, size_t sz)
+ssize_t read_file(int fd, off_t offset, void *vaddr, size_t sz)
 {
   size_t nbytes_read;
   

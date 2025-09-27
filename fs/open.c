@@ -17,7 +17,7 @@
  * Open or create a file
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -118,20 +118,26 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
     rwlock(&dvnode->lock, LK_EXCLUSIVE);
     
     if ((sc = vfs_create(dvnode, ld->last_component, oflags, &stat, &vnode)) != 0) {
-      Error("SysOpen vnode_put vfs_create");
+      Error("SysOpen vfs_create error, sc:%d", sc);
       rwlock(&dvnode->lock, LK_RELEASE);
       return sc;
     }
     
     rwlock(&dvnode->lock, LK_RELEASE);
   }
+
   
   rwlock(&vnode->lock, LK_EXCLUSIVE);
    
-  fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
+  Info("do_open calling fd_alloc()");
+  
+  fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
+  
+  Info("do_open, alloced fd, fd: %d", fd);
   
   if (fd < 0) {
     rwlock(&vnode->lock, LK_RELEASE);
+    Error("do_open failed to alloc filedesc -ENOMEM");
     return -ENOMEM;
   }
 
@@ -140,6 +146,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   if (filp == NULL) {
     fd_free(current, fd);
     rwlock(&vnode->lock, LK_RELEASE);
+    Error("do_open failed to alloc filp -ENOMEM");
     return -ENOMEM;
   }
 
@@ -163,6 +170,9 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
         fd_free(current, fd);
 
         rwlock(&vnode->lock, LK_RELEASE);
+
+        Error("do_open truncate failed, sc = %d", sc);
+
         return sc;
       }
     }
@@ -174,7 +184,12 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
     filp->offset = 0;
   }
 
+  if (oflags & O_CLOEXEC) {
+    filedesc->flags |= FD_CLOEXEC;
+  }
+
   rwlock(&vnode->lock, LK_RELEASE);
+
   vnode_add_reference(vnode);
   
   filedesc->filp = filp;

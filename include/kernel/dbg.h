@@ -96,23 +96,30 @@
 
 
 /*
- * Kernel debugging functions.  Shouldn't be called directly, instead use the
- * macros above.
+ * Kernel debugging functions.
  */
 
+// debug/debug.c
 void SysDebug(char *s);
-
 void DoLog(const char *format, ...);
 void KLog2(const char *format, va_list ap);
 void PrintKernelPanic(char *format, ...);
 void KLogToScreenDisable(void);
-
 void NotifyLoggerProcessesInitialized(void);
-
-void PrintUserContext(struct UserContext *uc);
+void PrintUserContext(void *user_context);
 void PrintMemDump(uint32_t base, size_t word_cnt);
 
+// debug/dumpkerneltables.c
+int sys_dumpkerneltables(int cmd, int arg1, int arg2);
+void dump_kernel_processes(int cmd, int arg1, int arg2);
+void dump_kernel_filps(int cmd, int arg1, int arg2);
+void dump_kernel_vnodes(int cmd, int arg1, int arg2);
+void dump_kernel_superblocks(int cmd, int arg1, int arg2);
+void dump_kernel_kqueues(int cmd, int arg1, int arg2);
 
-void LogFDs(void);
+// <board>/debug.c
+void arch_debug_init(void);
+void arch_debug_print_char(char ch);
+void arch_debug_print_user_context(void *user_context);
 
 #endif

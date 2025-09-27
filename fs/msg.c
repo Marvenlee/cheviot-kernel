@@ -253,11 +253,11 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   struct Process *current_proc;
   struct SuperBlock *sb;
   struct Msg *msg;
-  size_t nbytes_to_write;
-  ssize_t nbytes_written;
-  size_t buf_remaining;
-  size_t iov_remaining;
-  off_t iov_offset;
+  ssize_t nbytes_written;       // nbytes_transferred
+  size_t nbytes_to_write;       // TODO: Rename chunk_size
+  size_t buf_remaining;         // TODO: Rename src_buf_remaining
+  size_t iov_remaining;         // TODO: Rename dst_iov_remaining
+  off_t iov_offset;             // TODO: Rename dst_iov_offset
   int i;
   int sc;
 
@@ -585,6 +585,7 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
   }
 
   if (check_access(vnode, filp, X_OK) != 0) {
+    Info("sys_sendio - check access X_OK failed");
     return -EACCES;
   }
 
@@ -799,7 +800,7 @@ struct Msg *kgetmsg(struct MsgPort *msgport)
   struct Msg *msg;
 
   if (msgport->flags & MPF_SHUTDOWN) {
-    return -ECONNABORTED;
+    return NULL;
   }
     
   msg = LIST_HEAD(&msgport->pending_msg_list);

@@ -68,6 +68,8 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   vnode->char_read_busy = false;
   TaskWakeupAll(&vnode->rendez);
 
+  Info("read_from_char(dst:%08x, sz:%d) xfered:%d", (uint32_t)dst, sz, xfered);
+
   return xfered;
 }
 
@@ -138,6 +140,8 @@ int sys_isatty(int fd)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
+    Info("sys_isatty() -EBADF");
+
     return -EBADF;
   }
 
@@ -148,6 +152,7 @@ int sys_isatty(int fd)
   }
 
   if (check_access(vnode, filp, R_OK) != 0) {
+    vnode_put(vnode);
     return -EACCES;
   }
 
@@ -158,8 +163,10 @@ int sys_isatty(int fd)
   } else {
   	sc = 0;
   }
+
   
   rwlock(&vnode->lock, LK_RELEASE);
+  vnode_put(vnode);
 
   return sc;
 }
@@ -170,7 +177,7 @@ int sys_isatty(int fd)
  */
 int tty_fg_pgrp_check(struct VNode *vnode)
 {
-#if 0
+#if 0   // TODO: tty_fg_pgrp_check
   if (vnode->isatty == true && vnode->tty_pgrp != current-pgrp) {
     do_signal_thread(current, SIG);
     return -EPERM;
@@ -216,6 +223,8 @@ int ioctl_tiocsctty(int fd, int arg)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
+    Info("ioctl_tiocsctty() -EBADF");
+
     return -EBADF;
   }
 
@@ -276,6 +285,8 @@ int ioctl_tiocnotty(int fd)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
+    Info("ioctl_tiocnotty() -EBADF");
+
     return -EBADF;
   }
 
@@ -331,6 +342,7 @@ int ioctl_tiocgsid(int fd, pid_t *_sid)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
+    Info("ioctl_tiocgsid() -EBADF");
     return -EBADF;
   }
 
@@ -385,6 +397,8 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
+    Info("ioctl_tiocgpgrp() -EBADF");
+
     return -EBADF;
   }
 
@@ -395,6 +409,7 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
+    vnode_put(vnode);
     return -EINVAL;
   }
 
@@ -406,6 +421,7 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   }
 
   if (current->sid != session->sid) {
+    vnode_put(vnode);
     return -EPERM;
   }
 
@@ -438,6 +454,7 @@ int ioctl_tiocspgrp(int fd, pid_t *_pgid)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
+    Info("ioctl_tiocspgrp() -EBADF");
     return -EBADF;
   }
 
@@ -448,10 +465,12 @@ int ioctl_tiocspgrp(int fd, pid_t *_pgid)
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
+    vnode_put(vnode);
     return -EINVAL;
   }
 
   if (CopyIn(&pgid, _pgid, sizeof pgid) != 0) {
+    vnode_put(vnode);
     return -EFAULT;
   }
 

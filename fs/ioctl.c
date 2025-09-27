@@ -45,6 +45,7 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
   filp = filp_get(current, fd);
   
   if (filp == NULL) {
+    Info("sys_ioctl() -EBADF");
     return -EBADF;
   }
   

@@ -17,7 +17,7 @@
  * File system pathname lookup and conversion to vnodes.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -69,7 +69,7 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
     // What if it is path/. ?
     // Need to throw an error, we are looking for a path and a last component, path/. is not valid
     return 0;
-
+  
   } else if (flags & LOOKUP_REMOVE) {
     Error("Lookup remove failed");
     return -ENOTSUP;        
@@ -96,10 +96,13 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
                 
     rc = lookup_last_component(ld);
 
-    if (ld->parent != ld->vnode)            
-    {
+//    if (ld->parent != ld->vnode)            
+//    {
+      Info("lookup() vnode_put of ld->parent before returning");
       vnode_put(ld->parent);
-    }
+//    }
+  
+    ld->parent = NULL;   // FIXME: Added 22 sept MG
     
     Info ("lookup rc=%d", rc);
     return rc;
@@ -120,13 +123,13 @@ void lookup_cleanup(struct lookupdata *ld)
   }
   
   if (ld->vnode != NULL) {
-    Info("..ld->vnode put");
+    Info("..lookup_cleanup vnode:%08x", (uint32_t)ld->vnode);
     vnode_put(ld->vnode);
     ld->vnode = NULL;
   }
 
   if (ld->parent != NULL) {
-    Info("..ld->parent put");
+    Info("..lookup_cleanup parent:%08x", (uint32_t)ld->parent);
     vnode_put(ld->parent);
     ld->parent = NULL;
   }
@@ -245,6 +248,8 @@ int lookup_path(struct lookupdata *ld)
     Info ("lookup_path last_component:%s", ld->last_component);
     
     if (ld->parent != NULL) {
+      Info("lookup_path A vnode_put ld->parent %08x", (uint32_t)ld->parent);
+    
       vnode_put(ld->parent);
       ld->parent = NULL;
     }  
@@ -260,6 +265,8 @@ int lookup_path(struct lookupdata *ld)
     rc = walk_component(ld);
 
     if (rc != 0) {
+      Info("lookup_path B vnode_put ld->parent %08x", (uint32_t)ld->parent);
+
       vnode_put(ld->parent);
       ld->parent = NULL;
       break;
@@ -279,6 +286,8 @@ int lookup_path(struct lookupdata *ld)
 int lookup_last_component(struct lookupdata *ld)
 {
   int rc;
+ 
+  Info("lookup_last_component");
  
   KASSERT(ld->parent != NULL);
     
@@ -414,6 +423,7 @@ int walk_component(struct lookupdata *ld)
     } else if (ld->parent->vnode_covered != NULL) {
       vnode_add_reference(ld->parent->vnode_covered);
   
+      Info("walk_comp - vnode_put Z parent:%08x", (uint32_t)ld->parent);
       vnode_put(ld->parent);
       ld->parent = ld->parent->vnode_covered;
     }
@@ -455,12 +465,14 @@ int walk_component(struct lookupdata *ld)
         }
 
         if (vnode_mounted_here == NULL) {
+          Warn("vnode_mounted_here is null, vnode_put A vnode:%08x", (uint32_t)ld->vnode);
           vnode_put(ld->vnode);
           ld->vnode = NULL;
-          Warn("vnode_mounted_here is null");
           return -EPERM;
         }
       }
+
+      Info("walk_comp vnode_put B ld->vnode %08x", (uint32_t)ld->vnode);
 
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
@@ -468,6 +480,8 @@ int walk_component(struct lookupdata *ld)
 //      rwlock(ld->vnode, LK_SHARED);
       
     } else {
+      Info("walk_comp vnode_put C ld->vnode %08x", (uint32_t)ld->vnode);
+
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
       vnode_add_reference(ld->vnode);

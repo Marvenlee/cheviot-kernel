@@ -1,11 +1,20 @@
 #ifndef KERNEL_LISTS_H
 #define KERNEL_LISTS_H
 
+/* @brief   LIST_ASSERT_ENABLE
+ *
+ * Define to enable additional checks on linked list operations
+ * Currently this is only for plain LIST macros
+ */
+
+
+#ifndef LIST_ASSERT_ENABLE
+
 /* -----------------------------------------------------------------------------
 ** SYNOPSIS
 **
 ** Double linked list with head and tail pointers in the header.
-**
+** No additional space or error checking is applied.
 ** -----------------------------------------------------------------------------
 */
 
@@ -150,6 +159,179 @@
     else                                                                       \
       (header)->tail = (entry)->field.prev;                                    \
   };
+
+
+#else /* LIST_ASSERT_ENABLE */
+
+#include <kernel/dbg.h>
+
+/* -----------------------------------------------------------------------------
+** SYNOPSIS
+**
+** Double linked list with head and tail pointers in the header.
+** Additional header field and assertions are enabled.
+** -----------------------------------------------------------------------------
+*/
+
+#define LIST_INITIALIZER                                                       \
+  { NULL, NULL, NULL }
+
+#define LIST_TYPE(type, headertype, entrytype)                                 \
+  typedef struct {                                                             \
+    struct type *head;                                                         \
+    struct type *tail;                                                         \
+  } headertype;                                                                \
+                                                                               \
+  typedef struct {                                                             \
+    struct type *next;                                                         \
+    struct type *prev;                                                         \
+    struct headertype *header;                                                 \
+  } entrytype
+
+#define LIST(type, header)                                                     \
+  struct {                                                                     \
+    struct type *head;                                                         \
+    struct type *tail;                                                         \
+  } header
+
+#define LIST_DECLARE(name, type)                                               \
+  struct name {                                                                \
+    struct type *head;                                                         \
+    struct type *tail;                                                         \
+  }
+
+#define LIST_DEFINE(name) struct name
+
+#define LIST_ENTRY(type, entry)                                                \
+  struct {                                                                     \
+    struct type *next;                                                         \
+    struct type *prev;                                                         \
+    struct headertype *header;                                                 \
+  } entry
+
+#define LIST_INIT(header)                                                      \
+  {                                                                            \
+    (header)->head = NULL;                                                     \
+    (header)->tail = NULL;                                                     \
+  }
+
+#define LIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
+
+#define LIST_HEAD(header) ((header)->head)
+
+#define LIST_TAIL(header) ((header)->tail)
+
+#define LIST_NEXT(entry, field) ((entry)->field.next)
+
+#define LIST_PREV(entry, field) ((entry)->field.prev)
+
+#define LIST_ADD_HEAD(header, new_head, field)                                 \
+  {                                                                            \
+    KASSERT((new_header->field.header == NULL)                                 \
+                                                                               \
+    (new_head)->field.next = (header)->head;                                   \
+    (new_head)->field.prev = NULL;                                             \
+    (new_head)->field.header = header;                                         \
+                                                                               \
+    if ((header)->head != NULL)                                                \
+      (header)->head->field.prev = new_head;                                   \
+    else                                                                       \
+      (header)->tail = new_head;                                               \
+                                                                               \
+    (header)->head = new_head;                                                 \
+  }
+
+#define LIST_ADD_TAIL(header, new_tail, field)                                 \
+  {                                                                            \
+    KASSERT((new_header->field.header == NULL)                                 \
+                                                                               \
+    (new_tail)->field.next = NULL;                                             \
+    (new_tail)->field.prev = (header)->tail;                                   \
+    (new_head)->field.header = header;                                         \
+                                                                               \
+    if ((header)->tail != NULL)                                                \
+      (header)->tail->field.next = new_tail;                                   \
+    else                                                                       \
+      (header)->head = new_tail;                                               \
+    (header)->tail = new_tail;                                                 \
+  }
+
+#define LIST_REM_HEAD(header, field)                                           \
+  {                                                                            \
+    KASSERT(header)->head != NULL);                                            \
+    KASSERT(header)->tail != NULL);                                            \
+                                                                               \
+    (header)->head->field.header = NULL;                                       \
+    (header)->head = (header)->head->field.next;                               \
+    if ((header)->head != NULL)                                                \
+      (header)->head->field.prev = NULL;                                       \
+    else                                                                       \
+      (header)->tail = NULL;                                                   \
+  }
+
+#define LIST_REM_TAIL(header, field)                                           \
+  {                                                                            \
+    KASSERT(header)->tail != NULL);                                            \
+    KASSERT(header)->head != NULL);                                            \
+                                                                               \
+    (header)->tail->field.header = NULL;                                       \
+    (header)->tail = (header)->tail->field.prev;                               \
+    if ((header)->tail != NULL)                                                \
+      (header)->tail->field.next = NULL;                                       \
+    else                                                                       \
+      (header)->head = NULL;                                                   \
+  }
+
+#define LIST_INSERT_AFTER(header, prev_entry, new_entry, field)                \
+  {                                                                            \
+    KASSERT(prev_entry != NULL);                                               \
+    KASSERT(new_entry != NULL);                                                \
+    KASSERT((new_entry)->field.header == NULL);                                \
+                                                                               \
+    (new_entry)->field.next = (prev_entry)->field.next;                        \
+    (new_entry)->field.prev = prev_entry;                                      \
+    (new_entry)->field.header = header;                                        \
+    (prev_entry)->field.next = new_entry;                                      \
+    if ((new_entry)->field.next != NULL)                                       \
+      (new_entry)->field.next->field.prev = new_entry;                         \
+    else                                                                       \
+      (header)->tail = new_entry;                                              \
+  }
+
+#define LIST_INSERT_BEFORE(header, next_entry, new_entry, field)               \
+  {                                                                            \
+    KASSERT(next_entry != NULL);                                               \
+    KASSERT(new_entry != NULL);                                                \
+    KASSERT((new_entry)->field.header == NULL);                                \
+                                                                               \
+    (new_entry)->field.prev = (next_entry)->field.prev;                        \
+    (new_entry)->field.next = next_entry;                                      \
+    (new_entry)->field.header = header;                                        \
+    (next_entry)->field.prev = new_entry;                                      \
+    if (((new_entry)->field.prev) != NULL) {                                   \
+      (new_entry)->field.prev->field.next = new_entry;                         \
+    } else {                                                                   \
+      (header)->head = new_entry;                                              \
+    }                                                                          \
+  }
+
+#define LIST_REM_ENTRY(header, entry, field)                                   \
+  {                                                                            \
+    KASSERT((entry)->field.header == header);                                  \
+                                                                               \
+    (entry)->field.header = NULL;                                              \
+    if ((entry)->field.prev != NULL)                                           \
+      (entry)->field.prev->field.next = (entry)->field.next;                   \
+    else                                                                       \
+      (header)->head = (entry)->field.next;                                    \
+    if ((entry)->field.next != NULL)                                           \
+      (entry)->field.next->field.prev = (entry)->field.prev;                   \
+    else                                                                       \
+      (header)->tail = (entry)->field.prev;                                    \
+  };
+
+#endif
+
 
 /* -----------------------------------------------------------------------------
 ** SYNOPSIS

@@ -33,14 +33,11 @@
  */
 int sys_access(char *pathname, mode_t amode)
 {
-  struct Process *current;
   struct lookupdata ld;
   struct VNode *vnode;
   int sc;
 
   Info("sys_access()");
-
-  current = get_current_process();
 
   if ((sc = lookup(pathname, 0, &ld)) != 0) {
     return sc;
@@ -192,6 +189,7 @@ int sys_fchmod(int fd, mode_t mode)
     return -EINVAL;
   }
   
+  Info("sys_fchmod() - EBADF, fd:%d", fd);
   return -EBADF;
 }
 
@@ -208,6 +206,8 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
   struct Process *current;
 
   current = get_current_process();
+
+  filp = filp_get(current, fd);
 
   if (filp) {
     vnode = vnode_get_from_filp(filp);
@@ -238,6 +238,8 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     return -EINVAL;
   }
 
+  Info("sys_fchown() - EBADF, fd:%d", fd);
+
   return -EBADF;
 }
 
@@ -258,17 +260,22 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   int shift;
   struct Process *current;
   
-  Info("check_access");
+//  Info("check_access(vnode:%08x, filp:%08x, bits:%0o)",
+//                    (uint32_t)vnode, (uint32_t)filp, (uint32_t)desired_access);
   
   current = get_current_process();
   
+//  Info("current->euid = %d, superuser is %d", current->euid, SUPERUSER);
+  
   if (current->euid == SUPERUSER) {
+//    Info("euid is superuser");
     return 0;
   }
   
   desired_access &= (R_OK | W_OK | X_OK);
 
   if ((desired_access & W_OK) && (vnode->superblock->flags & SBF_READONLY)) {
+    Error("access -EPERM desired W_OK && SBF_READLONLY");
     return -EPERM;
   }
 
@@ -277,6 +284,8 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
     
     if ((access_mode == O_RDONLY && (desired_access & W_OK)) ||
         (access_mode == O_WRONLY && (desired_access & R_OK))) {
+
+      Error("access -EPERM desired x_OK but access_mode is either rdonly or wronly");
       return -EPERM;
     }
   }
@@ -315,6 +324,7 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
     return 0;
   }
   
+  Info ("check_access end -EACCES");
   return -EACCES;
 }
 

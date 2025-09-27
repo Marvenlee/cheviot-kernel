@@ -91,6 +91,8 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
       return -ENOMEM;
     }
 
+    vnode_add_reference(vnode);
+
     vnode->nlink = reply.args.lookup.nlink;           // FIXME: Need to get nlink.
     vnode->size = reply.args.lookup.size;      
     vnode->uid = reply.args.lookup.uid;  
@@ -159,11 +161,13 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
     return -ENOMEM;
   }
 
+  vnode_add_reference(vnode);
+
   // TODO: Update nlink of vnode and dvnode
   // dvnode->nlink = reply.args.create.parent_nlink;      
   // vnode->nlink = reply.args.create.inode_nlink;
   vnode->nlink = 1;           // FIXME: Need to get nlink. 
-  vnode->reference_cnt = 1;
+//  vnode->reference_cnt = 1;
   vnode->size = reply.args.create.size;      
   vnode->uid = reply.args.create.uid;  
   vnode->gid = reply.args.create.gid;
@@ -363,9 +367,11 @@ int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
   // dvnode->nlink = reply.args.mknod.parent_nlink;
   // vnode->nlink = reply.args.mknod.inode_nlink;
 
+  vnode_add_reference(vnode);
+
   vnode->nlink = 1;      
 
-  vnode->reference_cnt = 1;
+//  vnode->reference_cnt = 1;
   vnode->size = reply.args.mknod.size;      
   vnode->uid = reply.args.mknod.uid;  
   vnode->gid = reply.args.mknod.gid;
@@ -424,9 +430,11 @@ int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat)
   // dvnode->nlink = reply.args.mkdir.parent_nlink;      
   // vnode->nlink = reply.args.mkdir.inode_nlink;      
 
+  vnode_add_reference(vnode);
+
   vnode->nlink = 1;
   
-  vnode->reference_cnt = 1;
+//  vnode->reference_cnt = 1;
   vnode->size = reply.args.mkdir.size;      
   vnode->uid = reply.args.mkdir.uid;  
   vnode->gid = reply.args.mkdir.gid;

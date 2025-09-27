@@ -36,7 +36,7 @@
 int init_fproc(struct Process *proc)
 {
   Info("init_fproc(proc:%08x)", (uint32_t)proc);
-  Info("open_max = %d", OPEN_MAX);
+  Info("FILEDESC_MAX = %d", FILEDESC_MAX);
 
 /*  
   fproc = kmalloc_page();
@@ -60,9 +60,9 @@ int init_fproc(struct Process *proc)
   proc->fproc.current_dir = NULL;
   proc->fproc.root_dir = NULL;
 
-  for (int t=0; t<OPEN_MAX; t++) {  
+  for (int t=0; t<FILEDESC_MAX; t++) {  
     proc->fproc.fd_table[t].filp = NULL;
-    proc->fproc.fd_table[t].flags = FDF_NONE;    
+    proc->fproc.fd_table[t].flags = 0;    
   }
 
   Info("fproc fd table initialized");
@@ -80,7 +80,7 @@ int init_fproc(struct Process *proc)
  */
 int fini_fproc(struct Process *proc)
 {  
-  for (int fd = 0; fd < OPEN_MAX; fd++) {
+  for (int fd = 0; fd < FILEDESC_MAX; fd++) {
       do_close(proc, fd);
   }
   

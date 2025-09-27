@@ -17,7 +17,7 @@
  * Event notification system for files, events and other kernel objects
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -48,7 +48,7 @@ int sys_kqueue(void)
   current = get_current_process();
 
 
-  fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
+  fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
  
   Info("fd allocated: %d", fd);
  
@@ -110,7 +110,7 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   struct timespec *timeoutp;
   int sc = 0;
   
-  Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
+//  Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
   
   current = get_current_process();
   current_thread = get_current_thread();
@@ -130,11 +130,11 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   }
   
   while (kqueue->busy == true) {
-    Info("kqueue busy, sleeping");
+//    Info("kqueue busy, sleeping");
     TaskSleep(&kqueue->busy_rendez);
   }
   
-  Info("kqueue acquired");
+//  Info("kqueue acquired");
   kqueue->busy = true;
   
   // Processing of adding/removing/enabling and disabling events.  
@@ -251,11 +251,11 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   }
   
   if (sc != 0) {
-    Info("kqueue A sc:%d", sc);  
+//    Info("kqueue A sc:%d", sc);  
     return sc;
   }
   
-  Info("kevent: events:%d", nevents_returned);
+//  Info("kevent: events:%d", nevents_returned);
   return nevents_returned;
 
 exit:
@@ -267,7 +267,7 @@ exit:
   }
 
 
-  Info("kqueue B sc:%d", sc);  
+//  Info("kqueue B sc:%d", sc);  
   return sc;
 }
 
@@ -371,7 +371,7 @@ int knote(knote_list_t *knote_list, int hint)    // hint should be bitfield, add
 
   knote = LIST_HEAD(knote_list);
  
-  Info("knote(list:%08x, hint:%d) knote:%08x", (uint32_t)knote_list, hint, (uint32_t)knote);
+//  Info("knote(list:%08x, hint:%d) knote:%08x", (uint32_t)knote_list, hint, (uint32_t)knote);
   
   while(knote != NULL) {
     knote->pending = true;
@@ -405,7 +405,7 @@ int knote_dequeue(knote_list_t *knote_list, int filter)    // add hint, should b
 
   knote = LIST_HEAD(knote_list);
   
-  Info("knote_dequeue(list:%08x, filter:%d) knote:%08x", (uint32_t)knote_list, filter, (uint32_t)knote);
+//  Info("knote_dequeue(list:%08x, filter:%d) knote:%08x", (uint32_t)knote_list, filter, (uint32_t)knote);
   
   while(knote != NULL) {
     if (knote->filter == filter) {
@@ -456,7 +456,7 @@ struct KQueue *get_kqueue(struct Process *proc, int fd)
 {
   struct Filp *filp;
   
-  Info("get_kqueue(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+//  Info("get_kqueue(proc:%08x, fd:%d)", (uint32_t)proc, fd);
   
   filp = filp_get(proc, fd);
   
@@ -478,6 +478,8 @@ struct KQueue *get_kqueue(struct Process *proc, int fd)
 struct KQueue *alloc_kqueue(void)
 {
   struct KQueue *kqueue;
+
+  Info("alloc_kqueue()");
 
   kqueue = LIST_HEAD(&kqueue_free_list);
 
@@ -540,7 +542,7 @@ int alloc_knote(struct KQueue *kqueue, struct kevent *ev, struct KNote **rknote)
   
   LIST_REM_HEAD(&knote_free_list, link);  
   
-  Info ("new knote addr: %08x", (uint32_t)knote);
+//  Info ("new knote addr: %08x", (uint32_t)knote);
   
   memset(knote, 0, sizeof *knote);
   
@@ -553,11 +555,11 @@ int alloc_knote(struct KQueue *kqueue, struct kevent *ev, struct KNote **rknote)
   knote->udata = ev->udata;
  
  
-  Info("alloc knote->kqueue = %08x", (uint32_t)kqueue);
-  Info("alloc knote->ident = %d", ev->ident);
-  Info("alloc knote->filter = %d", ev->filter);
-  Info("alloc knote->flags = %08x", ev->flags);
-  Info("alloc knote->fflags = %08x", ev->fflags);
+//  Info("alloc knote->kqueue = %08x", (uint32_t)kqueue);
+//  Info("alloc knote->ident = %d", ev->ident);
+//  Info("alloc knote->filter = %d", ev->filter);
+//  Info("alloc knote->flags = %08x", ev->flags);
+//  Info("alloc knote->fflags = %08x", ev->fflags);
   
     
   knote->enabled = false;
@@ -674,7 +676,7 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
   struct Process *current;
   struct Thread *thread;
   
-  Info("free_knote(kq:%08x, kn:%08x", (uint32_t)kqueue, (uint32_t)knote);
+//  Info("free_knote(kq:%08x, kn:%08x", (uint32_t)kqueue, (uint32_t)knote);
   
   current = get_current_process();
   
@@ -725,7 +727,7 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
     case EVFILT_THREAD_EVENT:
       thread = get_thread(knote->ident);
 
-       Info("free kn EVFILT_THREAD_EVENT thread:%08x", (uint32_t)thread);
+//       Info("free kn EVFILT_THREAD_EVENT thread:%08x", (uint32_t)thread);
       
       if (thread) {
         knote->object = NULL;

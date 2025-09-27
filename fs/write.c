@@ -57,8 +57,10 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-      rwlock(&vnode->lock, LK_EXCLUSIVE);
-      
+ //     rwlock(&vnode->lock, LK_EXCLUSIVE);
+     
+      Info("sys_write - check access W_OK");
+
       if (check_access(vnode, filp, W_OK) == 0) {        
         if (S_ISCHR(vnode->mode)) {
           retval = write_to_char(vnode, src, sz);  
@@ -74,13 +76,13 @@ ssize_t sys_write(int fd, void *src, size_t sz)
           retval = -EINVAL;
         }  
                 
-        rwlock(&vnode->lock, LK_RELEASE);
+//        rwlock(&vnode->lock, LK_RELEASE);
         vnode_put(vnode);
         filp_put(filp);        
         return retval;
       }
       
-      rwlock(&vnode->lock, LK_RELEASE);
+//      rwlock(&vnode->lock, LK_RELEASE);
       vnode_put(vnode);
       retval = -EACCES;
     } else {
@@ -89,6 +91,8 @@ ssize_t sys_write(int fd, void *src, size_t sz)
 
     filp_put(filp);
   } else {
+    Info("sys_write() -EBADF a");
+
     retval = -EBADF;
   }
   
@@ -131,7 +135,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     vnode = vnode_get_from_filp(filp);
     
     if (vnode) {
-      rwlock(&vnode->lock, LK_EXCLUSIVE);
+//      rwlock(&vnode->lock, LK_EXCLUSIVE);
 
       if (check_access(vnode, filp, R_OK) == 0) {
         if (S_ISBLK(vnode->mode)) {
@@ -141,14 +145,15 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
             retval = write_to_blockv (vnode, iov, iov_cnt, &offset);
           }   
         } else {
+          Info("sys_pwritev() -EBADF a");
           retval = -EBADF;
         }
           
-        rwlock(&vnode->lock, LK_RELEASE);
+//        rwlock(&vnode->lock, LK_RELEASE);
         vnode_put(vnode);
       }
       
-      rwlock(&vnode->lock, LK_RELEASE);
+//      rwlock(&vnode->lock, LK_RELEASE);
       vnode_put(vnode);      
       retval = -EACCES;
     } else {
@@ -157,6 +162,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
 
     filp_put(filp);
   } else {
+    Info("sys_pwritev() -EBADF b");
     retval = -EBADF;
   }
   

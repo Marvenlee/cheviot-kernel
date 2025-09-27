@@ -8,7 +8,7 @@ include fs/Makefile.am
 include utility/Makefile.am
 include vm/Makefile.am
 include socket/Makefile.am
-
+include debug/Makefile.am
 
 if BOARD_RASPBERRY_PI_1
 

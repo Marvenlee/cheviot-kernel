@@ -17,7 +17,7 @@
  * Vnode handling.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -27,20 +27,6 @@
 #include <kernel/types.h>
 #include <string.h>
 #include <kernel/kqueue.h>
-
-
-/* @brief   Lookup a vnode from a file pointer
- *
- * @param   filp, file pointer object that points to the vnode
- */
-struct VNode *vnode_get_from_filp(struct Filp *filp)
-{
-  if (filp == NULL || filp->type != FILP_TYPE_VNODE) {
-    return NULL;
-  }
-  
-  return filp->u.vnode;
-}
 
 
 /* @brief   Close a file descriptor reference to a open file
@@ -58,23 +44,37 @@ int close_vnode(struct VNode *vnode, uint32_t filp_flags)
 
   Info("close_vnode(vnode:%08x)", (uint32_t)vnode);
 
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
+//  rwlock(&vnode->lock, LK_EXCLUSIVE);
 
   if (S_ISREG(vnode->mode)) {
-    bsyncv(vnode);            
+    Info("close_vnode reg file");
+    bsyncv(vnode);
+    vnode_put(vnode);
   } else if (S_ISFIFO(vnode->mode)) {
+    Info("close_vnode pipe");
+    Info(".. reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+    
     pipe = vnode->pipe;
+
+    // TODO: reader/writer count is a count of filps (should be 1 reader and 1 writer filp). 
+    // TODO: Need to check if close_vnode is only being called when filp was freed.
+    
     if (filp_flags & O_RDONLY) {
       pipe->reader_cnt--;
     } else {
       pipe->writer_cnt--;
     }
+    
+    if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
+      free_pipe(pipe);
+      vnode_discard(vnode);
+    }
+  } else {
+    vnode_put(vnode);
   }
   
-  vnode_put(vnode);             // vnode_put() does the actual cleanup when ref / link counts reach 0.
-  
   // Vnode object is static, we can release its lock here
-  rwlock(&vnode->lock, LK_RELEASE);
+//  rwlock(&vnode->lock, LK_RELEASE);
   
   return 0;
 }
@@ -96,7 +96,7 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 
   KASSERT(sb != NULL);
 
-//  Info("vnode_new(sb:%08x)", (uint32_t)sb);
+  Info("vnode_new(sb:%08x)", (uint32_t)sb);
 
   if (sb->flags & SBF_ABORT) {
     return NULL;
@@ -120,9 +120,6 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 //  sb->reference_cnt++;
   
 //  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-//  vnode->reference_cnt = 1;
-
 
   // Flush out any existing data and invalidate vnode blocks in cache.
 
@@ -169,6 +166,8 @@ struct VNode *vnode_new(struct SuperBlock *sb)
   vnode->rdev = 0;   // FIXME: rdev
   vnode->nlink = 0;  // hard links count
 
+  vnode->reference_cnt = 0;
+  
   LIST_INIT(&vnode->page_list);
   
   LIST_INIT(&vnode->dname_list);
@@ -195,6 +194,8 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
 
+  Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
+
   KASSERT(sb != NULL);
 
   if (sb->flags & SBF_ABORT) {
@@ -212,30 +213,17 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
     rwlock(&vnode_list_lock, LK_RELEASE);  
     return NULL;
   }
-  
-  vnode->reference_cnt++;
-  sb->reference_cnt++;
+
+  vnode_add_reference(vnode);
 
   if (vnode->flags & V_FREE) {
     LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
   }
 
   rwlock(&vnode_list_lock, LK_RELEASE);  
+
+  Info("vnode_get() gotten vnode:%08x", (uint32_t)vnode);
   return vnode;
-}
-
-
-/*
- * Used to increment reference count of existing VNode.  Used within FChDir so
- * that proc->current_dir counts as reference.
- *
- */
-void vnode_add_reference(struct VNode *vnode)
-{
-  KASSERT(vnode != NULL);
-
-  vnode->reference_cnt++;
-  vnode->superblock->reference_cnt++;
 }
 
 
@@ -251,6 +239,7 @@ void vnode_put(struct VNode *vnode)
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
 
+  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
 //  KASSERT(vnode->lock.exclusive_cnt == 1);
 
   // FIXME: This could cause a deadlock if vnode list is locked by the bdflush daemon and
@@ -258,8 +247,7 @@ void vnode_put(struct VNode *vnode)
   
   rwlock(&vnode_list_lock, LK_EXCLUSIVE);
 
-  vnode->reference_cnt--;  
-  vnode->superblock->reference_cnt--;
+  vnode_dec_reference(vnode);
   
   if (vnode->reference_cnt == 0) {
     
@@ -278,11 +266,39 @@ void vnode_put(struct VNode *vnode)
       vnode->flags |= V_FREE;
       LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
     }
+  } else if (vnode->reference_cnt < 0) {
+    Error("vnode ref_cnt <0, val: %d", vnode->reference_cnt);
+    KernelPanic();
   }
+  
 
   rwlock(&vnode_list_lock, LK_RELEASE);
     
   TaskWakeupAll(&vnode->rendez);
+}
+
+/*
+ * Used to increment reference count of existing VNode.  Used within FChDir so
+ * that proc->current_dir counts as reference.
+ *
+ */
+void vnode_add_reference(struct VNode *vnode)
+{
+  KASSERT(vnode != NULL);
+
+  vnode->reference_cnt++;
+
+  Info("vnode_add_reference(vnode:%08x), new cnt:%d", (uint32_t)vnode, vnode->reference_cnt);
+}
+
+
+void vnode_dec_reference(struct VNode *vnode)
+{
+  KASSERT(vnode != NULL);
+
+  vnode->reference_cnt--;
+
+  Info("vnode_dec_reference(vnode:%08x), new cnt:%d", (uint32_t)vnode, vnode->reference_cnt);
 }
 
 
@@ -293,10 +309,13 @@ void vnode_put(struct VNode *vnode)
 void vnode_discard(struct VNode *vnode)
 {
   struct SuperBlock *sb;
-  
+
+  Info("vnode_discard(vnode:%08x)", (uint32_t)vnode);  
 //  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
 
   // FIXME: rwlock(&vnode->lock, LK_DRAIN);    // Do we need this for vnode_get/vnode_put ?
+  
+  KASSERT(vnode->reference_cnt == 1);
   
   sb = vnode->superblock;
   

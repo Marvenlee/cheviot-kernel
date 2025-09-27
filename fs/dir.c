@@ -43,7 +43,6 @@ int sys_chdir(char *_path)
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     if (S_ISDIR(ld.vnode->mode)) {
-
       if (check_access(ld.vnode, NULL, R_OK) == 0) {
         if (current->fproc.current_dir != NULL) {
           vnode_put(current->fproc.current_dir);
@@ -142,7 +141,8 @@ int sys_opendir(char *_path)
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     if (S_ISDIR(ld.vnode->mode)) {
       if (check_access(ld.vnode, NULL, R_OK) == 0) {
-        fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
+        Info("sys_opendir calling fd_alloc()");
+        fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
 
         if (fd >= 0) {
           filp = filp_alloc();

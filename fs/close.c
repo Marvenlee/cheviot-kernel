@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -47,20 +47,30 @@ int do_close(struct Process *proc, int fd)
   
   Info("do_close(fd:%d)", fd);
 
-  filp = filp_get(proc, fd);
+  if (fd < 0 || fd >= FILEDESC_MAX) {   // TODO:  Add filedesc_find, if null return -einval
+    Error("do_close() fd out of range: %d, -EINVAL", fd);
+    return -EINVAL;
+  }
+
+  filp = filp_get(proc, fd);  // TODO: This does bounds checking too. can we return filedesc too?
+                              // TODO: Or should be replace fd with pointer to filedesc?  
   
   if (filp) {
-    Info("filp:%08x", (uint32_t)filp);
-    Info("filp->reference_cnt = %d", filp->reference_cnt);
+    proc->fproc.fd_table[fd].flags &= ~FDF_VALID;    // Disable access by other user processes to this file descriptor.
+    
+    filp->reference_cnt--;  // Cancel out the temporary increase due to filp_get
+    
+    Info("do_close() filp:%08x, ref_cnt:%d", (uint32_t)filp, filp->reference_cnt);
     
     if (filp->reference_cnt == 1) {   // TODO: Mark filp as not duplicable, mark FD as busy/in-use/locked
-      // TODO:
+            
       switch (filp->type) {
           case FILP_TYPE_VNODE:
           Info("call close_vnode");
           close_vnode(filp->u.vnode, filp->flags);
+                    
           break;
-        case FILP_TYPE_SUPERBLOCK:
+        case FILP_TYPE_SUPERBLOCK:    // TODO: Change to messageport
           Info("call close_superblock");
           close_superblock(filp->u.superblock);
           break;
@@ -72,18 +82,14 @@ int do_close(struct Process *proc, int fd)
           KernelPanic();
       }
 
-      Info("call filp_free()");
       filp_free(filp);
     }
 
-    Info("call fd_free()");
     fd_free(proc, fd);
   } else {
-    Info("do_close() -EBADF");
+//    Info("do_close(fd:%d) - EBADF", fd);
     return -EBADF;
   }
-
-  Info("do_close - success");     
 
   return 0;
 }

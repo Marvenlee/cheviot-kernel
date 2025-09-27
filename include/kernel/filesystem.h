@@ -278,6 +278,7 @@ struct FileDesc
 #define FDF_NONE                0
 
 #define FDF_CLOSE_ON_EXEC       (1<<0)
+#define FDF_ALLOCED             (1<<30)
 #define FDF_VALID               (1<<31)
 
 
@@ -290,8 +291,11 @@ struct FProcess
   struct VNode *root_dir;
 
   struct FileDesc *fd_table;
-
 };
+
+
+// Number of FileDesc entries per process
+#define FILEDESC_MAX    (PAGE_SIZE / sizeof(struct FileDesc))    
 
 
 /* @brief   Lookup state of files to vnodes
@@ -440,7 +444,7 @@ int sys_dup(int h);
 int sys_dup2(int h, int new_h);
 int sys_close(int h);
 int do_close(struct Process *proc, int fd);
-int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd);
+int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd, uint32_t flags);
 int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **filedesc);
 int fd_free(struct Process *proc, int fd);
 int fork_fds(struct Process *newp, struct Process *oldp);
@@ -452,6 +456,7 @@ struct Filp *filp_get(struct Process *proc, int fd);
 void filp_put(struct Filp *filp);
 struct Filp *filp_alloc(void);
 void filp_free(struct Filp *filp);
+struct VNode *vnode_get_from_filp(struct Filp *filp);
 
 /* fs/fproc.c */
 int init_fproc(struct Process *proc);
@@ -497,16 +502,15 @@ int kopen(char *_path, int oflags, mode_t mode);
 int do_open(struct lookupdata *ld, int oflags, mode_t mode);
 
 /* fs/pipe.c */
-void InitPipes(void);
-struct Pipe *AllocPipe(void);
-void FreePipe(struct Pipe *pipe);
+struct Pipe *alloc_pipe(void);
+void free_pipe(struct Pipe *pipe);
 int sys_pipe(int _fd[2]);
-ssize_t read_from_pipe (struct VNode *vnode, void *src, size_t nbytes);
-ssize_t write_to_pipe (struct VNode *vnode, void *src, size_t nbytes);
+ssize_t read_from_pipe(struct VNode *vnode, void *src, size_t nbytes);
+ssize_t write_to_pipe(struct VNode *vnode, void *src, size_t nbytes);
 
 /* fs/poll.c */
-int sys_poll (struct pollfd *pfds, nfds_t nfds, int timeout);
-int sys_pollnotify (int fd, int ino, short mask, short events);
+int sys_poll(struct pollfd *pfds, nfds_t nfds, int timeout);
+int sys_pollnotify(int fd, int ino, short mask, short events);
 
 /* fs/truncate.c */
 int sys_truncate(int fd, size_t sz);
@@ -569,7 +573,6 @@ int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr);
 void vnode_hash_enter(struct VNode *vnode);
 void vnode_hash_remove(struct VNode *vnode);
 struct VNode *vnode_get(struct SuperBlock *sb, int vnode_nr);
-struct VNode *vnode_get_from_filp(struct Filp *filp);
 void vnode_put(struct VNode *vnode);
 void vnode_add_reference(struct VNode *vnode);
 void vnode_discard(struct VNode *vnode);                        // Delete a vnode from cache unlink/rmdir/umount?
@@ -579,8 +582,5 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 ssize_t sys_write(int fd, void *buf, size_t count);
 
 
-// Static asserts of the file system
-// STATIC_ASSERT(sizeof(FileDescManager) <= PAGE_SIZE, "struct FileDescManager larger than page");
-// STATIC_ASSERT(OPEN_MAX == FD_SETSIZE, "OPEN_MAX != FD_SETSIZE");
 
 #endif

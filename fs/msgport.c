@@ -60,7 +60,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   int sc;
   bool do_lookup_cleanup;
     
-  Info("sys_createmsgport");
+  Info("sys_createmsgport ***************************************");
 
   current = get_current_process();
 
@@ -103,7 +103,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 
   rwlock(&superblock_list_lock, LK_EXCLUSIVE);
 
-  fd = fd_alloc(current, 0, OPEN_MAX, &filedesc);
+  fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
   
   if (fd < 0) {
     return -EMFILE;
@@ -205,6 +205,8 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   if (do_lookup_cleanup) {
     lookup_cleanup(&ld);
   }
+
+  Info("createmsgport : FILP_TYPE_SUPERBLOCK, fd:%d", fd);
   
   filp->type = FILP_TYPE_SUPERBLOCK;
   filp->u.superblock = sb;

@@ -86,8 +86,6 @@ bool check_pending_interrupt(int irq);
 void eoi_interrupt(uint32_t irq_ack);
 uint32_t get_pending_interrupt_word(int irq);
 
-void PrintUserContext(struct UserContext *uc);
-
 int_state_t DisableInterrupts(void);
 void RestoreInterrupts(int_state_t state);
 void EnableInterrupts(void);

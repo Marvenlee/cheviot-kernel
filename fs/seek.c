@@ -76,6 +76,7 @@ off_t sys_lseek(int fd, off_t pos, int whence)
 
     filp_put(filp);
   } else {
+    Info("sys_lseek() -EBADF");
     sc = -EBADF;
   }
 
@@ -138,6 +139,8 @@ int sys_lseek64(int fd, off64_t *_pos, int whence)
 
     filp_put(filp);
   } else {
+    Info("sys_lseek64() -EBADF");
+  
     sc = -EBADF;
   }
 
