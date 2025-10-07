@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -56,31 +56,25 @@ int sys_fcntl(int fd, int cmd, int arg)
     case F_DUPFD:	/* Duplicate fildes but clear close-on-exec flag */
       if (arg < 0 || arg >= FILEDESC_MAX) {
         Info("Fcntl F_DUPFD -EBADF");
-        filp_put(filp);
         return -EBADF;
       }
 
       new_fd = dup_fd(current, fd, arg, FILEDESC_MAX, 0);	      
-      filp_put(filp);
       return new_fd;
 
     case F_DUPFD_CLOEXEC:       /* Duplicate fildes and set close-on-exec flag */
       if (arg < 0 || arg >= FILEDESC_MAX) {
         Info("Fcntl F_DUPFD_CLOEXEC -EBADF");
-        filp_put(filp);
         return -EBADF;
       }
 
       new_fd = dup_fd(current, fd, arg, FILEDESC_MAX, FDF_CLOSE_ON_EXEC);	      
-      filp_put(filp);
       return new_fd;
   	
     case F_GETFD:	/* Get fildes flags */      
       if (current->fproc.fd_table[fd].flags & FDF_CLOSE_ON_EXEC) {
-        filp_put(filp);
         return FD_CLOEXEC;
       } else {  
-        filp_put(filp);
         return 0;
       }
         		  
@@ -91,7 +85,6 @@ int sys_fcntl(int fd, int cmd, int arg)
         current->fproc.fd_table[fd].flags &= ~FDF_CLOSE_ON_EXEC;
       }
 
-      filp_put(filp);
       return 0;
       		
     case F_GETFL:	/* Get file flags */
@@ -99,13 +92,11 @@ int sys_fcntl(int fd, int cmd, int arg)
 
       // TODO: Effectively open flags bit O_RW, O_APPEND, O_NONBLOCK
       // TODO: Add as oflags state to filp on open() or any vnode creation
-      filp_put(filp);
       return -EINVAL;
       
     case F_SETFL:	/* Set file flags */
       Info("Fcntl F_SETFL unimplemented");
       // TODO: Effectively open flags bit O_RW, O_APPEND, O_NONBLOCK
-      filp_put(filp);
       return -EINVAL;
       
     default:
@@ -113,8 +104,6 @@ int sys_fcntl(int fd, int cmd, int arg)
       break;
   }
   
-
-  filp_put(filp);
   return -ENOSYS;
 }
 
@@ -185,18 +174,16 @@ int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd, uint32_t flags)
   
   if (new_fd < 0) {
     Error("dup_fd() fd_alloc failed, -EMFILE");
-    filp_put(filp);
     return -EMFILE;
   }
   
   filedesc->filp = filp;
-  filp->reference_cnt++;
-
+  
+  filp_ref(filp);
+  
   filedesc->flags |= FDF_VALID | flags;
 
   Info ("dup_fd(%d) new_fd = %d, new_fd_flags:%08x", fd, new_fd, filedesc->flags);
-
-  filp_put(filp);
 
   return new_fd;
 }
@@ -211,6 +198,8 @@ int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **fil
 
   for (int fd=min_fd; fd <= max_fd; fd++) {
     if ((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) == 0) {
+      KASSERT((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+
       proc->fproc.fd_table[fd].filp = NULL;
       proc->fproc.fd_table[fd].flags = FDF_ALLOCED;
       
@@ -238,10 +227,34 @@ int fd_free(struct Process *proc, int fd)
     return -EINVAL;
   }
 
-  KASSERT(proc->fproc.fd_table[fd].flags & FDF_ALLOCED);
+  
+  KASSERT((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+  KASSERT((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) != 0);
 
   proc->fproc.fd_table[fd].filp = NULL;
   proc->fproc.fd_table[fd].flags = 0;
+  
+  return 0;
+}
+
+
+/* @brief   Mark entry in file descriptor table as free
+ * 
+ */
+int fd_invalidate(struct Process *proc, int fd)
+{
+  Info("fd_invalidate(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  
+  if (fd < 0 || fd >= FILEDESC_MAX) {
+    Error("fd_free: fd out of range -EINVAL fd:%d", fd);
+    return -EINVAL;
+  }
+
+
+  KASSERT((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+  KASSERT((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) != 0);
+
+  proc->fproc.fd_table[fd].flags &= ~FDF_VALID;
   
   return 0;
 }
@@ -254,7 +267,7 @@ int fork_fds(struct Process *newp, struct Process *oldp)
 {
   int sc;
   
-  Info("fork_fds(newp:%08x, oldp:%08x)", (uint32_t)newp, (uint32_t)oldp);
+  Info("**** fork_fds(newp:%08x, oldp:%08x)", (uint32_t)newp, (uint32_t)oldp);
   
   if ((sc = init_fproc(newp)) != 0) {
     Info("init_fproc failed in fork_fds, sc:%d", sc);
@@ -265,13 +278,13 @@ int fork_fds(struct Process *newp, struct Process *oldp)
   newp->fproc.current_dir = oldp->fproc.current_dir;
     
   if (newp->fproc.current_dir != NULL) {
-    vnode_add_reference(newp->fproc.current_dir);
+    vnode_ref(newp->fproc.current_dir);
   }
 
   newp->fproc.root_dir = oldp->fproc.root_dir;
 
   if (newp->fproc.root_dir != NULL) {
-    vnode_add_reference(newp->fproc.root_dir);
+    vnode_ref(newp->fproc.root_dir);
   }
 
   for (int fd = 0; fd < FILEDESC_MAX; fd++) {          
@@ -280,7 +293,11 @@ int fork_fds(struct Process *newp, struct Process *oldp)
       
       newp->fproc.fd_table[fd].filp = oldp->fproc.fd_table[fd].filp;      
       newp->fproc.fd_table[fd].flags = oldp->fproc.fd_table[fd].flags;
-      newp->fproc.fd_table[fd].filp->reference_cnt++;            
+
+      KASSERT((newp->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+      
+      filp_ref(newp->fproc.fd_table[fd].filp);
+
     } else {
       newp->fproc.fd_table[fd].filp = NULL;
       newp->fproc.fd_table[fd].flags = FDF_NONE;

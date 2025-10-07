@@ -38,6 +38,8 @@ int sys_chdir(char *_path)
   struct Process *current;
   struct lookupdata ld;
   int sc;
+
+  Info("sys_chdir()");
   
   current = get_current_process();
 
@@ -48,7 +50,7 @@ int sys_chdir(char *_path)
           vnode_put(current->fproc.current_dir);
         }
 
-        vnode_add_reference(ld.vnode);
+        vnode_ref(ld.vnode);
         current->fproc.current_dir = ld.vnode;
 
         lookup_cleanup(&ld);
@@ -78,6 +80,8 @@ int sys_fchdir(int fd)
   struct Process *current;
   struct VNode *vnode;
   int sc;
+
+  Info("sys_fchdir()");
   
   current = get_current_process();
 
@@ -91,9 +95,7 @@ int sys_fchdir(int fd)
         if (check_access(vnode, NULL, R_OK) == 0) {
           vnode_put(current->fproc.current_dir);
           current->fproc.current_dir = vnode;
-          vnode_add_reference(vnode);
-          vnode_put(vnode);
-          filp_put(filp);
+          vnode_ref(vnode);
           return 0;
         } else {
           sc = -EPERM;
@@ -101,11 +103,9 @@ int sys_fchdir(int fd)
       } else {      
         sc = -ENOTDIR;
       }
-      vnode_put(vnode);
     } else {
       sc = -EINVAL;
     }
-    filp_put(filp);
   } else {
     sc = -EBADF;
   }
@@ -136,6 +136,8 @@ int sys_opendir(char *_path)
   int fd;
   int sc;
 
+  Info("sys_opendir()");
+
   current = get_current_process();
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
@@ -145,14 +147,14 @@ int sys_opendir(char *_path)
         fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
 
         if (fd >= 0) {
-          filp = filp_alloc();
+          filp = filp_get_new();
 
           if (filp) {
             filp->type = FILP_TYPE_VNODE;
             filp->u.vnode = ld.vnode;
             filp->offset = 0;
 
-            vnode_add_reference(ld.vnode);
+            vnode_ref(ld.vnode);
             lookup_cleanup(&ld);
 
             filedesc->filp = filp;
@@ -194,6 +196,9 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   off64_t cookie;
   struct Process *current;
 
+  Info("sys_readdir()");
+
+
   if (sz < MIN_READDIR_BUF_SZ) {     // TODO: Ensure size is big enough for name_max + 1 + sizeof struct dirent.
     return -EINVAL;
   }
@@ -216,13 +221,10 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   }
   
   cookie = filp->offset;
-
-  rwlock(&vnode->lock, LK_SHARED);
   
   dirents_sz = vfs_readdir(vnode, dst, sz, &cookie);
   filp->offset = cookie;
   
-  rwlock(&vnode->lock, LK_RELEASE);
   return dirents_sz;
 }
 
@@ -298,19 +300,15 @@ int sys_createdir(char *_path, mode_t mode)
   
   dvnode = ld.parent;
   
-  rwlock(&dvnode->lock, LK_EXCLUSIVE);
-
   sc = vfs_mkdir(dvnode, ld.last_component, &stat);
 
   if (sc != 0) {
-    rwlock(&dvnode->lock, LK_RELEASE); 
     lookup_cleanup(&ld);
     return sc;
   }    
 
   knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);
 
-  rwlock(&dvnode->lock, LK_RELEASE); 
   lookup_cleanup(&ld);
   return 0;
 }
@@ -340,20 +338,25 @@ int sys_rmdir(char *_path)
     return -ENOTDIR;
   }
 
-  rwlock(&dvnode->lock, LK_EXCLUSIVE);    // Exclusive lock to remove entries from directory
-  rwlock(&vnode->lock, LK_DRAIN);       // Drain lock to remove vnode from directory
 
-  sc = vfs_rmdir(dvnode, vnode, ld.last_component);   
+  // replace with  vfs_dirent_remove() to remove name.
+  // vfs_unlink() is separate to delete vnode on zero link count.
   
-  if (sc != 0) {
-    ld.vnode = NULL;
-  }
+  sc = vfs_rmdir(dvnode, vnode, ld.last_component);   // Remove directory name from parent directory 
 
-  knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);  
+  vnode->nlink--;
+  lookup_cleanup(&ld);                                // VNode is discarded if link count is 0.
 
-  rwlock(&dvnode->lock, LK_RELEASE);
-  lookup_cleanup(&ld);
-  return 0;
+  return sc;
+}
+
+
+/* @brief   Close a directory and perform any special-case handling
+ *
+ */
+int do_close_dir(struct VNode *vnode)
+{
+  vnode_put(vnode);
 }
 
 

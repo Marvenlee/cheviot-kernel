@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -59,6 +59,8 @@ int init_superblock_bdflush(struct SuperBlock *sb)
  */
 void fini_superblock_bdflush(struct SuperBlock *sb, int how)
 { 
+  Info("fini_superblock_bdflush()");
+  
   sb->flags |= SBF_ABORT;
 
 #if 1  
@@ -92,9 +94,7 @@ void bdflush_task(void *arg)
     TaskSleepInterruptible(&sb->bdflush_rendez, &timeout, INTRF_NONE);
 
     Info("bdflush_task() sb->lock SHARED");
-    
-    rwlock(&sb->lock, LK_SHARED);    
-                
+
     vnode = LIST_HEAD(&sb->vnode_list);
     
     while (vnode != NULL) {
@@ -106,8 +106,6 @@ void bdflush_task(void *arg)
     }
 
     Info("bdflush_task() sb->lock RELEASE");
-
-    rwlock(&sb->lock, LK_RELEASE);
   }
 }
 

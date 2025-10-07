@@ -112,12 +112,8 @@ int sys_fsync(int fd)
     return -EACCES;
   }
   
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
   sc = vfs_syncfile(vnode);  // TODO: vfs message to a filesystem handler to sync a specific file
-  
-  rwlock(&vnode->lock, LK_RELEASE);
-  
+    
   return sc;  
 }
 

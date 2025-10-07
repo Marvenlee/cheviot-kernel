@@ -85,8 +85,6 @@ int sys_chmod(char *_path, mode_t mode)
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     vnode = ld.vnode;
 
-    rwlock(&vnode->lock, LK_EXCLUSIVE);
-
     if (vnode->uid == current->uid || current->uid == SUPERUSER) {
       sc = vfs_chmod(vnode, mode);
 
@@ -96,8 +94,6 @@ int sys_chmod(char *_path, mode_t mode)
     } else {
       sc = -EPERM;
     }
-
-    rwlock(&vnode->lock, LK_RELEASE);
 
     knote(&vnode->knote_list, NOTE_ATTRIB);
     lookup_cleanup(&ld);
@@ -124,8 +120,6 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     vnode = ld.vnode;
 
-    rwlock(&vnode->lock, LK_EXCLUSIVE);
-
     if (vnode->uid == current->euid || current->euid == SUPERUSER) {
       sc = vfs_chown(vnode, uid, gid);
 
@@ -136,8 +130,6 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
     } else {
       sc = -EPERM;
     }
-
-    rwlock(&vnode->lock, LK_RELEASE);
 
     knote(&vnode->knote_list, NOTE_ATTRIB);
     lookup_cleanup(&ld);
@@ -158,6 +150,8 @@ int sys_fchmod(int fd, mode_t mode)
   struct Filp *filp;
   int sc;
 
+  Info("sys_fchmod(fd:%d, mod:%0o)", fd, mode);
+
   current = get_current_process();
 
   filp = filp_get(current, fd);
@@ -166,8 +160,6 @@ int sys_fchmod(int fd, mode_t mode)
     vnode = vnode_get_from_filp(filp);
     
     if (vnode) {
-      rwlock(&vnode->lock, LK_EXCLUSIVE);
-
       if (vnode->uid == current->euid || current->euid == SUPERUSER) {
         sc = vfs_chmod(vnode, mode);
 
@@ -178,8 +170,6 @@ int sys_fchmod(int fd, mode_t mode)
         Warn("fchmod -EPERM");
         sc = EPERM;
       }
-
-      rwlock(&vnode->lock, LK_RELEASE);
 
       knote(&vnode->knote_list, NOTE_ATTRIB);
       vnode_put(vnode);
@@ -205,6 +195,8 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
   struct Filp *filp;
   struct Process *current;
 
+  Info("sys_fchpwn(fd:%d)", fd);
+
   current = get_current_process();
 
   filp = filp_get(current, fd);
@@ -213,8 +205,6 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-      rwlock(&vnode->lock, LK_EXCLUSIVE);
-
       if (vnode->uid == current->euid || current->euid == SUPERUSER) {
         sc = vfs_chown(vnode, uid, gid);
 
@@ -226,8 +216,6 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
         Warn("fchown -EPERM");
         sc = -EPERM;
       }
-
-      rwlock(&vnode->lock, LK_RELEASE);
 
       knote(&vnode->knote_list, NOTE_ATTRIB);
 

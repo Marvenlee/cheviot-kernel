@@ -17,7 +17,7 @@
  * Vnode handling.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -28,56 +28,6 @@
 #include <string.h>
 #include <kernel/kqueue.h>
 
-
-/* @brief   Close a file descriptor reference to a open file
- *
- * @param   proc, process in which the file descriptor belongs
- * @param   fd, file descriptor of file to close
- * @return  0 on success, negative errno on failure
- *
- * FIXME: on vnode_put, we need to send a vfs_close() on zero reference_count
- *        Same here?
- */
-int close_vnode(struct VNode *vnode, uint32_t filp_flags)
-{   
-  struct Pipe *pipe;
-
-  Info("close_vnode(vnode:%08x)", (uint32_t)vnode);
-
-//  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-  if (S_ISREG(vnode->mode)) {
-    Info("close_vnode reg file");
-    bsyncv(vnode);
-    vnode_put(vnode);
-  } else if (S_ISFIFO(vnode->mode)) {
-    Info("close_vnode pipe");
-    Info(".. reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
-    
-    pipe = vnode->pipe;
-
-    // TODO: reader/writer count is a count of filps (should be 1 reader and 1 writer filp). 
-    // TODO: Need to check if close_vnode is only being called when filp was freed.
-    
-    if (filp_flags & O_RDONLY) {
-      pipe->reader_cnt--;
-    } else {
-      pipe->writer_cnt--;
-    }
-    
-    if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
-      free_pipe(pipe);
-      vnode_discard(vnode);
-    }
-  } else {
-    vnode_put(vnode);
-  }
-  
-  // Vnode object is static, we can release its lock here
-//  rwlock(&vnode->lock, LK_RELEASE);
-  
-  return 0;
-}
 
 
 /* @brief   Allocate a new vnode
@@ -90,59 +40,42 @@ int close_vnode(struct VNode *vnode, uint32_t filp_flags)
  *
  * This may block while freeing existing vnode and flushing its blocks to disk.
  */
-struct VNode *vnode_new(struct SuperBlock *sb)
+struct VNode *vnode_get_new(struct SuperBlock *sb)
 {
   struct VNode *vnode;
 
   KASSERT(sb != NULL);
 
-  Info("vnode_new(sb:%08x)", (uint32_t)sb);
+  Info("vnode_get_new(sb:%08x)", (uint32_t)sb);
 
   if (sb->flags & SBF_ABORT) {
     return NULL;
   }
 
-  // FIXME: Lock vnode list as exclusive whilst we acquire vnode?
-  
-//  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
-
   vnode = LIST_HEAD(&vnode_free_list);
 
   if (vnode == NULL) {
-//    rwlock(&vnode_list_lock, LK_RELEASE);
     return NULL;
   }
 
   LIST_REM_HEAD(&vnode_free_list, vnode_link);
 
-//  rwlock(&vnode_list_lock, LK_RELEASE);
-
-//  sb->reference_cnt++;
+  sb->reference_cnt++;
   
-//  rwlock(&vnode->lock, LK_EXCLUSIVE);
-
-  // Flush out any existing data and invalidate vnode blocks in cache.
-
-  // FIXME: What if superblock of this existing vnode is being aborted (and somehow blocks?)
-
-  // FIXME: S
-
   if (vnode->flags & V_VALID) {
-    Info("vnode_new, bsyncv + binvalidate");
+    Info("vnode valid, recycling");
     
     KASSERT(vnode->reference_cnt == 0);    
     
-    bsyncv(vnode);
-    binvalidatev(vnode);
-    vnode->flags = 0;
-    
-    LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
-    deref_superblock(vnode->superblock);
+    do_vnode_recycle(vnode);
   }
+
+  vnode->reference_cnt = 1;
+
+  vnode->superblock = sb;
 
   vnode->inode_nr = -1;
 
-  vnode->superblock = sb;
   vnode->flags = 0;
 
   vnode->char_read_busy = false;
@@ -166,7 +99,6 @@ struct VNode *vnode_new(struct SuperBlock *sb)
   vnode->rdev = 0;   // FIXME: rdev
   vnode->nlink = 0;  // hard links count
 
-  vnode->reference_cnt = 0;
   
   LIST_INIT(&vnode->page_list);
   
@@ -175,10 +107,6 @@ struct VNode *vnode_new(struct SuperBlock *sb)
 
   LIST_INIT(&vnode->knote_list);
 
-//  Info("vnode->lock release");
-
-//  rwlock(&vnode->lock, LK_RELEASE);
-  
   return vnode;
 }
 
@@ -195,35 +123,52 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
   struct VNode *vnode;
 
   Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
-
+  
   KASSERT(sb != NULL);
 
   if (sb->flags & SBF_ABORT) {
     return NULL;
   }
 
-  rwlock(&vnode_list_lock, LK_SHARED);
-
-  if (sb->flags & SBF_ABORT) {
-    rwlock(&vnode_list_lock, LK_RELEASE);  
+  if ((vnode = vnode_find(sb, inode_nr)) == NULL) {
     return NULL;
   }
   
-  if ((vnode = vnode_find(sb, inode_nr)) == NULL) {
-    rwlock(&vnode_list_lock, LK_RELEASE);  
-    return NULL;
-  }
-
-  vnode_add_reference(vnode);
-
-  if (vnode->flags & V_FREE) {
+  if (vnode->flags & V_FREE) {    // TODO: Rename to V_INACTIVE
     LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
+    
+    // TODO: Recycle vnode in here ?
+    
   }
-
-  rwlock(&vnode_list_lock, LK_RELEASE);  
 
   Info("vnode_get() gotten vnode:%08x", (uint32_t)vnode);
   return vnode;
+  
+  
+}
+
+
+/* @brief   Lookup a vnode from a file pointer
+ *
+ * @param   filp, file pointer object that points to the vnode
+ */
+struct VNode *vnode_get_from_filp(struct Filp *filp)
+{
+  Info("vnode_get_From_filp()");
+  
+  if (filp == NULL) {
+    Error("vnode_get_from_filp, filp is NULL");
+    return NULL;
+  }
+  
+  if (filp->type != FILP_TYPE_VNODE) {
+    Info("vnode_get_from_filp, filp->type is not vnode: %d", filp->type);
+    return NULL;
+  }
+  
+  Info("..vnode_get_from_filp(filp:%08x) vnode:%08x", (uint32_t)filp, (uint32_t)filp->u.vnode);
+  
+  return filp->u.vnode;
 }
 
 
@@ -236,109 +181,174 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
  */
 void vnode_put(struct VNode *vnode)
 {
+  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
+
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
 
-  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
-//  KASSERT(vnode->lock.exclusive_cnt == 1);
-
-  // FIXME: This could cause a deadlock if vnode list is locked by the bdflush daemon and
-  // it then attempts to lock this vnode which the call of vnode_put should have done.
+//  KASSERT(S_ISFIFO(vnode->mode) == 0);
+//  KASSERT(vnode->reference_cnt > 0);
   
-  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
 
-  vnode_dec_reference(vnode);
-  
-  if (vnode->reference_cnt == 0) {
+  if (S_ISREG(vnode->mode)) {
+    // bsyncv(vnode);
+  } else if (S_ISDIR(vnode->mode)) {
     
-#if 0
-    if (vnode->nlink == 0) {
-    // FIXME: do_vnode_discard(vnode);
-    // FIXME: IF vnode->link_count == 0,  delete entries in cache.
-    // FIXME: Do any special cleanup of file, dir, pipe/fifo ?
-    // TODO: Mark vnode as free/invalid    
-    }  
-#endif
-
-    if ((vnode->flags & V_ROOT) == 0) {      
-      KASSERT(vnode->vnode_covered == NULL);
-    
-      vnode->flags |= V_FREE;
-      LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
-    }
-  } else if (vnode->reference_cnt < 0) {
-    Error("vnode ref_cnt <0, val: %d", vnode->reference_cnt);
-    KernelPanic();
+    //knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);  
   }
-  
 
-  rwlock(&vnode_list_lock, LK_RELEASE);
-    
-  TaskWakeupAll(&vnode->rendez);
-}
-
-/*
- * Used to increment reference count of existing VNode.  Used within FChDir so
- * that proc->current_dir counts as reference.
- *
- */
-void vnode_add_reference(struct VNode *vnode)
-{
-  KASSERT(vnode != NULL);
-
-  vnode->reference_cnt++;
-
-  Info("vnode_add_reference(vnode:%08x), new cnt:%d", (uint32_t)vnode, vnode->reference_cnt);
-}
-
-
-void vnode_dec_reference(struct VNode *vnode)
-{
-  KASSERT(vnode != NULL);
 
   vnode->reference_cnt--;
+    
+  if (vnode->reference_cnt == 0) {    
+    if (vnode->nlink == 0) {
+//      vnode_discard(vnode);    
+    }
+    
+    //TaskWakeupAll(&vnode->rendez);
+  }
 
-  Info("vnode_dec_reference(vnode:%08x), new cnt:%d", (uint32_t)vnode, vnode->reference_cnt);
+
 }
+
+
+/*
+ * Or should this be done in do_close_fifo() ?
+ */
+void vnode_put_fifo_reader(struct VNode *vnode)
+{
+  struct Pipe *pipe;
+
+  KASSERT(S_ISFIFO(vnode->mode));
+  
+  vnode->reference_cnt--;
+    
+  pipe = vnode->pipe;
+  pipe->reader_cnt--;
+  
+  Info("vnode_put_fifo_reader reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+  
+  if (pipe->reader_cnt == 0) {
+    TaskWakeupAll(&pipe->rendez);
+  }
+  
+  if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
+    KASSERT(vnode->reference_cnt == 0);    
+    do_vnode_discard(vnode);
+  }
+}
+
+
+/*
+ *
+ */
+void vnode_put_fifo_writer(struct VNode *vnode)
+{
+  struct Pipe *pipe;
+  
+  KASSERT(S_ISFIFO(vnode->mode));
+  
+
+  vnode->reference_cnt--;
+  
+  pipe = vnode->pipe;
+  pipe->writer_cnt--;
+
+  Info("vnode_put_fifo_writer reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+
+  if (pipe->writer_cnt == 0) {
+    TaskWakeupAll(&pipe->rendez);
+  }
+  
+  if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
+    KASSERT(vnode->reference_cnt == 0);    
+    do_vnode_discard(vnode);
+  }
+}
+
+
+/*
+ *
+ */
+void vnode_ref(struct VNode *vnode)
+{
+  vnode->reference_cnt++;
+}
+
+
 
 
 /* @brief   Discard a vnode, put it on the free list and mark it as invalid.
  *
  * Any bufs associated with the vnode should be discarded.
  */
-void vnode_discard(struct VNode *vnode)
+void do_vnode_discard(struct VNode *vnode)
 {
-  struct SuperBlock *sb;
+  struct Pipe *pipe;
 
-  Info("vnode_discard(vnode:%08x)", (uint32_t)vnode);  
-//  rwlock(&vnode_list_lock, LK_EXCLUSIVE);
+  Info("vnode_discard(vnode:%08x)", (uint32_t)vnode);
 
-  // FIXME: rwlock(&vnode->lock, LK_DRAIN);    // Do we need this for vnode_get/vnode_put ?
-  
-  KASSERT(vnode->reference_cnt == 1);
-  
-  sb = vnode->superblock;
-  
-  vnode_hash_remove(vnode);
-  
-  binvalidatev(vnode);
+  if (S_ISREG(vnode->mode)) {
+    Info("close_vnode reg file");
+//    bsyncv(vnode);
+  } else if (S_ISFIFO(vnode->mode)) {
+    Info("close_vnode pipe");
+    
+    pipe = vnode->pipe;
+
+    Info(".. reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+
+    free_pipe(pipe);
+  }
   
   vnode->flags = V_FREE;
   vnode->reference_cnt = 0;
   vnode->nlink = 0;
 
-  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
-
-  deref_superblock(sb);
-
-  // Reinitialize vnode lock.
-  //  rwlock_init(&vnode->lock);
-
-  TaskWakeupAll(&vnode->rendez);
-
-//  rwlock(&vnode_list_lock, LK_RELEASE);
-
+  LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
+  LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
 }
+
+
+/* @brief   Recycle a vnode
+ *
+ * Any bufs associated with the vnode should be discarded.
+ */
+void do_vnode_recycle(struct VNode *vnode)
+{
+  struct SuperBlock *sb;
+
+  Info("************ vnode_recycle(vnode:%08x) **********", (uint32_t)vnode);  
+  
+  if (vnode->reference_cnt > 0) {
+    return;
+  }
+  
+  sb = vnode->superblock;
+  
+  vnode_hash_remove(vnode);
+  
+  if (S_ISREG(vnode->mode)) {
+    bsyncv(vnode);
+    binvalidatev(vnode);
+  } else if (S_ISFIFO(vnode->mode)) {
+    // FIXME: Do any special cleanup of file, dir, pipe/fifo ?
+  }
+
+  vnode->flags = V_FREE;
+  vnode->reference_cnt = 0;
+  vnode->nlink = 0;
+
+  LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
+  LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
+
+
+  sb->reference_cnt--;
+
+//  TaskWakeupAll(&vnode->rendez);
+}
+
+
 
 
 /* @brief   Find an existing vnode in the vnode cache
@@ -348,6 +358,8 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
   int h;
+  
+  Info("vnode_find(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
   
   KASSERT(sb != NULL);
 
@@ -365,8 +377,8 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
 }
 
 
-/*
- * TODO: Replace simple vnode hash calculation with what Minix uses (same for block cache hash)
+/* @brief   Calculate hash value of vnode for vnode lookup table
+ *
  */
 int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr)
 {
@@ -388,9 +400,12 @@ void vnode_hash_enter(struct VNode *vnode)
 {
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
-
+  KASSERT((vnode->flags & V_HASHED) == 0);
+  
   int h = calc_vnode_hash(vnode->superblock, vnode->inode_nr);
   LIST_ADD_HEAD(&vnode_hash[h], vnode, hash_link);
+
+  vnode->flags |= V_HASHED;
 }
 
 
@@ -401,6 +416,9 @@ void vnode_hash_remove(struct VNode *vnode)
 {
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
+  KASSERT(vnode->flags & V_HASHED);
+
+  vnode->flags &= ~V_HASHED;
 
   int h = calc_vnode_hash(vnode->superblock, vnode->inode_nr);  
   LIST_REM_ENTRY(&vnode_hash[h], vnode, hash_link);

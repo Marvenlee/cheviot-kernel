@@ -39,7 +39,7 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
   struct stat stat;
   int sc;  
 
-  Info("sys_mknod");
+  Info("sys_mknod()");
 
   if (CopyIn(&stat, _stat, sizeof stat) != 0) {
     return -EFAULT;
@@ -54,17 +54,12 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
     return -EEXIST;
   }
 
-  rwlock(&ld.parent->lock, LK_EXCLUSIVE);
-
   sc = vfs_mknod(ld.parent, ld.last_component, &stat);
 
   if (sc != 0) {
-    rwlock(&ld.parent->lock, LK_RELEASE);    
     lookup_cleanup(&ld);
     return -ENOMEM;  
   }
-
-  rwlock(&ld.parent->lock, LK_RELEASE);
 
   lookup_cleanup(&ld);
   return sc;

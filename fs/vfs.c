@@ -76,22 +76,22 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   if (reply.args.lookup.inode_nr == dvnode->inode_nr) {
     Warn("lookup.inode_nr reply same as dvnode->inode_nr:%d", dvnode->inode_nr);
      
-    vnode_add_reference(dvnode);  // Will this happen?  Onlu if "." or if root ".."
+    vnode_ref(dvnode);  // Will this happen?  Onlu if "." or if root ".."
     vnode = dvnode;
   } else {
     vnode = vnode_get(dvnode->superblock, reply.args.lookup.inode_nr);
   }
 
   if (vnode == NULL) {
-    vnode = vnode_new(sb);
+    vnode = vnode_get_new(sb);
 
     if (vnode == NULL) {
-      Info("vfs_lookup, vnode_new -ENOMEM");
+      Info("vfs_lookup, vnode_get_new -ENOMEM");
       *result = NULL;
       return -ENOMEM;
     }
 
-    vnode_add_reference(vnode);
+    vnode_ref(vnode);
 
     vnode->nlink = reply.args.lookup.nlink;           // FIXME: Need to get nlink.
     vnode->size = reply.args.lookup.size;      
@@ -153,15 +153,15 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
     return sc;
   }
 
-  vnode = vnode_new(sb);
+  vnode = vnode_get_new(sb);
 
   if (vnode == NULL) {
-    Error("vfs_create, vnode_new -ENOMEM");
+    Error("vfs_create, vnode_get_new -ENOMEM");
     *result = NULL;
     return -ENOMEM;
   }
 
-  vnode_add_reference(vnode);
+  vnode_ref(vnode);
 
   // TODO: Update nlink of vnode and dvnode
   // dvnode->nlink = reply.args.create.parent_nlink;      
@@ -193,6 +193,8 @@ int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov,
   int nbytes_response;
   struct SuperBlock *sb;
   
+  Info("vfs_sendmsg(vnode:%08x)", (uint32_t)vnode);
+  
   sb = vnode->superblock;
   
   req.cmd = CMD_SENDIO;
@@ -215,6 +217,8 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
   iorequest_t req = {0};
   msgiov_t riov[1];
   int nbytes_read;
+
+  Info("vfs_read(vnode:%08x)", (uint32_t)vnode);
 
   KASSERT(vnode != NULL);
   KASSERT(dst != NULL);
@@ -258,6 +262,8 @@ ssize_t vfs_write(struct VNode *vnode, int ipc, void *src, size_t nbytes, off64_
   iorequest_t req = {0};
   msgiov_t siov[1];
   int nbytes_written;
+
+  Info("vfs_write(vnode:%08x)", (uint32_t)vnode);
 
   sb = vnode->superblock;
 
@@ -357,7 +363,7 @@ int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
     return sc;
   }
 
-  vnode = vnode_new(sb);
+  vnode = vnode_get_new(sb);
 
   if (vnode == NULL) {
     return -ENOMEM;
@@ -367,11 +373,8 @@ int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
   // dvnode->nlink = reply.args.mknod.parent_nlink;
   // vnode->nlink = reply.args.mknod.inode_nlink;
 
-  vnode_add_reference(vnode);
+  vnode->nlink = 1;
 
-  vnode->nlink = 1;      
-
-//  vnode->reference_cnt = 1;
   vnode->size = reply.args.mknod.size;      
   vnode->uid = reply.args.mknod.uid;  
   vnode->gid = reply.args.mknod.gid;
@@ -420,7 +423,7 @@ int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat)
     return sc;
   }
 
-  vnode = vnode_new(sb);
+  vnode = vnode_get_new(sb);
 
   if (vnode == NULL) {
     return -ENOMEM;
@@ -430,7 +433,7 @@ int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat)
   // dvnode->nlink = reply.args.mkdir.parent_nlink;      
   // vnode->nlink = reply.args.mkdir.inode_nlink;      
 
-  vnode_add_reference(vnode);
+  vnode_ref(vnode);
 
   vnode->nlink = 1;
   
@@ -474,10 +477,6 @@ int vfs_rmdir(struct VNode *dvnode, struct VNode *vnode, char *name)
   // TODO: Need to update nlink of vnode and parent directory
   vnode->nlink--;     // for .
   dvnode->nlink --;   // for ..
-
-  if (vnode->nlink == 0) {
-    vnode_discard(vnode);
-  } 
 
   return sc;
 }
@@ -609,10 +608,6 @@ int vfs_unlink(struct VNode *dvnode, struct VNode *vnode, char *name)
   // TODO: Need to update nlink of vnode and parent directory
   vnode->nlink--;     // for .
   dvnode->nlink --;   // for ..
-
-  if (vnode->nlink == 0) {
-    vnode_discard(vnode);
-  } 
 
   return sc;
 }

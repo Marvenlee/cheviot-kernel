@@ -49,6 +49,8 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
   struct VNode *vnode;
   ssize_t retval;
   
+  Info("sys_read(fd:%d, dst:%08x, sz:%d", fd, (uint32_t)dst, sz);
+  
   if ((retval = bounds_check(dst, sz)) != 0) {
     return retval;
   }  
@@ -56,12 +58,11 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
   current = get_current_process();
 
   filp = filp_get(current, fd);
-  
+
   if (filp) {
-    vnode = vnode_get_from_filp(filp);      // TODO: Could lock it here (free lock on vnode_put
+      vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-//      rwlock(&vnode->lock, LK_SHARED);
       Info("sys_read - check access R_OK");
       
       if (check_access(vnode, filp, R_OK) == 0) {  
@@ -80,18 +81,12 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
           retval = -EBADF;
         }
         
-//        rwlock(&vnode->lock, LK_RELEASE);
-        vnode_put(vnode);
-        filp_put(filp);
-        
 //        Info("read: fd:%d, retval:%d", fd, (int)retval);
                
         return retval;
       }
       
       Warn("read: %d, -EACESS", fd);
-//      rwlock(&vnode->lock, LK_RELEASE);
-      vnode_put(vnode);
       retval = -EACCES;
     } else {
 
@@ -100,7 +95,6 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
       retval = -EINVAL;
     }    
 
-    filp_put(filp);
   } else {
     Info("sys_read() -EBADF b");
     retval = -EBADF;
@@ -120,6 +114,8 @@ ssize_t kread(int fd, void *dst, size_t sz)
   struct VNode *vnode;
   struct Process *current;
   ssize_t retval;
+
+  Info("kread(fd:%d, dst:%08x, sz:%d", fd, (uint32_t)dst, sz);
   
   if ((retval = bounds_check_kernel(dst, sz)) != 0) {
     return retval;
@@ -133,8 +129,6 @@ ssize_t kread(int fd, void *dst, size_t sz)
     vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-//      rwlock(&vnode->lock, LK_SHARED);
-      
       if (check_access(vnode, filp, R_OK) == 0) {     
         if (S_ISREG(vnode->mode)) {
           retval = read_from_file(vnode, dst, sz, &filp->offset, true);
@@ -144,20 +138,14 @@ ssize_t kread(int fd, void *dst, size_t sz)
           retval = -EBADF;
         }
           
-///        rwlock(&vnode->lock, LK_RELEASE);
-        vnode_put(vnode);
-        filp_put(filp);
         return retval;      
       }
-      
-//      rwlock(&vnode->lock, LK_RELEASE);      
-      vnode_put(vnode);      
+
       retval = -EACCES;
     } else {
       retval = -EINVAL;
     }
 
-    filp_put(filp);    
   } else {
     Info("kread() -EBADF a");
 
@@ -202,7 +190,6 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     vnode = vnode_get_from_filp(filp);
     
     if (vnode) {
-//      rwlock(&vnode->lock, LK_SHARED);
 
       if (check_access(vnode, filp, R_OK) == 0) {
         if (S_ISBLK(vnode->mode)) {
@@ -220,13 +207,10 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
         retval = -EACCES;
       }
       
-//      rwlock(&vnode->lock, LK_RELEASE);
-      vnode_put(vnode);      
     } else {
       retval = -EINVAL;
     }
 
-    filp_put(filp);
   } else {
     Info("preadv() -EBADF a");
 

@@ -17,7 +17,7 @@
  * File system pathname lookup and conversion to vnodes.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -79,8 +79,7 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
 
       ld->parent = NULL;
       ld->vnode = root_vnode;
-      vnode_add_reference(ld->vnode);
-//      rwlock(ld->vnode, LK_SHARED);
+      vnode_ref(ld->vnode);
       return 0;
     }
 
@@ -232,8 +231,7 @@ int lookup_path(struct lookupdata *ld)
   ld->parent = NULL;
   ld->vnode = ld->start_vnode;
 
-  vnode_add_reference(ld->vnode);
-//  rwlock(ld->vnode, LK_SHARED);
+  vnode_ref(ld->vnode);
   
   while(1) {    
     ld->last_component = path_token(ld);
@@ -408,7 +406,7 @@ int walk_component(struct lookupdata *ld)
  
   } else if (StrCmp(ld->last_component, ".") == 0) {    
     Info("walk_comp - last comp is .");    
-    vnode_add_reference(ld->parent);    
+    vnode_ref(ld->parent);    
     ld->vnode = ld->parent;
     return 0;
   
@@ -416,12 +414,12 @@ int walk_component(struct lookupdata *ld)
     Info("walk_comp - last comp is ..");    
 
     if (ld->parent == root_vnode) {
-      vnode_add_reference(root_vnode);
+      vnode_ref(root_vnode);
       ld->vnode = root_vnode;
       return 0;
  
     } else if (ld->parent->vnode_covered != NULL) {
-      vnode_add_reference(ld->parent->vnode_covered);
+      vnode_ref(ld->parent->vnode_covered);
   
       Info("walk_comp - vnode_put Z parent:%08x", (uint32_t)ld->parent);
       vnode_put(ld->parent);
@@ -476,16 +474,14 @@ int walk_component(struct lookupdata *ld)
 
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
-      vnode_add_reference(ld->vnode);
-//      rwlock(ld->vnode, LK_SHARED);
+      vnode_ref(ld->vnode);
       
     } else {
       Info("walk_comp vnode_put C ld->vnode %08x", (uint32_t)ld->vnode);
 
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
-      vnode_add_reference(ld->vnode);
-//      rwlock(ld->vnode, LK_SHARED);
+      vnode_ref(ld->vnode);
     }    
   }  
 

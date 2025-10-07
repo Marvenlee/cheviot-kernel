@@ -36,6 +36,8 @@ struct SuperBlock *get_superblock(struct Process *proc, int fd)
 
   KASSERT(proc != NULL);
   
+  Info("get_superblock(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  
   filp = filp_get(proc, fd);
     
   if (filp == NULL) {
@@ -62,23 +64,20 @@ struct SuperBlock *alloc_superblock(void)
 
   Info("alloc_superblock()");
   
-  KASSERT(superblock_list_lock.exclusive_cnt == 1 || superblock_list_lock.is_draining == true);
-  
   sb = LIST_HEAD(&free_superblock_list);
 
   if (sb == NULL) {
     Error("no free superblocks");
-    rwlock(&superblock_list_lock, LK_RELEASE);
     return NULL;
   }
 
   LIST_REM_HEAD(&free_superblock_list, link);
 
-//  memset(sb, 0, sizeof *sb);
+  memset(sb, 0, sizeof *sb);
  
   // FIXME superblock reference_cnt
-  sb->reference_cnt = 0;
-  sb->dev = 0xdead;
+  sb->reference_cnt = 1;        // Initialize to 1 for msgport fd filp
+  sb->dev = (uint32_t)sb;
   sb->flags = 0;
   
   LIST_INIT(&sb->vnode_list);
@@ -88,8 +87,6 @@ struct SuperBlock *alloc_superblock(void)
   // sure each superblock has been referenced.
   
   LIST_ADD_TAIL(&mounted_superblock_list, sb, link);
-
-  Info("rwlock superblock_list_lock RELEASE");
 
   return sb;
 }
@@ -106,11 +103,10 @@ void free_superblock(struct SuperBlock *sb)
 
   Info("free_superblock()");
 
-  KASSERT(superblock_list_lock.exclusive_cnt == 1 || superblock_list_lock.is_draining == true);
-  KASSERT(sb->reference_cnt == 0);
+//  KASSERT(sb->reference_cnt == 0);
   
-  LIST_REM_ENTRY(&mounted_superblock_list, sb, link);  
-  LIST_ADD_TAIL(&free_superblock_list, sb, link);
+//  LIST_REM_ENTRY(&mounted_superblock_list, sb, link);  
+//  LIST_ADD_TAIL(&free_superblock_list, sb, link);
 }
 
 
@@ -124,7 +120,7 @@ void discard_vnodes(struct SuperBlock *sb)
   while ((vnode = LIST_HEAD(&sb->vnode_list)) != NULL) {
     LIST_REM_HEAD(&sb->vnode_list, vnode_link);             // TODO: Move into vnode_discard?    
     
-    vnode_discard(vnode);     // Performs knote removal, cache block removal.
+    // FIXME:   vnode_discard(vnode);     // Performs knote removal, cache block removal.
   } 
 }
 
@@ -157,12 +153,13 @@ void ref_superblock(struct SuperBlock *sb)
  */
 int deref_superblock(struct SuperBlock *sb)
 {
-  sb->reference_cnt--;
+  Info("deref_superblock()");
+//  sb->reference_cnt--;
     
-  if (sb->reference_cnt == 0) {
+//  if (sb->reference_cnt == 0) {
     // discard_vnodes(sb);   
-    free_superblock(sb);    
-  }
+//    free_superblock(sb);    
+//  }
   
   return 0;
 }
@@ -223,29 +220,29 @@ void detach_mount(struct SuperBlock *sb)
 
 /* @brief   Close a file descriptor pointing to a superblock/msgport
  *
- *
- *
  * TODO: Need to have separate function to sync the device,
  * flush all pending delayed writes and anything in message queue
  * Prevent further access
  * Perhaps separate umount(); ???
  */ 
-int close_superblock(struct SuperBlock *sb)
+int do_close_superblock(struct SuperBlock *sb)
 {
   struct Filp *filp;
   int sc;
-  
-  Info("close_superblock()");
-  
-//  KASSERT(sb != NULL);
 
-  sb->flags |= SBF_ABORT;
+#if 0  
+  sc = sb->reference_cnt--;
   
-  detach_mount(sb);
-  fini_msgport(&sb->msgport);
-  fini_character_device_queues(sb); 
-      
-  sc = deref_superblock(sb);
+  if (sb->reference_cnt == 1) {
+    sb->flags |= SBF_ABORT;
+    
+    detach_mount(sb);
+    fini_msgport(&sb->msgport);
+    fini_character_device_queues(sb); 
+  }      
+#else
+  sc = 0;
+#endif
 
   return sc;  
 }

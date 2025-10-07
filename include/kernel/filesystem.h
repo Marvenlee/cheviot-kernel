@@ -179,7 +179,7 @@ struct VNode
 #define V_ROOT      (1 << 3)
 #define V_ABORT     (1 << 4)
 #define V_DISCARD   (1 << 5)
-
+#define V_HASHED    (1 << 6)
 
 /* @brief   SuperBlock data structure for a mounted filesystem.
  */
@@ -188,7 +188,7 @@ struct SuperBlock
   struct RWLock lock;
   struct Rendez rendez;     // FIXME: Do we need lock or rendez?
 
-  int reference_cnt;
+  int reference_cnt;        // Number of vnodes referencing this superblock
   
   superblock_link_t link;
 
@@ -238,6 +238,12 @@ struct DName {
  */
 struct Filp
 {
+  off64_t offset;
+  
+  mode_t mode;                          // TODO: Need to set the access mode on file open or fcntl
+  uint32_t flags;                       // Access flags, e.g. O_READ, O_WRITE
+  int reference_cnt;
+
   int type;
   
   union {
@@ -246,24 +252,18 @@ struct Filp
     struct KQueue *kqueue;
   } u;
   
-  off64_t offset;
-  mode_t mode;                          // TODO: Need to set the access mode on file open or fcntl
-  uint32_t flags;                       // Access flags, e.g. O_READ, O_WRITE
-  int reference_cnt;
-  filp_link_t filp_entry;               // VNode link
-  
-  bool busy;
-  struct Rendez rendez;
+  filp_link_t filp_entry;               // FIXME: VNode link, needed ?  
 };
 
 // Filp.type
-#define FILP_TYPE_UNDEF        0
+#define FILP_TYPE_FREE         0
 #define FILP_TYPE_VNODE        1
 #define FILP_TYPE_SUPERBLOCK   2
 #define FILP_TYPE_KQUEUE       3
 #define FILP_TYPE_PIPE         5
 #define FILP_TYPE_SOCKET       6
 #define FILP_TYPE_SOCKETPAIR   7
+#define FILP_TYPE_UNDEF        10
 
 
 /* @brief   Process's file descriptor table entry
@@ -278,8 +278,10 @@ struct FileDesc
 #define FDF_NONE                0
 
 #define FDF_CLOSE_ON_EXEC       (1<<0)
-#define FDF_ALLOCED             (1<<30)
-#define FDF_VALID               (1<<31)
+#define FDF_ALLOCED             (1<<1)
+#define FDF_VALID               (1<<2)
+
+#define FDF_ALL   (FDF_CLOSE_ON_EXEC | FDF_ALLOCED | FDF_VALID)
 
 
 /* @brief   Management of a process's file descriptors
@@ -337,6 +339,7 @@ ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
 ssize_t write_to_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offset);
 ssize_t read_from_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
 ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t *offset);
+int do_close_block_device(struct VNode *vnode);
 
 
 /* fs/cache.c */
@@ -386,7 +389,6 @@ int btruncatev(struct VNode *vnode);
 void lock_dirty_queues(void);
 void unlock_dirty_queues(void);
 
-
 /* fs/char.c */
 int sys_isatty(int fd);
 ssize_t read_from_char(struct VNode *vnode, void *src, size_t nbytes);
@@ -401,6 +403,7 @@ int ioctl_tiocgsid(int fd, pid_t *sid);
 int ioctl_tiocgpgrp(int fd, pid_t *_pgrp);
 int ioctl_tiocspgrp(int fd, pid_t *_pgrp);
 int ioctl_setsyslog(int fd);
+int do_close_char_device(struct VNode *vnode);
 
 /* fs/dir.c */
 int sys_chdir(char *path);
@@ -412,6 +415,7 @@ int sys_mkdir(char *pathname, mode_t mode);
 int sys_rmdir(char *pathname);
 ssize_t sys_readdir(int fd, void *dst, size_t sz);
 int sys_rewinddir(int fd);
+int do_close_dir(struct VNode *vnode);
 
 /* fs/dnlc.c */
 int dname_lookup(struct VNode *dir, char *name, struct VNode **vnp);
@@ -437,6 +441,7 @@ ssize_t read_ifs(void *base, off_t offset, void *vaddr, size_t sz);
 /* fs/file.c */
 ssize_t read_from_file(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset, bool inkernel);
 ssize_t write_to_file(struct VNode *vnode, void *src, size_t nbytes, off64_t *offset);
+int do_close_file(struct VNode *vnode);
 
 /* fs/filedesc.c */
 int sys_fcntl(int fd, int cmd, int arg);
@@ -447,16 +452,15 @@ int do_close(struct Process *proc, int fd);
 int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd, uint32_t flags);
 int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **filedesc);
 int fd_free(struct Process *proc, int fd);
+int fd_invalidate(struct Process *proc, int fd);
 int fork_fds(struct Process *newp, struct Process *oldp);
 int exec_fds(struct Process *proc);
 
 /* fs/filp.c */
-int filp_close(struct Process *proc, int fd);
 struct Filp *filp_get(struct Process *proc, int fd);
-void filp_put(struct Filp *filp);
-struct Filp *filp_alloc(void);
-void filp_free(struct Filp *filp);
-struct VNode *vnode_get_from_filp(struct Filp *filp);
+struct Filp *filp_get_new(void);
+void filp_ref(struct Filp *filp);
+int filp_release(struct Filp *filp);
 
 /* fs/fproc.c */
 int init_fproc(struct Process *proc);
@@ -507,6 +511,7 @@ void free_pipe(struct Pipe *pipe);
 int sys_pipe(int _fd[2]);
 ssize_t read_from_pipe(struct VNode *vnode, void *src, size_t nbytes);
 ssize_t write_to_pipe(struct VNode *vnode, void *src, size_t nbytes);
+int do_close_pipe(struct VNode *vnode, bool is_writer);
 
 /* fs/poll.c */
 int sys_poll(struct pollfd *pfds, nfds_t nfds, int timeout);
@@ -532,8 +537,7 @@ struct SuperBlock *get_superblock(struct Process *proc, int fd);
 struct SuperBlock *alloc_superblock(void);
 void register_mounted_superblock(struct SuperBlock *sb);
 void free_superblock(struct SuperBlock *sb);
-int close_superblock(struct SuperBlock *sb);
-
+int do_close_superblock(struct SuperBlock *sb);
 
 /* fs/sync.c */
 int sys_sync(void);
@@ -567,16 +571,24 @@ int vfs_sync(struct SuperBlock *sb);
 int vfs_syncfile(struct VNode *vnode);
 
 /* fs/vnode.c */
-int close_vnode(struct VNode *vnode, uint32_t filp_flags);
-struct VNode *vnode_new(struct SuperBlock *sb);
+struct VNode *vnode_get_new(struct SuperBlock *sb);
+struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr);
+struct VNode *vnode_get_from_filp(struct Filp *filp);
+
+void vnode_put(struct VNode *vnode);
+
+void vnode_put_fifo_reader(struct VNode *vnode);
+void vnode_put_fifo_writer(struct VNode *vnode);
+
+void vnode_ref(struct VNode *vnode);
+
+void do_vnode_discard(struct VNode *vnode);
+void do_vnode_recycle(struct VNode *vnode);
+
+struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr);
 void vnode_hash_enter(struct VNode *vnode);
 void vnode_hash_remove(struct VNode *vnode);
-struct VNode *vnode_get(struct SuperBlock *sb, int vnode_nr);
-void vnode_put(struct VNode *vnode);
-void vnode_add_reference(struct VNode *vnode);
-void vnode_discard(struct VNode *vnode);                        // Delete a vnode from cache unlink/rmdir/umount?
-struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 
 /* fs/write.c */
 ssize_t sys_write(int fd, void *buf, size_t count);

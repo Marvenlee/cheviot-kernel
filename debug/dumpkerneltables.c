@@ -109,7 +109,7 @@ void dump_kernel_filps(int cmd, int arg1, int arg2)
       Info("reference_cnt:%d", filp->reference_cnt);
       Info("object: %08x", (uint32_t)filp->u.vnode);
       Info("offset: %08x, mode:%o", (uint32_t)filp->offset, filp->mode);
-      Info("flags: %08x, busy:%d", filp->flags, filp->busy);
+      Info("flags: %08x", filp->flags);
     }
   }
 }

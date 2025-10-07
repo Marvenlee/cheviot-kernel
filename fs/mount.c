@@ -59,7 +59,7 @@ int sys_pivotroot(char *_new_root, char *_old_root)
     return -ENOENT;
   }
 
-  vnode_add_reference(old_root_vnode);
+  vnode_ref(old_root_vnode);
 
   if ((sc = lookup(_new_root, 0, &new_ld)) != 0) {
     Error("PivotRoot lookup _new_root failed");
@@ -78,7 +78,7 @@ int sys_pivotroot(char *_new_root, char *_old_root)
     return -ENOENT;
   }
 
-  vnode_add_reference(new_root_vnode);
+  vnode_ref(new_root_vnode);
 
   current_root_vnode = root_vnode;
   old_root_vnode->vnode_mounted_here = current_root_vnode;
@@ -139,7 +139,7 @@ int sys_renamemount(char *_new_path, char *_old_path)
 	  
 	  covered_vnode = old_vnode->vnode_covered;
 
-	  vnode_add_reference(covered_vnode);
+	  vnode_ref(covered_vnode);
 	  vnode_put(old_vnode);
 	  old_vnode = covered_vnode;
   }
@@ -169,7 +169,7 @@ int sys_ismount(char *_path)
   struct lookupdata ld;
   int sc;  
 
-  Info("sys_ismount");
+  Info("sys_ismount()");
 
   if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
     Error("sys_ismount lookup failed: %d", sc);
@@ -183,6 +183,8 @@ int sys_ismount(char *_path)
   }
   
   sc = is_mountpoint(ld.vnode);
+
+  Info ("is_mountpoint() returned :%d", sc);
 
   lookup_cleanup(&ld);  
   return sc;  
@@ -198,7 +200,8 @@ int sys_ismount(char *_path)
  */
 bool is_mountpoint(struct VNode *vnode)
 {
-  if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {
+  
+  if (vnode->vnode_covered != NULL || vnode->vnode_mounted_here != NULL) {    
     return true;
   } else {
     return false;

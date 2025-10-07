@@ -181,3 +181,12 @@ ssize_t write_to_file(struct VNode *vnode, void *src, size_t sz, off64_t *offset
 }
 
 
+/* @brief   Close a regular file and perform any special-case handling
+ *
+ */
+int do_close_file(struct VNode *vnode)
+{
+  vnode_put(vnode);
+}
+
+

@@ -224,11 +224,11 @@ int TaskSleepInterruptible(struct Rendez *rendez, struct timespec *ts, uint32_t 
   
   LIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
   current->state = THREAD_STATE_RENDEZ_BLOCKED;
-
   current->intr_flags = intr_flags;
   current->blocking_rendez = rendez;
   SchedUnready(current);
-  Reschedule();
+
+  Reschedule();     // Interrupts will be enabled then disabled again once this returns
 
   current->intr_flags = 0;
 
@@ -291,9 +291,19 @@ static void TaskTimedSleepCallback(struct Timer *timer)
   
   int_state = DisableInterrupts();
 
-  KASSERT(thread->blocking_rendez == rendez);
+
 
   if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED) {
+
+    if (thread->blocking_rendez != rendez) {
+      Info("TaskTimedSleepCallback()");
+      Info("rendez: %08x, blocking_rendez: %08x", (uint32_t)rendez, (uint32_t)blocking_rendez);
+      Info("thread: %08x", (uint32_t)thread);
+      Info("thread state :%d", thread->state);
+    }
+
+    KASSERT(thread->blocking_rendez == rendez);
+
     LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
     thread->blocking_rendez = NULL;
     LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
@@ -323,6 +333,8 @@ void TaskWakeup(struct Rendez *rendez)
 
     LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
     thread->blocking_rendez = NULL;
+    
+    
     LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
     thread->state = THREAD_STATE_BKL_BLOCKED;
   }

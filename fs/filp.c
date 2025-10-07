@@ -22,7 +22,7 @@
  * file oflags access type.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -62,39 +62,21 @@ struct Filp *filp_get(struct Process *proc, int fd)
   
   filp = proc->fproc.fd_table[fd].filp;
   
-  filp->reference_cnt++;
-
-  while(filp->busy == true) {
-    TaskSleep(&filp->rendez);
-  }
-  
-//  filp->busy = true;
-  
-//  Info("filp_get(fd:%d) => filp: %08x", fd, (uint32_t)filp);
+  Info(".. filp_get(fd:%d) => filp: %08x, ref_cnt:%d", fd, (uint32_t)filp, filp->reference_cnt);
   
   return filp;
 }
 
 
-/*
- *
- */
-void filp_put(struct Filp *filp)
-{
-  filp->reference_cnt--;
-//  filp->busy = false;
 
-  Info("filp_put(%08x) after ref_cnt:%d", (uint32_t)filp, filp->reference_cnt);
-
-  TaskWakeup(&filp->rendez);
-}
- 
 
 /* @brief   Allocate a filp (file pointer)
  */
-struct Filp *filp_alloc(void)
+struct Filp *filp_get_new(void)
 {
   struct Filp *filp;
+
+  Info("filp_get_new()");
 
   filp = LIST_HEAD(&filp_free_list);
 
@@ -103,62 +85,59 @@ struct Filp *filp_alloc(void)
     return NULL;
   }
 
+  KASSERT(filp->type == FILP_TYPE_FREE);
+
   LIST_REM_HEAD(&filp_free_list, filp_entry);
   filp->reference_cnt = 1;
-  Info("filp_alloc, setting type initially to FILP_TYPE_UNDEF");
   filp->type = FILP_TYPE_UNDEF;
   memset(&filp->u, 0, sizeof filp->u);
   
   filp->flags = 0;
-//  filp->busy = true;
-  InitRendez(&filp->rendez);
+
+  Info("filp_get_new() filp:%08x, ref_cnt = %d", (uint32_t)filp, filp->reference_cnt);  
   
   return filp;
 }
 
 
-/* @brief   Free a filp (file pointer)
+/*
+ *
  */
-void filp_free(struct Filp *filp)
+void filp_ref(struct Filp *filp)
 {
-  if (filp == NULL) {
-    Error("filp_free() ERROR, freeing null filp");
-    return;
-  }
+  KASSERT(filp != NULL);
+  
+  filp->reference_cnt++;
+
+  Info("filp_ref(%08x) ref_cnt now:%d", (uint32_t)filp, filp->reference_cnt);
+}
+
+
+/*
+ *
+ */
+int filp_release(struct Filp *filp)
+{
+  int retval;
+  
+  KASSERT (filp != NULL);
 
   filp->reference_cnt--;
- 
+
+  Info("filp_release(%08x) ref_cnt now:%d", (uint32_t)filp, filp->reference_cnt);
+
+  retval = filp->reference_cnt;
+
   if (filp->reference_cnt == 0) {
-    Info("filp:%08x ref_cnt is 0, setting type to FILP_TYPE_UNDEF");
-    filp->type = FILP_TYPE_UNDEF;
+    Info("filp:%08x ref_cnt is 0, setting type to FILP_TYPE_FREE");
+    filp->type = FILP_TYPE_FREE;
 
     Info("setting filp->u to NULL, adding to free list");
     memset(&filp->u, 0, sizeof filp->u);
     LIST_ADD_HEAD(&filp_free_list, filp, filp_entry);
   }
+  
+  return retval;
 }
 
-
-/* @brief   Lookup a vnode from a file pointer
- *
- * @param   filp, file pointer object that points to the vnode
- */
-struct VNode *vnode_get_from_filp(struct Filp *filp)
-{
-  if (filp == NULL) {
-    Error("vnode_get_from_filp, filp is NULL");
-    return NULL;
-  }
-  
-  if (filp->type != FILP_TYPE_VNODE) {
-    Info("vnode_get_from_filp, filp->type is not vnode: %d", filp->type);
-    return NULL;
-  }
-  
-  vnode_add_reference(filp->u.vnode);
-
-  Info("vnode_get_from_filp(filp:%08x) vnode:%08x", (uint32_t)filp, (uint32_t)filp->u.vnode);
-  
-  return filp->u.vnode;
-}
 

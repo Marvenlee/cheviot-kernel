@@ -17,7 +17,7 @@
  * Event notification system for files, events and other kernel objects
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -42,11 +42,10 @@ int sys_kqueue(void)
   struct Filp *filp;
   struct FileDesc *filedesc;
   int fd;
-
-  Info("sys_kqueue");
   
   current = get_current_process();
 
+  Info("sys_kqueue(), current proc:%08x", (uint32_t)current);
 
   fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
  
@@ -56,7 +55,7 @@ int sys_kqueue(void)
     return -EMFILE;
   }
   
-  filp = filp_alloc();
+  filp = filp_get_new();
  
   if (filp == NULL) {
     fd_free(current, fd);
@@ -66,7 +65,7 @@ int sys_kqueue(void)
   kqueue = alloc_kqueue();
   
   if (kqueue == NULL) {
-    filp_free(filp);
+    filp_release(filp);
     fd_free(current, fd);
     return -EMFILE;
   }
@@ -79,6 +78,7 @@ int sys_kqueue(void)
   filedesc->filp = filp;
   filedesc->flags |= FDF_VALID;
 
+  Info("kqueue() kqueue:%08x, filp:%08x", (uint32_t)kqueue, (uint32_t)filp);
   Info("kqueue() result:%d", fd);
 
   return fd;
@@ -110,7 +110,7 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   struct timespec *timeoutp;
   int sc = 0;
   
-//  Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
+  Info("sys_kevent(%d, nchanges:%d, nevents:%d", fd, nchanges, nevents);
   
   current = get_current_process();
   current_thread = get_current_thread();
@@ -130,11 +130,14 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   }
   
   while (kqueue->busy == true) {
-//    Info("kqueue busy, sleeping");
+    Info("kqueue busy, sleeping");
     TaskSleep(&kqueue->busy_rendez);
   }
   
-//  Info("kqueue acquired");
+  Info("kevent() kqueue acquired");
+
+  Info("kevent() kqueue:%08x", (uint32_t)kqueue);
+
   kqueue->busy = true;
   
   // Processing of adding/removing/enabling and disabling events.  
@@ -249,15 +252,15 @@ int sys_kevent(int fd, const struct kevent *changelist, int nchanges,
   if (LIST_HEAD(&kqueue->pending_list) != NULL) {
     TaskWakeup(&kqueue->busy_rendez);  
   }
+
+  Info("kqueue sc = %d", sc);
   
   if (sc != 0) {
-//    Info("kqueue A sc:%d", sc);  
     return sc;
+  } else {
+    return nevents_returned;
   }
   
-//  Info("kevent: events:%d", nevents_returned);
-  return nevents_returned;
-
 exit:
   // TODO: Any kevent cleanup
   kqueue->busy = false;
@@ -267,7 +270,7 @@ exit:
   }
 
 
-//  Info("kqueue B sc:%d", sc);  
+  Info("kqueue B sc:%d", sc);  
   return sc;
 }
 
@@ -281,6 +284,8 @@ void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread)
 {
   int_state_t int_state;
   uint32_t caught_events;    
+  
+  Info("process_event_knotes(kq:%08x, thread:%08x", (uint32_t)kqueue, (uint32_t)current_thread);
   
   if (kqueue != current_thread->event_kqueue) {
     return;
@@ -328,32 +333,13 @@ int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, 
   
   vnode = vnode_get(sb, ino_nr);
   
-  rwlock(&vnode->lock, LK_SHARED);    // May not be needed if knote doesn't block
-  
   if (vnode == NULL) {
     return -EINVAL;
   }
     
   knote(&vnode->knote_list, hint);  
 
-  rwlock(&vnode->lock, LK_RELEASE);
   vnode_put(vnode);
-  return 0;
-}
-
-
-/* @brief   Close a kqueue file descriptor
- *
- * @param   proc,
- * @param   fd,
- * @return  0 on success, negative errno on error
- *
- */
-int close_kqueue(struct KQueue *kq)
-{
-  // TODO: FIXME: Delete all Notes on list
-
-  free_kqueue(kq);
   return 0;
 }
 
@@ -371,16 +357,21 @@ int knote(knote_list_t *knote_list, int hint)    // hint should be bitfield, add
 
   knote = LIST_HEAD(knote_list);
  
-//  Info("knote(list:%08x, hint:%d) knote:%08x", (uint32_t)knote_list, hint, (uint32_t)knote);
+  Info("knote(list:%08x, hint:%d) knote:%08x", (uint32_t)knote_list, hint, (uint32_t)knote);
   
   while(knote != NULL) {
     knote->pending = true;
     knote->hint = hint;
 
+
     if (knote->enabled == true && knote->on_pending_list == false) {        
       kqueue = knote->kqueue;      
       LIST_ADD_TAIL(&kqueue->pending_list, knote, pending_link);
       knote->on_pending_list = true;
+
+      Info("knote: %08x", (uint32_t)knote);
+      Info("knote.kqueue = %08x", (uint32_t)kqueue);
+      
       
       TaskWakeup(&kqueue->event_rendez);
     }
@@ -405,7 +396,7 @@ int knote_dequeue(knote_list_t *knote_list, int filter)    // add hint, should b
 
   knote = LIST_HEAD(knote_list);
   
-//  Info("knote_dequeue(list:%08x, filter:%d) knote:%08x", (uint32_t)knote_list, filter, (uint32_t)knote);
+  Info("knote_dequeue(list:%08x, filter:%d) knote:%08x", (uint32_t)knote_list, filter, (uint32_t)knote);
   
   while(knote != NULL) {
     if (knote->filter == filter) {
@@ -456,17 +447,19 @@ struct KQueue *get_kqueue(struct Process *proc, int fd)
 {
   struct Filp *filp;
   
-//  Info("get_kqueue(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  Info("get_kqueue(proc:%08x, fd:%d)", (uint32_t)proc, fd);
   
   filp = filp_get(proc, fd);
   
   if (filp == NULL) {
     return NULL;
   }
-  
+    
   if (filp->type != FILP_TYPE_KQUEUE) {
     return NULL;
   }
+
+  Info("get_kqueue() filp:%08x, kq:%08x", (uint32_t)filp, (uint32_t)filp->u.kqueue);
 
   return filp->u.kqueue;
 }
@@ -484,6 +477,7 @@ struct KQueue *alloc_kqueue(void)
   kqueue = LIST_HEAD(&kqueue_free_list);
 
   if (kqueue == NULL) {
+    Info("alloc_kqueue() FAILED");
     return NULL;
   }
   
@@ -498,6 +492,8 @@ struct KQueue *alloc_kqueue(void)
   LIST_INIT(&kqueue->knote_list);
   LIST_INIT(&kqueue->pending_list);
   
+  Info("** alloc_kqueue() kqueue:%08x", (uint32_t)kqueue);
+  
   return kqueue;
 }
 
@@ -505,14 +501,17 @@ struct KQueue *alloc_kqueue(void)
 /*
  *
  */
-void free_kqueue(struct KQueue *kqueue)
+void kqueue_put(struct KQueue *kqueue)
 {
-  Info("free_kqueue(kq:%08x)", (uint32_t)kqueue);
+  Info("kqueue_put(kq:%08x)", (uint32_t)kqueue);
   
   kqueue->reference_cnt--;
   
   if (kqueue->reference_cnt == 0) {
+    Info("**** freeing kqueue %08x", (uint32_t)kqueue);
+    
     // TODO: We need to detach any knotes from the kqueue before freeing it.
+    
     LIST_ADD_HEAD(&kqueue_free_list, kqueue, free_link);
   }
 }
@@ -676,7 +675,7 @@ void free_knote(struct KQueue *kqueue, struct KNote *knote)
   struct Process *current;
   struct Thread *thread;
   
-//  Info("free_knote(kq:%08x, kn:%08x", (uint32_t)kqueue, (uint32_t)knote);
+  Info("free_knote(kq:%08x, kn:%08x)", (uint32_t)kqueue, (uint32_t)knote);
   
   current = get_current_process();
   
@@ -762,6 +761,8 @@ void drain_knote_list(knote_list_t *knote_list)
   int hash;
   struct KQueue *kqueue;
   struct KNote *knote;
+  
+  Info("drain_knote_list()");
   
   while((knote = LIST_HEAD(knote_list)) != NULL) {
     LIST_REM_ENTRY(knote_list, knote, object_link);
@@ -904,4 +905,18 @@ int knote_calc_hash(struct KQueue *kq, int ident, int filter)
 {
   return ((ident << 8) | filter) % KNOTE_HASH_SZ;
 }
+
+
+/* @brief   Close a kqueue and perform any special-case handling
+ *
+ */
+int do_close_kqueue(struct KQueue *kq)
+{
+  // TODO: FIXME: Delete all Notes on list
+
+  kqueue_put(kq);
+
+  return 0;
+}
+
 

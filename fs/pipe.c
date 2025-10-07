@@ -17,7 +17,7 @@
  * Unnamed pipe handling.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -56,20 +56,19 @@ int sys_pipe(int *_fd)
     fd[0] = fd_alloc(current, 0, FILEDESC_MAX, &filedesc0);
 
     if (fd[0] >= 0) {      
-      filp0 = filp_alloc();
+      filp0 = filp_get_new();
       
       if (filp0) {
       Info("sys_pipe calling fd_alloc for fd[1]");
         fd[1] = fd_alloc(current, 0, FILEDESC_MAX, &filedesc1);
 
         if (fd[1] >= 0) {
-          filp1 = filp_alloc();
+          filp1 = filp_get_new();
   
           if (filp1) {
-            vnode = vnode_new(&pipe_sb);
+            vnode = vnode_get_new(&pipe_sb);
 
             if (vnode) {
-//              Info("sys_pipe, vnode:%08x", (uint32_t)vnode);
               vnode->pipe = pipe;
               vnode->mode |= S_IFIFO | S_IRUSR | S_IWUSR;
               vnode->uid = current->uid;
@@ -95,8 +94,7 @@ int sys_pipe(int *_fd)
               filedesc0->filp = filp0;
               filedesc1->filp = filp1;
 
-              vnode_add_reference(vnode);     // Add second reference for filp0.
-              vnode_add_reference(vnode);     // Add second reference for filp1.
+              vnode_ref(vnode);     // Add second reference for filp1.
 
               Info("pipe vnode:%08x", (uint32_t)vnode);
               Info("pipe:%08x", (uint32_t)pipe);
@@ -108,22 +106,18 @@ int sys_pipe(int *_fd)
               if (sc == 0) {
                 filedesc0->flags |= FDF_VALID;
                 filedesc1->flags |= FDF_VALID;
-              
-                //vnode_put(vnode);    FIXME: Should we be putting the vnode or not?  Same for filps?
-                //filp_put(filp0);
-                //filp_put(filp1);
                 return 0;
               }
-            
-            
+              
               Info("pipe() failed to copyout fds, discarding");
-              vnode_put(vnode);   // remve second reference
-              vnode_discard(vnode);
+              
+              vnode_put_fifo_writer(vnode);
+              vnode_put_fifo_reader(vnode);
             } else {
               sc = -ENOMEM;
             }
 
-            filp_free(filp1);
+            filp_release(filp1);
           } else {
             sc = -ENOMEM;
           }
@@ -133,7 +127,7 @@ int sys_pipe(int *_fd)
           sc = -ENOMEM;
         }
         
-        filp_free(filp0);           
+        filp_release(filp0);           
       } else {
         sc = -ENOMEM;
       }
@@ -152,6 +146,20 @@ int sys_pipe(int *_fd)
 
   return sc;
 }
+
+
+/* @brief   Close a regular file and perform any special-case handling
+ *
+ */
+int do_close_pipe(struct VNode *vnode, bool is_writer)
+{
+  if (is_writer) {
+    vnode_put_fifo_writer(vnode);
+  } else {
+    vnode_put_fifo_reader(vnode);  
+  }
+}
+
 
 
 /*

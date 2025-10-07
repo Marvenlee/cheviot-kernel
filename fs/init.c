@@ -37,15 +37,9 @@ void init_vfs(void)
 
   init_vfs_lists();
   init_vfs_pipes();
- 
-  rwlock_init(&superblock_list_lock); 
-  rwlock_init(&vnode_list_lock);
-  
+   
 //  dirty_queues_busy = false;
 //  InitRendez(&dirty_queues_rendez);
-  
-//  rwlock_init(&cache_lock);
-
   
   root_vnode = NULL;
 
@@ -83,6 +77,7 @@ void init_vfs_lists(void)
 
   for (int t = 0; t < NR_FILP; t++) {
     LIST_ADD_TAIL(&filp_free_list, &filp_table[t], filp_entry);
+    filp_table[t].type = FILP_TYPE_FREE;
   }
 
   for (int t = 0; t < NR_DNAME; t++) {

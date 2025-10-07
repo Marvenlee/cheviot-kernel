@@ -80,7 +80,7 @@ int sys_rename(char *oldpath, char *newpath)
 	 */  	 
 	if (S_ISDIR(oldl.vnode->mode) && (oldl.parent != newl.parent)) {
     super_dvnode = newl.parent;
-    vnode_add_reference(super_dvnode);    
+    vnode_ref(super_dvnode);    
 
     sc = 0;
     depth = 0;
@@ -135,30 +135,19 @@ int sys_rename(char *oldpath, char *newpath)
 	  }
 	}
 	
-  rwlock(&oldl.vnode->lock, LK_UPGRADE);
-
   // If same dvnode, ensure only a single exclusive lock is held.
   // FIXME: I'm sure it's possible to deadlock this with multiple rename commands.
   // Do we need to lock the vnodes in kernel address order ?
     
   if (oldl.parent == newl.parent) {
-    rwlock(&newl.parent->lock, LK_RELEASE);
-    rwlock(&oldl.parent->lock, LK_UPGRADE);
   } else {
-    rwlock(&newl.parent->lock, LK_UPGRADE);
-    rwlock(&oldl.parent->lock, LK_UPGRADE);
   }
   
   sc = vfs_rename(oldl.parent, oldl.last_component, newl.parent, newl.last_component);
 
   if (oldl.parent == newl.parent) {
-    rwlock(&oldl.parent->lock, LK_RELEASE);
   } else {
-    rwlock(&newl.parent->lock, LK_RELEASE);
-    rwlock(&oldl.parent->lock, LK_RELEASE);
   }
-
-  rwlock(&oldl.vnode->lock, LK_RELEASE);
   
   lookup_cleanup(&oldl);
   lookup_cleanup(&newl);

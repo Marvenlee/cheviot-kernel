@@ -491,9 +491,9 @@ int bsyncv(struct VNode *vnode)
   
   Info("bsyncv()");
 
-//  KASSERT(vnode->lock.exclusive_cnt == 1 || vnode->lock.is_draining == true);
-
-  // vfs_sync_file(vnode)   // TODO: Send message to sync file
+#if 0
+  vfs_sync_file(vnode)   // TODO: Send message to sync file
+#endif
 
   return 0;
 }
@@ -520,7 +520,6 @@ int btruncatev(struct VNode *vnode)
   off64_t cluster_offset;
   off64_t remaining;
 
-//  KASSERT(vnode->lock.exclusive_cnt == 1 || vnode->lock.is_draining == true);
 
   mark_all_vnode_pages_as_busy(vnode);
 
@@ -570,9 +569,6 @@ int btruncatev(struct VNode *vnode)
 int binvalidatev(struct VNode *vnode)
 {
   struct Page *page;
-
-  // Does it really need exclusive lock?
-//  KASSERT(vnode->lock.exclusive_cnt == 1 || vnode->lock.is_draining == true);
 
   while((page = LIST_HEAD(&vnode->page_list)) != NULL) {
     page->bflags |= B_BUSY;

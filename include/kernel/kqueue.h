@@ -84,7 +84,6 @@ int knote_dequeue(knote_list_t *knote_list, int filter);
 
 void process_event_knotes(struct KQueue *kqueue, struct Thread *current_thread);
 
-int close_kqueue(struct KQueue *kqueue);
 void enable_knote(struct KQueue *kqueue, struct KNote *knote);
 void disable_knote(struct KQueue *kqueue, struct KNote *knote);
 
@@ -100,6 +99,7 @@ void drain_knote_list(knote_list_t *knote_list);
 
 int knote_calc_hash(struct KQueue *kq, int ident, int filter);
 
+int do_close_kqueue(struct KQueue *kqueue);
 
 
 #endif

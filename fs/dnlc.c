@@ -69,7 +69,7 @@ int dname_lookup(struct VNode *dir, char *name, struct VNode **vnp)
     if (dname->dir_vnode == dir && StrCmp(dname->name, name) == 0) {
       // TODO: Replace with inode_nr, do a VNodeGet
       *vnp = dname->vnode;
-      vnode_add_reference(*vnp);
+      vnode_ref(*vnp);
       return 0;
     }
 

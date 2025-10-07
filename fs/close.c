@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -44,6 +44,11 @@ int sys_close(int fd)
 int do_close(struct Process *proc, int fd)
 {
   struct Filp *filp;
+  struct VNode *vnode;
+  struct SuperBlock *sb;
+  struct KQueue *kq;
+  mode_t mode;
+  int sc = 0;
   
   Info("do_close(fd:%d)", fd);
 
@@ -55,43 +60,68 @@ int do_close(struct Process *proc, int fd)
   filp = filp_get(proc, fd);  // TODO: This does bounds checking too. can we return filedesc too?
                               // TODO: Or should be replace fd with pointer to filedesc?  
   
+  // TODO: Check if filp or filedesc is busy, return -EAGAIN if so (both?)
+  
+  
   if (filp) {
-    proc->fproc.fd_table[fd].flags &= ~FDF_VALID;    // Disable access by other user processes to this file descriptor.
-    
-    filp->reference_cnt--;  // Cancel out the temporary increase due to filp_get
-    
-    Info("do_close() filp:%08x, ref_cnt:%d", (uint32_t)filp, filp->reference_cnt);
-    
-    if (filp->reference_cnt == 1) {   // TODO: Mark filp as not duplicable, mark FD as busy/in-use/locked
-            
-      switch (filp->type) {
-          case FILP_TYPE_VNODE:
-          Info("call close_vnode");
-          close_vnode(filp->u.vnode, filp->flags);
-                    
-          break;
-        case FILP_TYPE_SUPERBLOCK:    // TODO: Change to messageport
-          Info("call close_superblock");
-          close_superblock(filp->u.superblock);
-          break;
-        case FILP_TYPE_KQUEUE:
-          Info("call close_kqueue");
-          close_kqueue(filp->u.kqueue);
-          break;
-        default:
-          KernelPanic();
+    fd_invalidate(proc, fd);
+
+    switch (filp->type) {
+      case FILP_TYPE_VNODE: {
+        vnode = vnode_get_from_filp(filp);
+
+        fd_free(proc, fd);
+
+        if (filp_release(filp) == 0) {
+          KASSERT(vnode != NULL);
+          
+          mode = vnode->mode;
+           
+          if (S_ISREG(mode)) {
+            do_close_file(vnode);
+          } else if (S_ISDIR(mode)) {
+            do_close_dir(vnode);
+          } else if (S_ISCHR(mode)) {
+            do_close_char_device(vnode);
+          } else if (S_ISBLK(mode)) {
+            do_close_block_device(vnode);
+          } else if (S_ISFIFO(mode)) {
+            do_close_pipe(vnode, (filp->flags & O_WRONLY));          
+          } else if (S_ISSOCK(mode)) {
+          }
+        }
+        
+        break;
       }
+      
+      case FILP_TYPE_SUPERBLOCK:
+        sb = filp->u.superblock;
 
-      filp_free(filp);
-    }
+        fd_free(proc, fd);
 
-    fd_free(proc, fd);
+        if (filp_release(filp) == 0) {        
+          do_close_superblock(sb);
+        }
+        
+        break;
+      case FILP_TYPE_KQUEUE:
+        kq = filp->u.kqueue;
+                
+        fd_free(proc, fd);
+
+        if (filp_release(filp) == 0) {
+          do_close_kqueue(kq);
+        }
+                
+        break;
+      default:
+        KernelPanic();
+    }    
   } else {
-//    Info("do_close(fd:%d) - EBADF", fd);
-    return -EBADF;
+    sc = -EBADF;
   }
 
-  return 0;
+  return sc;
 }
 
 

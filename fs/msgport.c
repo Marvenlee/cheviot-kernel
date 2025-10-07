@@ -101,15 +101,13 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     vnode_covered = NULL; 
   }
 
-  rwlock(&superblock_list_lock, LK_EXCLUSIVE);
-
   fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
   
   if (fd < 0) {
     return -EMFILE;
   }
   
-  filp = filp_alloc();
+  filp = filp_get_new();
   
   if (filp == NULL) {
     fd_free(current, fd);
@@ -120,13 +118,12 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   
   if (sb == NULL) {
     fd_free(current, fd);
-    filp_free(filp);
+    filp_release(filp);
     return -EMFILE;
   }
      
   if (fd < 0) {
     Error("createmsgport failed to alloc file descriptor");
-    rwlock(&superblock_list_lock, LK_RELEASE);
     if (do_lookup_cleanup) {
       lookup_cleanup(&ld);
     }
@@ -136,14 +133,12 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     return -ENOMEM;
   }
   
-  mount_root_vnode = vnode_new(sb);
+  mount_root_vnode = vnode_get_new(sb);
 
   if (mount_root_vnode == NULL) {
     Error("createmsgport failed to alloc vnode");
-// FIXME:   filp_free(fd);
 // FIXME:   fd_free(current, fd);
-
-    rwlock(&superblock_list_lock, LK_RELEASE);
+// FIXME:   filp_release(fd);
     
     if (do_lookup_cleanup) {
       lookup_cleanup(&ld);
@@ -158,7 +153,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 
   sb->root = mount_root_vnode;
   sb->flags = flags;
-  sb->reference_cnt = 1;          // 1 reference count of the root vnode
+  sb->reference_cnt = 1;          // 1 reference count of the root vnode (maybe also handle?)
   
   sb->dev = stat.st_dev;
    
@@ -168,7 +163,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   mount_root_vnode->mode = stat.st_mode;    
   mount_root_vnode->flags = V_VALID | V_ROOT;
 
-  vnode_add_reference(mount_root_vnode);
+  vnode_ref(mount_root_vnode);
     
   vnode_hash_enter(mount_root_vnode);
   
@@ -193,14 +188,12 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   
   if (vnode_covered != NULL) {
     vnode_covered->vnode_mounted_here = mount_root_vnode;
-    vnode_add_reference(vnode_covered);
+    vnode_ref(vnode_covered);
     
     knote(&vnode_covered->knote_list, NOTE_ATTRIB);
   }
 
-  vnode_add_reference(mount_root_vnode);
-
-  rwlock(&superblock_list_lock, LK_RELEASE);
+  vnode_ref(mount_root_vnode);
 
   if (do_lookup_cleanup) {
     lookup_cleanup(&ld);
@@ -232,8 +225,6 @@ int sys_unmount(char *_path, uint32_t flags)
   // TODO:  Lookup pathname,
   // flag this volume for unmounting, prevent further use.
 
-  rwlock(&superblock_list_lock, LK_EXCLUSIVE);
-
   // TODO: Should this wait, with a timeout ?
   // If reference count is zero, remove detach from mount point
   
@@ -243,8 +234,6 @@ int sys_unmount(char *_path, uint32_t flags)
   // Free all buffers
   // Free all vnodes
   // Free superblock
-
-  rwlock(&superblock_list_lock, LK_RELEASE);
 
   return -ENOSYS;
 }
@@ -316,7 +305,5 @@ int fini_msgport(struct MsgPort *port)
   
   return 0;
 }
-
-
 
 

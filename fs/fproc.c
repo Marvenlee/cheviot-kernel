@@ -38,17 +38,6 @@ int init_fproc(struct Process *proc)
   Info("init_fproc(proc:%08x)", (uint32_t)proc);
   Info("FILEDESC_MAX = %d", FILEDESC_MAX);
 
-/*  
-  fproc = kmalloc_page();
-
-  if (fproc == NULL) {
-    Info("init_fproc -enomem");
-    return -ENOMEM;
-  }
-    
-  proc->fproc = fproc;
-*/
-
   proc->fproc.fd_table = kmalloc_page();
 
   if (proc->fproc.fd_table == NULL) {

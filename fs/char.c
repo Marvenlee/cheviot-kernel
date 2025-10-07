@@ -49,6 +49,8 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   ssize_t xfered = 0;
   int sc;
 
+  Info("read_from_char(vnode:%08x, dst:%08x, sz:%d) begin", (uint32_t)vnode, (uint32_t)dst, sz);
+
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
     return sc;
   }
@@ -68,7 +70,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   vnode->char_read_busy = false;
   TaskWakeupAll(&vnode->rendez);
 
-  Info("read_from_char(dst:%08x, sz:%d) xfered:%d", (uint32_t)dst, sz, xfered);
+  Info("read_from_char(vnode:%08x, dst:%08x, sz:%d) xfered:%d", (uint32_t)vnode, (uint32_t)dst, sz, xfered);
 
   return xfered;
 }
@@ -85,6 +87,9 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   ssize_t xfered = 0;
   ssize_t total_xfered = 0;  
   int sc;
+
+  Info("write_to_char(vnode:%08x, src:%08x, sz:%d)", (uint32_t)vnode, (uint32_t)src, sz);
+
   
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
     return sc;
@@ -114,6 +119,8 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   vnode->char_write_busy = false;
   TaskWakeupAll(&vnode->rendez);    
 
+  Info("write_to_char(vnode:%08x, src:%08x, sz:%d) xfered:%d", (uint32_t)vnode, (uint32_t)src, sz, xfered);
+
   if (total_xfered == 0) {
     return xfered;
   }
@@ -137,11 +144,12 @@ int sys_isatty(int fd)
   
   current = get_current_process();
 
+  Info("sys_isatty(%d)", fd);
+
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
     Info("sys_isatty() -EBADF");
-
     return -EBADF;
   }
 
@@ -152,22 +160,15 @@ int sys_isatty(int fd)
   }
 
   if (check_access(vnode, filp, R_OK) != 0) {
-    vnode_put(vnode);
     return -EACCES;
   }
-
-  rwlock(&vnode->lock, LK_SHARED);
 
   if (S_ISCHR(vnode->mode)) {
     sc = vfs_isatty(vnode);    
   } else {
   	sc = 0;
   }
-
   
-  rwlock(&vnode->lock, LK_RELEASE);
-  vnode_put(vnode);
-
   return sc;
 }
 
@@ -221,10 +222,9 @@ int ioctl_tiocsctty(int fd, int arg)
   current = get_current_process();
 
   filp = filp_get(current, fd);
-
+  
   if (filp == NULL) {
     Info("ioctl_tiocsctty() -EBADF");
-
     return -EBADF;
   }
 
@@ -235,19 +235,16 @@ int ioctl_tiocsctty(int fd, int arg)
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
-    vnode_put(vnode);
     return -EINVAL;
   }
 
   session = get_session(current->sid);
 
   if (session == NULL) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
   if (vnode->tty_sid != INVALID_PID) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
@@ -261,7 +258,7 @@ int ioctl_tiocsctty(int fd, int arg)
   vnode->tty_sid = session->sid;
   session->controlling_tty = vnode;
   session->foreground_pgrp = current->pgid;
-  vnode_add_reference(vnode);
+  vnode_ref(vnode);
   return 0;
 }
 
@@ -280,6 +277,9 @@ int ioctl_tiocnotty(int fd)
   struct Process *current;
   struct Session *session;
 
+  Info("ioctl_tiocnotty(%d)", fd);
+
+
   current = get_current_process();
 
   filp = filp_get(current, fd);
@@ -297,14 +297,12 @@ int ioctl_tiocnotty(int fd)
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
-    vnode_put(vnode);
     return -EINVAL;
   }
 
   session = get_session(current->sid);
 
   if (session == NULL) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
@@ -336,6 +334,8 @@ int ioctl_tiocgsid(int fd, pid_t *_sid)
   struct Process *current;
   struct Session *session;
   pid_t sid;
+
+  Info("ioctl_tiocgsid(%d)", fd);
   
   current = get_current_process();
 
@@ -353,24 +353,20 @@ int ioctl_tiocgsid(int fd, pid_t *_sid)
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
-    vnode_put(vnode);
     return -EINVAL;
   }
 
   session = get_session(vnode->tty_sid);
 
   if (session == NULL) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
   if (current->sid != session->sid) {
-    vnode_put(vnode);
     return -EPERM;  
   }
 
   sid = session->sid;
-  vnode_put(vnode);
   
   if (CopyOut(_sid, &sid, sizeof _sid) != 0) {
     return -EFAULT;
@@ -392,6 +388,8 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   struct Session *session;
   pid_t pgid;
 
+  Info("ioctl_tiocgpgrp:(%d)", fd);
+  
   current = get_current_process();
 
   filp = filp_get(current, fd);
@@ -407,6 +405,8 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   if (vnode == NULL) {
     return -EINVAL;
   }
+
+  vnode_ref(vnode);
 
   if (S_ISCHR(vnode->mode) == 0) {
     vnode_put(vnode);
@@ -448,6 +448,8 @@ int ioctl_tiocspgrp(int fd, pid_t *_pgid)
   struct Process *current;
   struct Session *session;
   pid_t pgid;
+
+  Info("ioctl_tiocspgrp:(%d)", fd);
   
   current = get_current_process();
 
@@ -458,36 +460,31 @@ int ioctl_tiocspgrp(int fd, pid_t *_pgid)
     return -EBADF;
   }
 
-  vnode = vnode_get_from_filp(filp);
+  vnode = filp->u.vnode;
 
   if (vnode == NULL) {
     return -EINVAL;
   }
 
   if (S_ISCHR(vnode->mode) == 0) {
-    vnode_put(vnode);
     return -EINVAL;
   }
 
   if (CopyIn(&pgid, _pgid, sizeof pgid) != 0) {
-    vnode_put(vnode);
     return -EFAULT;
   }
 
   session = get_session(vnode->tty_sid);
 
   if (session == NULL) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
   if (current->sid != session->sid) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
   session->foreground_pgrp = pgid;
-  vnode_put(vnode);
 
   return 0;
 }
@@ -503,5 +500,13 @@ int ioctl_setsyslog(int fd)
   return -ENOTSUP;
 }
 
+
+/* @brief   Close a character special device and perform any special-case handling
+ *
+ */
+int do_close_char_device(struct VNode *vnode)
+{
+  vnode_put(vnode);
+}
 
 

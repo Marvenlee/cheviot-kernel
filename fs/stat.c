@@ -37,8 +37,6 @@ int sys_stat(char *_path, struct stat *_stat) {
   Info("sys_stat()");
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
-    rwlock(&ld.vnode->lock, LK_SHARED);
-    
     stat.st_dev = ld.vnode->superblock->dev;
     stat.st_ino = ld.vnode->inode_nr;
     stat.st_mode = ld.vnode->mode;
@@ -64,9 +62,8 @@ int sys_stat(char *_path, struct stat *_stat) {
 		  stat.st_blksize = 0;
 	  }
 
-    rwlock(&ld.vnode->lock, LK_RELEASE);
-
     lookup_cleanup(&ld);
+
     sc = CopyOut(_stat, &stat, sizeof stat);    
   }
 
@@ -97,10 +94,8 @@ int sys_fstat(int fd, struct stat *_stat)
   
   if (filp) {
     vnode = vnode_get_from_filp(filp);
-
+    
     if (vnode) {
-      rwlock(&vnode->lock, LK_SHARED);
-      
       stat.st_dev = vnode->superblock->dev;
       stat.st_ino = vnode->inode_nr;
       stat.st_mode = vnode->mode;  
@@ -124,17 +119,12 @@ int sys_fstat(int fd, struct stat *_stat)
 		    stat.st_blocks = 0;
 		    stat.st_blksize = 0;
 	    }
-
-      rwlock(&vnode->lock, LK_RELEASE);
-
-      vnode_put(vnode);
-
+	    
       sc = CopyOut(_stat, &stat, sizeof stat);
     } else {
       sc = -EINVAL;
     }    
 
-    filp_put(filp);
   } else {
     sc = -EBADF;
   }

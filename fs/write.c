@@ -44,8 +44,9 @@ ssize_t sys_write(int fd, void *src, size_t sz)
   struct VNode *vnode;
   ssize_t retval;
   struct Process *current;
-
   
+  Info("sys_write(fd:%d, src:%08x, sz:%d", fd, (uint32_t)src, sz);
+
   if ((retval = bounds_check(src, sz)) != 0) {
     return retval;
   }  
@@ -57,8 +58,6 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
- //     rwlock(&vnode->lock, LK_EXCLUSIVE);
-     
       Info("sys_write - check access W_OK");
 
       if (check_access(vnode, filp, W_OK) == 0) {        
@@ -75,21 +74,16 @@ ssize_t sys_write(int fd, void *src, size_t sz)
         } else {
           retval = -EINVAL;
         }  
-                
-//        rwlock(&vnode->lock, LK_RELEASE);
-        vnode_put(vnode);
-        filp_put(filp);        
+
         return retval;
-      }
       
-//      rwlock(&vnode->lock, LK_RELEASE);
-      vnode_put(vnode);
-      retval = -EACCES;
+      } else {     
+        retval = -EACCES;
+      }
     } else {
       retval = -EINVAL;
     }    
 
-    filp_put(filp);
   } else {
     Info("sys_write() -EBADF a");
 
@@ -135,8 +129,6 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     vnode = vnode_get_from_filp(filp);
     
     if (vnode) {
-//      rwlock(&vnode->lock, LK_EXCLUSIVE);
-
       if (check_access(vnode, filp, R_OK) == 0) {
         if (S_ISBLK(vnode->mode)) {
           if (_offset == NULL) {
@@ -148,19 +140,13 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
           Info("sys_pwritev() -EBADF a");
           retval = -EBADF;
         }
-          
-//        rwlock(&vnode->lock, LK_RELEASE);
-        vnode_put(vnode);
       }
       
-//      rwlock(&vnode->lock, LK_RELEASE);
-      vnode_put(vnode);      
       retval = -EACCES;
     } else {
       retval = -EINVAL;
     }
 
-    filp_put(filp);
   } else {
     Info("sys_pwritev() -EBADF b");
     retval = -EBADF;

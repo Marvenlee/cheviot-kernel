@@ -38,13 +38,9 @@ int sys_symlink(char *_path, char *_link)
     return -EEXIST;
   }
 
-  rwlock(&ld.parent->lock, LK_EXCLUSIVE);
-
   // TODO:  sc = vfs_mklink(ld.parent, ld.last_component, _link);
 
   // knote that directory has changed
-
-  rwlock(&ld.parent->lock, LK_RELEASE);
 
   lookup_cleanup(&ld);
   return 0;
@@ -74,11 +70,7 @@ int sys_readlink(char *_path, char *_link, size_t link_size)
     return -ENOLINK;
   }
 
-  rwlock(&ld.parent->lock, LK_SHARED);
-
   // TODO:   status = vfs_readlink(ld.vnode, _link, link_size);
-
-  rwlock(&ld.parent->lock, LK_RELEASE);
 
   lookup_cleanup(&ld);
   return status;

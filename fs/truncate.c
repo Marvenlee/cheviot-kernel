@@ -43,22 +43,17 @@ int sys_truncate(int fd, size_t sz)
     vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-      rwlock(&vnode->lock, LK_EXCLUSIVE);
-      
       if (!S_ISREG(vnode->mode)) {
         Error("truncate: vnode is not reg file!");
-        rwlock(&vnode->lock, LK_RELEASE);
         return -EINVAL;
       }
 
       if ((sc = vfs_truncate(vnode, 0)) != 0) {
-        rwlock(&vnode->lock, LK_RELEASE);
         return sc;
       }
 
       // TODO: Check if size has gone up or down.
       knote(&vnode->knote_list, NOTE_EXTEND | NOTE_ATTRIB);
-      rwlock(&vnode->lock, LK_RELEASE);
       return 0;
       
     } else {

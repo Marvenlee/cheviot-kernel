@@ -17,7 +17,7 @@
  * Open or create a file
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -115,19 +115,12 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       return -ENOMEM;
     }
     
-    rwlock(&dvnode->lock, LK_EXCLUSIVE);
-    
     if ((sc = vfs_create(dvnode, ld->last_component, oflags, &stat, &vnode)) != 0) {
       Error("SysOpen vfs_create error, sc:%d", sc);
-      rwlock(&dvnode->lock, LK_RELEASE);
       return sc;
     }
     
-    rwlock(&dvnode->lock, LK_RELEASE);
   }
-
-  
-  rwlock(&vnode->lock, LK_EXCLUSIVE);
    
   Info("do_open calling fd_alloc()");
   
@@ -136,16 +129,14 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   Info("do_open, alloced fd, fd: %d", fd);
   
   if (fd < 0) {
-    rwlock(&vnode->lock, LK_RELEASE);
     Error("do_open failed to alloc filedesc -ENOMEM");
     return -ENOMEM;
   }
 
-  filp = filp_alloc();
+  filp = filp_get_new();
   
   if (filp == NULL) {
     fd_free(current, fd);
-    rwlock(&vnode->lock, LK_RELEASE);
     Error("do_open failed to alloc filp -ENOMEM");
     return -ENOMEM;
   }
@@ -158,18 +149,15 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
     if (S_ISREG(vnode->mode)) {
 #if 0
       if (check_access(vnode, filp, W_OK) != 0) {
-        filp_free(filp);
         fd_free(current, fd);
-        rwlock(&vnode->lock, LK_RELEASE);
+        filp_release(filp);
         return -EACCES;
       }
 #endif
       if ((sc = vfs_truncate(vnode, 0)) != 0) {
         Error("SysOpen O_TRUNC failed, sc=%d", sc);
-        filp_free(filp);
         fd_free(current, fd);
-
-        rwlock(&vnode->lock, LK_RELEASE);
+        filp_release(filp);
 
         Error("do_open truncate failed, sc = %d", sc);
 
@@ -188,10 +176,6 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
     filedesc->flags |= FD_CLOEXEC;
   }
 
-  rwlock(&vnode->lock, LK_RELEASE);
-
-  vnode_add_reference(vnode);
-  
   filedesc->filp = filp;
   filedesc->flags |= FDF_VALID;
 
