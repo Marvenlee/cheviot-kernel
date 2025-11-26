@@ -14,17 +14,22 @@
  * limitations under the License.
  *
  * --
- * Big kernel lock and sleep and wakeup condition variable functions.
- * Currently the kernel is non-preeemptive due to a big kernel lock
- * acquired on kernel entry and released on kernel exit.  This forms
- * a "monitor" around the whole kernel, just like early Unix systems. 
+ * Shared-Exclusive reader-writer locks.
  *
- * The main synchronization primitive is a rendez or condition-variable
- * That allows tasks in the kernel to sleep, waiting for a condition to
- * become true or wake up other tasks as a hint that the condition may
- * now be true.  All other synchronization is based on this.
+ * The reader-writer locks are used in conjunction with the big kernel lock
+ * and can be considered an extension of the Rendez/condition-variables.
+ * The big kernel lock allows only a single thread into the kernel and these
+ * threads normally block using TaskSleep() on a condition variable, at which
+ * point the thread cooperatively yields to another thread.
  *
- * See Maurice Bach's "Design of the UNIX Operating System" book
+ * The reader-writer locks work in much the same way.  There is still the
+ * big kernel lock to ensure only a single task is running in the kernel, but
+ * the rwlocks extend on the condition variables to allow multiple readers
+ * or a writer into a section of code. If the lock is in a shared state
+ * with multiple readers then these readers are cooperatively scheduled whenever
+ * one of these reader threads blocks.
+ *
+ * See fs/vnode.c for table of rwlock usage among the filesystem system calls  
  */
 
 //#define KDEBUG
@@ -38,125 +43,151 @@
 #include <kernel/arch.h>
 
 
-
-/* @brief   rw lock acquisition and release
+/* @brief   Acquire exclusive-access to item guarded by rwlock
  *
  */
-int rwlock(struct RWLock *lock, int flags)
+int rwlock_exclusive(struct RWLock *lock)
 {
-  int request;
+#if 0
+  while (lock->is_draining == false  && (lock->exclusive_cnt != 0 || lock->share_cnt != 0)) {
+    Info("lock->exclusive_cnt = %d, share_cnt = %d, sleeping", lock->exclusive_cnt, lock->share_cnt);
+    TaskSleep(&lock->rendez);
+  }
 
-  Info("rwlock(lock:%08x, flags:%x) *******", (uint32_t)lock, flags);
-
-  request = flags & LOCK_REQUEST_MASK;
-  
-  switch(request) {
-    case LK_EXCLUSIVE:
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-
-      while (lock->exclusive_cnt != 0 || lock->share_cnt != 0) {
-        Info("lock->exclusive_cnt = %d, share_cnt = %d, sleeping", lock->exclusive_cnt, lock->share_cnt);
-        TaskSleep(&lock->rendez);
-      }
-
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-      
-      lock->exclusive_cnt = 1;
-      break;
-
-    case LK_SHARED:
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-
-      while (lock->exclusive_cnt == 1) {
-        TaskSleep(&lock->rendez);
-      }
-
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-      
-      lock->share_cnt++;
-      break;
-
-    case LK_UPGRADE:
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-
-      if (lock->exclusive_cnt == 1) {
-        return -EINVAL;
-      }
-    
-      if (lock->share_cnt > 0) {
-        lock->share_cnt--;
-      }
-            
-      while(lock->share_cnt != 0 || lock->exclusive_cnt != 0) {
-        TaskSleep(&lock->rendez);
-      }
-
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-
-      lock->exclusive_cnt = 1;
-      break;
-
-    case LK_DOWNGRADE:
-      if (lock->exclusive_cnt == 1) {
-        lock->exclusive_cnt = 0;
-        lock->share_cnt++;
-      } else {
-        return -EINVAL;
-      }            
-      break;
-
-    case LK_RELEASE:
-      if (lock->share_cnt > 0) {
-        lock->share_cnt--;
-      } else if (lock->exclusive_cnt == 1) {
-        lock->exclusive_cnt = 0;
-      }
-      
-      if (lock->exclusive_cnt == 0 || lock->share_cnt == 0) {
-        TaskWakeupAll(&lock->rendez);
-      }
-      break;
-
-    case LK_DRAIN:
-      if (lock->is_draining == true) {
-        return -EINVAL;
-      }
-      
-      lock->is_draining = true;
-      while(lock->exclusive_cnt != 0 && lock->share_cnt != 0) {
-        TaskSleep(&lock->rendez);
-      }
-      break;
-
-    default:
-      return -EINVAL;      
+  if (lock->is_draining == true) {
+    return -EINVAL;
   }
   
+  lock->exclusive_cnt = 1;
+#endif
+
   return 0;
 }
 
 
-/* @brief   VNode lock initialization
+/* @brief   Acquire shared-access to item guarded by rwlock
  *
  */
-int rwlock_init(struct RWLock *lock)
+int rwlock_shared(struct RWLock *lock)
+{
+#if 0
+  while (lock->is_draining == false && lock->exclusive_cnt == 1) {
+    TaskSleep(&lock->rendez);
+  }
+
+  if (lock->is_draining == true) {
+    return -EINVAL;
+  }
+  
+  lock->share_cnt++;
+#endif
+  return 0;
+}
+
+
+/* @brief   Upgrade from shared-access to exclusive-access of item guarded by rwlock
+ *
+ */
+int rwlock_upgrade(struct RWLock *lock)
+{
+#if 0
+  KASSERT(lock->exclusive_cnt == 0);
+  KASSERT(lock->share_cnt != 0);
+
+  while(lock->is_draining == false && (lock->share_cnt != 1 || lock->exclusive_cnt != 0)) {
+    TaskSleep(&lock->rendez);
+  }
+
+  if (lock->is_draining == true) {
+    return -EINVAL;
+  }
+
+  KASSERT(lock->share_cnt == 1);
+  KASSERT(lock->exclusive_cnt == 0);
+
+  lock->share_cnt = 0;
+  lock->exclusive_cnt = 1;
+#endif
+  return 0;
+}  
+
+
+/* @brief   Downgrade from exclusive-access to shared-access of item guarded by rwlock
+ *
+ */
+void rwlock_downgrade(struct RWLock *lock)
+{
+#if 0
+  KASSERT(lock->exclusive_cnt != 1);
+  KASSERT(lock->share_cnt == 0);
+  
+  lock->exclusive_cnt = 0;
+  lock->share_cnt = 1;
+#endif
+}  
+
+
+/* @brief   Release rwlock
+ *
+ */
+void rwlock_release(struct RWLock *lock)
+{
+#if 0
+  if (lock->share_cnt > 0) {
+    lock->share_cnt--;
+  } else if (lock->exclusive_cnt == 1) {
+    lock->exclusive_cnt = 0;
+  }
+  
+  if (lock->exclusive_cnt == 0 || lock->share_cnt == 0) {
+    TaskWakeupAll(&lock->rendez);
+  }
+#endif
+}  
+
+
+/* @brief   Deny other threads from acquiring the rwlock and wait for rwlock to be released. 
+ *
+ */
+int rwlock_drain(struct RWLock *lock)
+{
+#if 0
+  if (lock->is_draining == true) {
+    return -EINVAL;
+  }
+  
+  lock->is_draining = true;
+  while(lock->exclusive_cnt != 0 && lock->share_cnt != 0) {
+    TaskSleep(&lock->rendez);
+  }
+
+#endif
+  return 0;
+}  
+
+
+/* @brief   RWLock initialization
+ *
+ */
+void rwlock_init(struct RWLock *lock)
 {
   lock->is_draining = false;
   lock->share_cnt = 0;
   lock->exclusive_cnt = 0;
   InitRendez(&lock->rendez);  
-  return 0;
+}
+
+
+/* @brief   RWLock reset from draining state
+ *
+ */
+void rwlock_reset(struct RWLock *lock)
+{
+  KASSERT(lock->is_draining = true);
+  
+  lock->is_draining = false;
+  lock->share_cnt = 0;
+  lock->exclusive_cnt = 0;
+  InitRendez(&lock->rendez);  
 }
 

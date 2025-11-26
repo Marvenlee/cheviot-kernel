@@ -32,7 +32,7 @@
 /* @brief   Dump kernel data structures to console
  *
  */
-int sys_dumpkerneltables(int cmd, int arg1, int arg2)
+int sys_dumpkerneltables(int cmd, uint32_t arg1, uint32_t arg2)
 {
   switch(cmd) {
     case KDUMP_KERNEL_PROCESSES:
@@ -67,8 +67,16 @@ int sys_dumpkerneltables(int cmd, int arg1, int arg2)
 void dump_kernel_processes(int cmd, int arg1, int arg2)
 {
   struct Process *proc;
-
-  for(int t=0; t<max_process; t++) {
+  uint32_t base, nprocess;
+  
+  base = arg1;
+  nprocess = max_process - base;
+  
+  if (arg2 < nprocess) {
+    nprocess = arg2;
+  }
+      
+  for(uint32_t t=base; t < base + nprocess; t++) {
     proc = &process_table[t];
     
     if (proc->state != PROC_STATE_FREE) {
@@ -85,11 +93,15 @@ void dump_kernel_processes(int cmd, int arg1, int arg2)
       Info("privileges:%08x,%08x", (uint32_t)(proc->privileges >> 32), (uint32_t)proc->privileges);
       Info("privileges_after_exec:%08x,%08x", (uint32_t)(proc->privileges_after_exec >> 32), (uint32_t)proc->privileges_after_exec);        
 
-      for (int s=0; s<FILEDESC_MAX; s++) {  
-        Info("fd:%d, filp:%08x, flags:%08x", s, proc->fproc.fd_table[s].filp, proc->fproc.fd_table[s].flags);    
+      for (int s=0; s<FILEDESC_MAX; s++) {
+        if ((proc->fproc.fd_table[s].flags & (FDF_VALID | FDF_ALLOCED)) != 0) {
+          Info("-> fd:%d, filp:%08x, flags:%08x", s, proc->fproc.fd_table[s].filp, proc->fproc.fd_table[s].flags);    
+        }
       }
     }
   }
+
+  Info("-----------------------------------------------");
 }
 
 
@@ -99,8 +111,16 @@ void dump_kernel_processes(int cmd, int arg1, int arg2)
 void dump_kernel_filps(int cmd, int arg1, int arg2)
 {
   struct Filp *filp;
+  uint32_t base, nfilp;
   
-  for(int t=0; t<max_filp; t++) {
+  base = arg1;
+  nfilp = max_filp - base;
+  
+  if (arg2 < nfilp) {
+    nfilp = arg2;
+  }
+  
+  for(uint32_t t=base; t < base + nfilp; t++) {
     filp = &filp_table[t];
 
     if (filp->type != FILP_TYPE_UNDEF) {
@@ -112,6 +132,8 @@ void dump_kernel_filps(int cmd, int arg1, int arg2)
       Info("flags: %08x", filp->flags);
     }
   }
+  
+  Info("-----------------------------------------------");  
 }
 
 
@@ -121,21 +143,60 @@ void dump_kernel_filps(int cmd, int arg1, int arg2)
 void dump_kernel_vnodes(int cmd, int arg1, int arg2)
 {
   struct VNode *vnode;
+  uint32_t base, nvnode;
   
-  for(int t=0; t<max_vnode; t++) {
+  base = arg1;
+  nvnode = max_vnode - base;
+  
+  if (arg2 < nvnode) {
+    nvnode = arg2;
+  }
+      
+  for(uint32_t t=base; t < base + nvnode; t++) {
     vnode = &vnode_table[t];
 
     if (vnode->flags & V_VALID) {
       Info("-----------------------------------------------");
       Info("vnode:%08x", (uint32_t)vnode);
+      Info("inode_nr:%d, superblock:%08x", vnode->inode_nr, (uint32_t)vnode->superblock);
       Info("reference_cnt:%d", vnode->reference_cnt);
-
-/*
-      if (S_IFPIPE(vnode->mode)) {
+      Info("flags:%08x", vnode->flags);
+      Info("char_read_busy:%d, char_write_busy:%d", vnode->char_read_busy, vnode->char_write_busy);
+      Info("vnode_mounted_here:%08x, vnode_covered:%08x", (uint32_t)vnode->vnode_mounted_here, (uint32_t)vnode->vnode_covered);
+      Info("pipe:%08x", (uint32_t)vnode->pipe);
+      Info("tty_sid:%d", vnode->tty_sid);
+      Info("mode:%0o oct", vnode->mode);
+      
+      if (S_ISCHR(vnode->mode)) {
+        Info("mode is ISCHR");
+      } else if (S_ISREG(vnode->mode)) {
+        Info("mode is ISREG");
+      } else if (S_ISDIR(vnode->mode)) {
+        Info("mode is ISDIR");
+      } else if (S_ISFIFO(vnode->mode)) {
+        Info("mode is ISFIFO");
+      } else if (S_ISBLK(vnode->mode)) {
+        Info("mode is ISBLK");
+      } else if (S_ISSOCK(vnode->mode)) {
+        Info("mode is ISSOCK");
+      } else {
+        Info("mode file type unknown");
       }
-*/
+
+      if (vnode == root_vnode) {
+        Info("vnode is root /");
+      }
+      
+      Info("uid:%d, gid:%d", vnode->uid, vnode->gid);
+      Info("size:%u", (uint32_t)vnode->size);
+
+      if (S_ISFIFO(vnode->mode)) {
+        Info("-> pipe reader: %d, writer: %d", vnode->pipe->reader_cnt, vnode->pipe->writer_cnt);
+      }
     }
   }
+
+  Info("-----------------------------------------------");
 }
 
 
@@ -145,9 +206,16 @@ void dump_kernel_vnodes(int cmd, int arg1, int arg2)
 void dump_kernel_superblocks(int cmd, int arg1, int arg2)
 {
   struct SuperBlock *sb;
+  uint32_t base, nsuperblock;
   
-  // only print if in-use
-  for(int t=0; t<max_superblock; t++) {
+  base = arg1;
+  nsuperblock = max_superblock - base;
+  
+  if (arg2 < nsuperblock) {
+    nsuperblock = arg2;
+  }
+      
+  for(uint32_t t=base; t < base + nsuperblock; t++) {
     sb = &superblock_table[t];
 
     if (sb->reference_cnt > 0) {
@@ -159,6 +227,9 @@ void dump_kernel_superblocks(int cmd, int arg1, int arg2)
       Info("root:%08x, vnode_list_busy:%d", (uint32_t)sb->root, sb->vnode_list_busy);
     }
   }
+
+  Info("-----------------------------------------------");
+
 }
 
 
@@ -168,8 +239,16 @@ void dump_kernel_superblocks(int cmd, int arg1, int arg2)
 void dump_kernel_kqueues(int cmd, int arg1, int arg2)
 {
   struct KQueue *kq;
+  uint32_t base, nkqueue;
   
-  for(int t=0; t<max_kqueue; t++) {
+  base = arg1;
+  nkqueue = max_kqueue - base;
+  
+  if (arg2 < nkqueue) {
+    nkqueue = arg2;
+  }
+      
+  for(uint32_t t=base; t < base + nkqueue; t++) {
     kq = &kqueue_table[t];
     
     if (kq->reference_cnt > 0) {
@@ -177,6 +256,8 @@ void dump_kernel_kqueues(int cmd, int arg1, int arg2)
       Info("kq:%08x, reference_cnt:%d", (uint32_t)kq, kq->reference_cnt);
     }   
   }
+
+  Info("-----------------------------------------------");
 }
 
 

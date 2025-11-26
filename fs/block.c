@@ -138,6 +138,7 @@ ssize_t write_to_blockv(struct VNode *vnode, msgiov_t *iov, int iov_cnt, off64_t
 int do_close_block_device(struct VNode *vnode)
 {
   vnode_put(vnode);
+  return 0;
 }
 
 

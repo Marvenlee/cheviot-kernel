@@ -51,17 +51,6 @@ struct RWLock
   int is_draining;
 };
 
-// rwlock() flags masks
-#define LOCK_REQUEST_MASK  0x0000000F
-
-// Lock Request types for rwlock()
-#define LK_EXCLUSIVE    1
-#define LK_SHARED       2
-#define LK_UPGRADE      3
-#define LK_DOWNGRADE    4
-#define LK_RELEASE      5
-#define LK_DRAIN        6
-
 
 /*
  *
@@ -82,6 +71,16 @@ struct Futex
 #define FUTEX_CREATE (1<<0)
 
 
+// proc/rwlock.c
+int rwlock_exclusive(struct RWLock *lock);
+int rwlock_shared(struct RWLock *lock);
+int rwlock_upgrade(struct RWLock *lock);
+void rwlock_downgrade(struct RWLock *lock);
+void rwlock_release(struct RWLock *lock);
+int rwlock_drain(struct RWLock *lock);
+void rwlock_init(struct RWLock *lock);
+void rwlock_reset(struct RWLock *lock);
+
 // proc/thread_futex.c
 int sys_futex_destroy(void *uaddr);
 int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, int flags);
@@ -95,6 +94,7 @@ struct Futex *futex_create(struct Process *proc, void *uaddr);
 void futex_free(struct Process *proc, struct Futex *futex);
 int fini_futexes(struct Process *proc);
 int do_cleanup_futexes(struct Process *proc);
+
 
 
 

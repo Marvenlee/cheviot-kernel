@@ -17,7 +17,7 @@
  * File system pathname lookup and conversion to vnodes.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -43,6 +43,8 @@
 int lookup(char *_path, int flags, struct lookupdata *ld)
 {
   int rc;
+  
+  Info("lookup()");
   
   if ((rc = init_lookup(_path, flags, ld)) != 0) {
     Error("Lookup init failed");
@@ -163,6 +165,8 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   
   ld->path = kmalloc_page();
   
+  Info("init_lookup ld->path buf:%08x", (uint32_t)ld->path);
+  
   if (ld->path == NULL) {
     Error("init_lookup() - Failed to alloc page for pathname");
     return -1;
@@ -196,6 +200,7 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
 
   Info ("ld_start_vnode = %08x", (uint32_t)ld->start_vnode);
 
+
   KASSERT(ld->start_vnode != NULL);
 
   if (ld->start_vnode == NULL) {
@@ -203,6 +208,8 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
     kfree_page(ld->path);
     return -EIO;
   }
+
+  vnode_ref(ld->start_vnode);
 
   if (!S_ISDIR(ld->start_vnode->mode)) {
     Error("init_lookup start vnode -ENOTDIR");
@@ -391,6 +398,7 @@ bool is_last_component(struct lookupdata *ld)
 int walk_component(struct lookupdata *ld)
 {
   struct VNode *vnode_mounted_here;
+  struct VNode *vnode_tmp;
   int rc;
 
   Info("walk_component()");
@@ -406,28 +414,32 @@ int walk_component(struct lookupdata *ld)
  
   } else if (StrCmp(ld->last_component, ".") == 0) {    
     Info("walk_comp - last comp is .");    
-    vnode_ref(ld->parent);    
     ld->vnode = ld->parent;
+    vnode_ref(ld->vnode);    
     return 0;
   
   } else if (StrCmp(ld->last_component, "..") == 0) {
     Info("walk_comp - last comp is ..");    
 
     if (ld->parent == root_vnode) {
-      vnode_ref(root_vnode);
       ld->vnode = root_vnode;
+      vnode_ref(root_vnode);
       return 0;
  
     } else if (ld->parent->vnode_covered != NULL) {
-      vnode_ref(ld->parent->vnode_covered);
+      vnode_tmp = ld->parent->vnode_covered; 
+      vnode_ref(vnode_tmp);
   
       Info("walk_comp - vnode_put Z parent:%08x", (uint32_t)ld->parent);
       vnode_put(ld->parent);
-      ld->parent = ld->parent->vnode_covered;
+      ld->parent = vnode_tmp;
     }
   }
   
   KASSERT(ld->parent != NULL);
+
+  // TODO: Do we need dvnode->lock (exclusive) when doing lookup of directory inode?
+  // TODO: Dow we lock the new inode too?
 
   if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
     Info("last_component vfs_lookup rc:%d", rc);
@@ -490,7 +502,7 @@ int walk_component(struct lookupdata *ld)
 
 
 /*
- *
+ * FIXME: Needed for rename directory climb
  */
 struct VNode *path_advance(struct VNode *dvnode, char *component)
 {
@@ -502,7 +514,4 @@ struct VNode *path_advance(struct VNode *dvnode, char *component)
   
   return rvnode;
 }
-
-
-
 

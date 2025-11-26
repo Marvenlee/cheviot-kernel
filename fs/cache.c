@@ -485,15 +485,9 @@ void mark_all_vnode_pages_as_busy(struct VNode *vnode)
  */
 int bsyncv(struct VNode *vnode)
 {
-  int sc = 0;
-  struct Page *page;
-  off64_t nbytes_to_write;
-  
   Info("bsyncv()");
 
-#if 0
-  vfs_sync_file(vnode)   // TODO: Send message to sync file
-#endif
+  vfs_fsync(vnode);
 
   return 0;
 }
@@ -556,15 +550,10 @@ int btruncatev(struct VNode *vnode)
   
 /* @brief   Invalidate all blocks of a vnode, discarding them without writing to disk.
  *
- * @param   vnode, file to truncate
+ * @param   vnode, file to invalidate from cache
  * @return  0 on success, negative errno on failure
  *
- * Used when deleting a file OR repurposing a free vnode
- *
- * TODO: Note:  vnode_find/vnode_new needs to be able to clear this.
- *
- * TODO: Do we send an vfs_invalidate command here or does vfs_unlink/etc handle the FS handler flush?
- *       Invalidate could be for other reasons such as recycling a vnode.
+ * Used when deleting a file or when recycling a free vnode
  */
 int binvalidatev(struct VNode *vnode)
 {

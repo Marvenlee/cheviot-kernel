@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -33,17 +33,15 @@
  * TODO: Allow creation of named pipes/sockets.
  *       Change flags to mode, change _stat to dev_t
  */ 
-int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
+int sys_mknod2(char *_path, uint32_t flags, mode_t mode)
 {
   struct lookupdata ld;
-  struct stat stat;
-  int sc;  
+  struct Process *current;
+  int sc;
+  
+  current = get_current_process();
 
-  Info("sys_mknod()");
-
-  if (CopyIn(&stat, _stat, sizeof stat) != 0) {
-    return -EFAULT;
-  }
+  Info("sys_mknod2()");
 
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     return sc;
@@ -54,7 +52,7 @@ int sys_mknod2(char *_path, uint32_t flags, struct stat *_stat)
     return -EEXIST;
   }
 
-  sc = vfs_mknod(ld.parent, ld.last_component, &stat);
+  sc = vfs_mknod(ld.parent, ld.last_component, current->uid, current->gid, mode);
 
   if (sc != 0) {
     lookup_cleanup(&ld);

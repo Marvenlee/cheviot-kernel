@@ -227,7 +227,7 @@ void detach_mount(struct SuperBlock *sb)
  */ 
 int do_close_superblock(struct SuperBlock *sb)
 {
-  struct Filp *filp;
+//  struct Filp *filp;
   int sc;
 
 #if 0  

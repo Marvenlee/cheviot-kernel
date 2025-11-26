@@ -17,7 +17,7 @@
  * Mount a server, filesystem handler or device driver message port
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -45,6 +45,8 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   struct VNode *old_root_vnode;
   struct VNode *current_root_vnode;
   int sc;
+	
+	Info("sys_pivotroot()");
 	
   if ((sc = lookup(_old_root, 0, &old_ld)) != 0) {
     Error("PivotRoot lookup _old_root failed");
@@ -107,6 +109,8 @@ int sys_renamemount(char *_new_path, char *_old_path)
   struct VNode *old_vnode;
   struct VNode *covered_vnode;
   int sc;
+
+  Info("sys_renamemount()");
   
   if ((sc = lookup(_new_path, 0, &new_ld)) != 0) {
     Error("Failed to find new path");

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -93,7 +93,11 @@ int sys_fchdir(int fd)
     if (vnode) {
       if (!S_ISDIR(vnode->mode)) {
         if (check_access(vnode, NULL, R_OK) == 0) {
-          vnode_put(current->fproc.current_dir);
+          
+          if (current->fproc.current_dir != NULL) {
+            vnode_put(current->fproc.current_dir);
+          }
+          
           current->fproc.current_dir = vnode;
           vnode_ref(vnode);
           return 0;
@@ -221,8 +225,11 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   }
   
   cookie = filp->offset;
-  
+
+  rwlock_shared(&vnode->lock);
   dirents_sz = vfs_readdir(vnode, dst, sz, &cookie);
+  rwlock_release(&vnode->lock);
+
   filp->offset = cookie;
   
   return dirents_sz;
@@ -274,9 +281,13 @@ int sys_rewinddir(int fd)
 int sys_createdir(char *_path, mode_t mode)
 {
   struct lookupdata ld;
-  struct stat stat;
   struct VNode *dvnode;
+  struct Process *current;
   int sc;
+
+  Info("sys_createdir()");
+
+  current = get_current_process();
 
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     return sc;
@@ -300,7 +311,8 @@ int sys_createdir(char *_path, mode_t mode)
   
   dvnode = ld.parent;
   
-  sc = vfs_mkdir(dvnode, ld.last_component, &stat);
+  mode = mode & 0777;
+  sc = vfs_mkdir(dvnode, ld.last_component, current->uid, current->gid, mode);
 
   if (sc != 0) {
     lookup_cleanup(&ld);
@@ -325,6 +337,8 @@ int sys_rmdir(char *_path)
   struct VNode *vnode = NULL;
   struct VNode *dvnode = NULL;
   int sc = 0;
+  
+  Info("sys_rmdir()");
 
   if ((sc = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
     return sc;
@@ -339,12 +353,13 @@ int sys_rmdir(char *_path)
   }
 
 
-  // replace with  vfs_dirent_remove() to remove name.
-  // vfs_unlink() is separate to delete vnode on zero link count.
+  // FIXME: vnode may be discarded by vfs_rmdir() or we need to return an error code
+  // if it was discarded?
   
+  rwlock_shared(&vnode->lock);
   sc = vfs_rmdir(dvnode, vnode, ld.last_component);   // Remove directory name from parent directory 
-
-  vnode->nlink--;
+  rwlock_release(&vnode->lock);
+  
   lookup_cleanup(&ld);                                // VNode is discarded if link count is 0.
 
   return sc;
@@ -356,7 +371,8 @@ int sys_rmdir(char *_path)
  */
 int do_close_dir(struct VNode *vnode)
 {
-  vnode_put(vnode);
+  vnode_put(vnode);     // TODO: Drain lock inside vnode_put?
+  return 0;
 }
 
 

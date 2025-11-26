@@ -268,8 +268,11 @@ syscall_table:
     
     .long sys_dumpkerneltables          // 154
 
+    .long sys_statvfs                   // 155
+    .long sys_fstatvfs                  // 156
+
 #define UNKNOWN_SYSCALL             0
-#define MAX_SYSCALL                 154
+#define MAX_SYSCALL                 156
 
 
 /* @brief   System call entry point

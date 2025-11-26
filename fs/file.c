@@ -187,6 +187,7 @@ ssize_t write_to_file(struct VNode *vnode, void *src, size_t sz, off64_t *offset
 int do_close_file(struct VNode *vnode)
 {
   vnode_put(vnode);
+  return 0;
 }
 
 

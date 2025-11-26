@@ -17,7 +17,7 @@
  * Read a file
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -64,8 +64,10 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
 
     if (vnode) {
       Info("sys_read - check access R_OK");
-      
+            
       if (check_access(vnode, filp, R_OK) == 0) {  
+        rwlock_shared(&vnode->lock);
+      
         if (S_ISCHR(vnode->mode)) {
           retval = read_from_char(vnode, dst, sz);
         } else if (S_ISREG(vnode->mode)) {
@@ -82,6 +84,7 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
         }
         
 //        Info("read: fd:%d, retval:%d", fd, (int)retval);
+        rwlock_release(&vnode->lock);
                
         return retval;
       }
@@ -130,6 +133,8 @@ ssize_t kread(int fd, void *dst, size_t sz)
 
     if (vnode) {
       if (check_access(vnode, filp, R_OK) == 0) {     
+        rwlock_shared(&vnode->lock);
+
         if (S_ISREG(vnode->mode)) {
           retval = read_from_file(vnode, dst, sz, &filp->offset, true);
         } else {
@@ -137,6 +142,8 @@ ssize_t kread(int fd, void *dst, size_t sz)
 
           retval = -EBADF;
         }
+
+        rwlock_release(&vnode->lock);
           
         return retval;      
       }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -60,7 +60,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   int sc;
   bool do_lookup_cleanup;
     
-  Info("sys_createmsgport ***************************************");
+  Info("sys_createmsgport()");
 
   current = get_current_process();
 
@@ -272,7 +272,6 @@ int init_msgport(struct MsgPort *msgport)
  */
 int fini_msgport(struct MsgPort *port)
 {
-  struct Thread *current_thread = get_current_thread();
   struct Msg *msg;
   
   port->flags |= MPF_SHUTDOWN;

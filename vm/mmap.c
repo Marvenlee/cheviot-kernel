@@ -17,7 +17,7 @@
  * System calls for virtual memory management.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
@@ -186,6 +186,8 @@ int sys_munmap(void *_addr, size_t len)
  */
 int sys_mprotect(void *_addr, size_t len, int prot)
 {
+  Info("sys_mprotect()");
+
 #if 0
 
   struct Process *current;

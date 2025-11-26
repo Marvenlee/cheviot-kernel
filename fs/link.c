@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -35,6 +35,8 @@ int sys_unlink(char *_path)
   struct lookupdata ld;
   int sc;
 
+  Info("sys_unlink()");
+
   if ((sc = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
     return sc;
   }
@@ -50,9 +52,13 @@ int sys_unlink(char *_path)
     lookup_cleanup(&ld);
     return -EINVAL;  // FIXME: possibly ENOTFILE, EISDIR  ??
   }
-  
-  sc = vfs_unlink(dvnode, vnode, ld.last_component);
 
+  rwlock_shared(&dvnode->lock);
+  rwlock_shared(&vnode->lock);
+  sc = vfs_unlink(dvnode, vnode, ld.last_component);
+  rwlock_release(&vnode->lock);
+  rwlock_release(&dvnode->lock);
+  
   if (sc == 0) {
     ld.vnode = NULL;
   }

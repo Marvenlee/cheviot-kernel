@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -45,7 +45,9 @@ int sys_access(char *pathname, mode_t amode)
 
   vnode = ld.vnode;
 
+  rwlock_exclusive(&vnode->lock);
   sc = check_access(vnode, NULL, amode);
+  rwlock_release(&vnode->lock);
 
   knote(&vnode->knote_list, NOTE_ATTRIB);
   lookup_cleanup(&ld);
@@ -80,12 +82,15 @@ int sys_chmod(char *_path, mode_t mode)
   struct VNode *vnode;
   int sc;
 
+  Info("sys_chmod()");
+
   current = get_current_process();
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     vnode = ld.vnode;
 
     if (vnode->uid == current->uid || current->uid == SUPERUSER) {
+
       sc = vfs_chmod(vnode, mode);
 
       if (sc == 0) {
@@ -114,6 +119,8 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
   struct lookupdata ld;
   struct VNode *vnode;
   int sc;
+  
+  Info("sys_chown()");
 
   current = get_current_process();
 
@@ -121,7 +128,9 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
     vnode = ld.vnode;
 
     if (vnode->uid == current->euid || current->euid == SUPERUSER) {
+      rwlock_exclusive(&vnode->lock);
       sc = vfs_chown(vnode, uid, gid);
+      rwlock_release(&vnode->lock);
 
       if (sc == 0) {
         vnode->uid = uid;
@@ -161,7 +170,9 @@ int sys_fchmod(int fd, mode_t mode)
     
     if (vnode) {
       if (vnode->uid == current->euid || current->euid == SUPERUSER) {
+        rwlock_exclusive(&vnode->lock);
         sc = vfs_chmod(vnode, mode);
+        rwlock_release(&vnode->lock);
 
         if (sc == 0) {
           vnode->mode = mode;
@@ -172,7 +183,6 @@ int sys_fchmod(int fd, mode_t mode)
       }
 
       knote(&vnode->knote_list, NOTE_ATTRIB);
-      vnode_put(vnode);
       return sc;
     }
     
@@ -206,7 +216,9 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
 
     if (vnode) {
       if (vnode->uid == current->euid || current->euid == SUPERUSER) {
+        rwlock_exclusive(&vnode->lock);
         sc = vfs_chown(vnode, uid, gid);
+        rwlock_release(&vnode->lock);
 
         if (sc == 0) {
           vnode->uid = uid;
@@ -218,8 +230,6 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
       }
 
       knote(&vnode->knote_list, NOTE_ATTRIB);
-
-      vnode_put(vnode);
       return sc;
     }
 

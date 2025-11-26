@@ -62,6 +62,8 @@ struct Filp *filp_get(struct Process *proc, int fd)
   
   filp = proc->fproc.fd_table[fd].filp;
   
+  // TODO: filp->reference_cnt++;
+  
   Info(".. filp_get(fd:%d) => filp: %08x, ref_cnt:%d", fd, (uint32_t)filp, filp->reference_cnt);
   
   return filp;

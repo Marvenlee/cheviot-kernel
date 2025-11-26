@@ -37,7 +37,7 @@ int sys_fcntl(int fd, int cmd, int arg)
   
   current = get_current_process();
   
-  if (fd < 0 || fd >= FILEDESC_MAX || new_fd < 0 || new_fd >= FILEDESC_MAX) {
+  if (fd < 0 || fd >= FILEDESC_MAX) {
     Error("sys_fcntl() fd out of range: %d, -EINVAL", fd);
     return -EINVAL;
   }

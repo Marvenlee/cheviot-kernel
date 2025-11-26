@@ -61,20 +61,28 @@ ssize_t sys_write(int fd, void *src, size_t sz)
       Info("sys_write - check access W_OK");
 
       if (check_access(vnode, filp, W_OK) == 0) {        
+        rwlock_shared(&vnode->lock);
+      
         if (S_ISCHR(vnode->mode)) {
           retval = write_to_char(vnode, src, sz);  
         } else if (S_ISREG(vnode->mode)) {
+          rwlock_upgrade(&vnode->lock);
           retval = write_to_file(vnode, src, sz, &filp->offset);
+          rwlock_downgrade(&vnode->lock);
         } else if (S_ISFIFO(vnode->mode)) {
           retval = write_to_pipe(vnode, src, sz);
         } else if (S_ISBLK(vnode->mode)) {
+          rwlock_upgrade(&vnode->lock);
           retval = write_to_block(vnode, src, sz, &filp->offset);
+          rwlock_downgrade(&vnode->lock);
         } else if (S_ISSOCK(vnode->mode)) {
           retval = -ENOSYS; // TODO
         } else {
           retval = -EINVAL;
         }  
 
+        rwlock_release(&vnode->lock);
+      
         return retval;
       
       } else {     
@@ -130,19 +138,29 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     
     if (vnode) {
       if (check_access(vnode, filp, R_OK) == 0) {
+        rwlock_shared(&vnode->lock);
+
         if (S_ISBLK(vnode->mode)) {
+          rwlock_upgrade(&vnode->lock);
+
           if (_offset == NULL) {
-            retval = write_to_blockv (vnode, iov, iov_cnt, &filp->offset);
+            retval = write_to_blockv(vnode, iov, iov_cnt, &filp->offset);
           } else {
-            retval = write_to_blockv (vnode, iov, iov_cnt, &offset);
+            retval = write_to_blockv(vnode, iov, iov_cnt, &offset);
           }   
+
+          rwlock_downgrade(&vnode->lock);
+
         } else {
           Info("sys_pwritev() -EBADF a");
           retval = -EBADF;
         }
+
+        rwlock_release(&vnode->lock);
+
+      } else {      
+        retval = -EACCES;
       }
-      
-      retval = -EACCES;
     } else {
       retval = -EINVAL;
     }

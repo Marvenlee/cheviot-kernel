@@ -332,9 +332,6 @@ void free_process(struct Process *proc);
 struct Process *alloc_process_struct(void);
 void free_process_struct(struct Process *proc);
 
-// proc/rwlock.c
-int rwlock(struct RWLock *lock, int flags);
-int rwlock_init(struct RWLock *lock);
 
 // proc/sched.c
 void SchedLock(void);

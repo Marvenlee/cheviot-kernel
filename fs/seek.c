@@ -69,8 +69,6 @@ off_t sys_lseek(int fd, off_t pos, int whence)
       if (sc == 0) {
         return (off_t)filp->offset;    
       }
-      
-      vnode_put(vnode);      
     } else {
       sc = -EINVAL;
     }
@@ -133,7 +131,6 @@ int sys_lseek64(int fd, off64_t *_pos, int whence)
     } else {
       sc = -EINVAL;
     }
-
   } else {
     Info("sys_lseek64() -EBADF");
   

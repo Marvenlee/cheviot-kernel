@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -37,30 +37,11 @@ int sys_stat(char *_path, struct stat *_stat) {
   Info("sys_stat()");
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
-    stat.st_dev = ld.vnode->superblock->dev;
-    stat.st_ino = ld.vnode->inode_nr;
-    stat.st_mode = ld.vnode->mode;
-    stat.st_nlink = ld.vnode->nlink;
-    stat.st_uid = ld.vnode->uid;
-    stat.st_gid = ld.vnode->gid;
-    stat.st_rdev = ld.vnode->rdev;
-    stat.st_size = ld.vnode->size;
-    stat.st_atime = ld.vnode->atime;
-    stat.st_mtime = ld.vnode->mtime;
-    stat.st_ctime = ld.vnode->ctime;
-
-	  // TODO: Handle st_blocks and st_blocksize correctly 
-	  // Update these on reads, writes or truncate operations.
-	  // special case return zeros for char and other non-block devices?
-
-
-	  if (ld.vnode->superblock->block_size != 0) {
-		  stat.st_blocks = ld.vnode->size / ld.vnode->superblock->block_size;
-		  stat.st_blksize = ld.vnode->superblock->block_size;
-	  } else {
-		  stat.st_blocks = 0;
-		  stat.st_blksize = 0;
-	  }
+    rwlock_shared(&ld.vnode->lock);
+    
+    vfs_stat(ld.vnode, &stat);
+    
+    rwlock_release(&ld.vnode->lock);
 
     lookup_cleanup(&ld);
 
@@ -90,35 +71,20 @@ int sys_fstat(int fd, struct stat *_stat)
 
   current = get_current_process();
 
+  // FIXME: FS what is to stop another thread from releasing a vnode whilst it is blocked waiting
+  // for the rwlock? Should filp_get increment filp ref count?  Thereby preventing release of filp and vnode?
+
   filp = filp_get(current, fd);
   
   if (filp) {
     vnode = vnode_get_from_filp(filp);
     
     if (vnode) {
-      stat.st_dev = vnode->superblock->dev;
-      stat.st_ino = vnode->inode_nr;
-      stat.st_mode = vnode->mode;  
-      stat.st_nlink = vnode->nlink;
-      stat.st_uid = vnode->uid;
-      stat.st_gid = vnode->gid;
-      stat.st_rdev = vnode->rdev;
-      stat.st_size = vnode->size;
-      stat.st_atime = vnode->atime;
-      stat.st_mtime = vnode->mtime;
-      stat.st_ctime = vnode->ctime;
+      rwlock_shared(&vnode->lock);
 
-	    // TODO: Handle st_blocks and st_blocksize correctly 
-	    // Update these on reads, writes or truncate operations.
-	    // special case return zeros for char and other non-block devices?
-
-	    if (vnode->superblock->block_size != 0) {
-		    stat.st_blocks = vnode->size / vnode->superblock->block_size;
-		    stat.st_blksize = vnode->superblock->block_size;
-	    } else {
-		    stat.st_blocks = 0;
-		    stat.st_blksize = 0;
-	    }
+      vfs_stat(vnode, &stat);
+    
+      rwlock_release(&vnode->lock);
 	    
       sc = CopyOut(_stat, &stat, sizeof stat);
     } else {
@@ -131,5 +97,26 @@ int sys_fstat(int fd, struct stat *_stat)
 
   Info("sys_fstat sc=%d", sc);    
   return sc;
+}
+
+
+
+
+
+int sys_statvfs(char *_path, struct statvfs *_stat)
+{
+  return -ENOSYS;
+}
+
+
+/* @brief   Get the file statistics of an open file
+ *
+ * @param   fd, file handle of file to gather statistics of
+ * @param   _stat, pointer to stat structure to return statistics
+ * @return  0 on success, negative errno on error 
+ */
+int sys_fstatvfs(int fd, struct statvfs *_stat)
+{
+  return -ENOSYS;
 }
 

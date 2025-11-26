@@ -124,6 +124,17 @@ struct Pipe
 };
 
 
+/* @brief   Advisory lock of a vnode
+ *
+ */
+struct AdvisoryLock
+{
+  int advisory_lock_reader_cnt;
+  int advisory_lock_writer_cnt;
+  struct Rendez advisory_lock_rendez;
+};
+
+
 /* @brief   VNode state representing a file, directory, pipe or special device.
  */
 struct VNode
@@ -147,19 +158,16 @@ struct VNode
   
   // bool isatty;         // FIXME: set isatty in createmsgport(), or keep as message
   pid_t tty_sid;          // Session of a controlling TTY
-  
+
+
+  // Fields returned by CMD_LOOKUP and CMD_CREATE VFS messagews  
   ino_t inode_nr;         // inode number
   mode_t mode;            // file type, protection, etc
   uid_t uid;              // user id of the file's owner
   gid_t gid;              // group id
   off64_t size;           // file size in bytes
-  time_t atime;
-  time_t mtime;
-  time_t ctime;
-  int blocks;
-  int blksize;
-  int rdev;
-  int nlink;              // Number of hard links to inode
+  
+  struct AdvisoryLock advisory_lock;    // flock advisory lock
   
   vnode_link_t hash_link;               // hash table lookup link    
   vnode_link_t vnode_link;              // Free list or in use link
@@ -192,12 +200,13 @@ struct SuperBlock
   
   superblock_link_t link;
 
-  dev_t dev;
+  dev_t dev;                    // FIXME: Needed?
   
   struct MsgPort msgport;
 
-  off64_t size;
-  int block_size;                       // start sector needs to be aligned with block size
+  off64_t size;                  // FIXME: Needed?  statvfs ??
+  
+  int block_size;                 // FIXME: Needed?       // start sector needs to be aligned with block size
 
   struct VNode *root;                   // Could replace with a flag to indicate root?  (what
                                         // about rename path ascension?)
@@ -487,7 +496,7 @@ int walk_component (struct lookupdata *ld);
 struct VNode *path_advance(struct VNode *dvnode, char *component);
 
 // fs/mknod.c */
-int sys_mknod2(char *_handlerpath, uint32_t flags, struct stat *stat);
+int sys_mknod2(char *_handlerpath, uint32_t flags, mode_t mode);
 
 /* fs/mount.c */
 int sys_pivotroot(char *_new_root, char *_old_root);
@@ -544,25 +553,28 @@ int sys_sync(void);
 int sys_fsync(int fd);
 
 /* fs/vfs.c */
-int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov, 
-                    int riov_cnt, msgiov_t *riov, size_t sbuf_total_sz, size_t rbuf_total_sz);
-ssize_t vfs_read(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
-ssize_t vfs_write(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
 int vfs_readdir(struct VNode *vnode, void *buf, size_t bytes, off64_t *cookie);
 int vfs_lookup(struct VNode *dir, char *name, struct VNode **result);
-int vfs_create(struct VNode *dvnode, char *name, int oflags, struct stat *stat, struct VNode **result);                             
+int vfs_close(struct VNode *vnode);
+int vfs_create(struct VNode *dvnode, char *name, int oflags, uid_t uid, gid_t gid, mode_t mode, struct VNode **result);                             
+ssize_t vfs_read(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
+ssize_t vfs_write(struct VNode *vnode, int ipc, void *buf, size_t nbytes, off64_t *offset);
+int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov, 
+                    int riov_cnt, msgiov_t *riov, size_t sbuf_total_sz, size_t rbuf_total_sz);
 int vfs_unlink(struct VNode *dvnode, struct VNode *vnode, char *name);
 int vfs_truncate(struct VNode *vnode, size_t sz);
-int vfs_mknod(struct VNode *dir, char *name, struct stat *stat);                            
-int vfs_mklink(struct VNode *dvnode, char *name, char *link, struct stat *stat);
+int vfs_mknod(struct VNode *dir, char *name, uid_t uid, gid_t gid, mode_t mode);                            
+int vfs_mklink(struct VNode *dvnode, char *name, char *link, uid_t uid, gid_t gid, mode_t mode);
 int vfs_rdlink(struct VNode *vnode, char *buf, size_t sz);
+int vfs_stat(struct VNode *vnode, struct stat *rstat);
 int vfs_rmdir(struct VNode *dir, struct VNode *vnode, char *name);
-int vfs_mkdir(struct VNode *dir, char *name, struct stat *stat);
+int vfs_mkdir(struct VNode *dir, char *name, uid_t uid, gid_t gid, mode_t mode);
 int vfs_rename(struct VNode *src_dvnode, char *src_name, struct VNode *dst_dvnode, char *dst_name);
 int vfs_chmod(struct VNode *vnode, mode_t mode);
 int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid);
-int vfs_fsync(struct VNode *vnode);
 int vfs_isatty(struct VNode *vnode);
+int vfs_syncfs(struct SuperBlock *sb);
+int vfs_fsync(struct VNode *vnode);
 
 ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset);
 ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset);
@@ -582,8 +594,9 @@ void vnode_put_fifo_writer(struct VNode *vnode);
 
 void vnode_ref(struct VNode *vnode);
 
-void do_vnode_discard(struct VNode *vnode);
+void do_vnode_inactive(struct VNode *vnode);
 void do_vnode_recycle(struct VNode *vnode);
+void do_vnode_discard(struct VNode *vnode);
 
 struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr);
 int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr);

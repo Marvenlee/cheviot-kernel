@@ -15,6 +15,35 @@
  *
  * --
  * Vnode handling.
+ *
+ * The filesystem system calls use rwlocks to protect vnodes with the following
+ * lock types.  This follows the lock usage as described in the paper "Practical
+ * Structures for Parallel Operating Systems" by Jan Edler in section 6.2.4.
+ *
+ * D access               shared
+ * ? chdir, chroot        shared
+ * y chmod, fchmod        exclusive
+ * D chown, fchown        exclusive
+ * ? close                shared+
+ * ? directory lookup     shared
+ * ? directory update     exclusive
+ * y readdir              shared
+ * y exec                 shared
+ * x flock                exclusive  (To be implemented)
+ * y fsync                shared
+ * x link                 shared    (To be implemented)
+ * ? open                 shared+
+ * y read                 shared
+ * y stat                 shared
+ * y truncate, ftruncate  exclusive
+ * y unlink               shared
+ * x utimes               exclusive (To be implemented)
+ * y write                shared+   
+ * 
+ * + close requires an exclusive lock when it is the last close
+ * + open requires an exclusive lock when truncating a file.
+ • + write requires an exclusive lock when extending a file or filling a hole.
+ *   Pipes and character devices require shared access for read and write operations.
  */
 
 //#define KDEBUG
@@ -27,7 +56,6 @@
 #include <kernel/types.h>
 #include <string.h>
 #include <kernel/kqueue.h>
-
 
 
 /* @brief   Allocate a new vnode
@@ -46,8 +74,6 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
 
   KASSERT(sb != NULL);
 
-  Info("vnode_get_new(sb:%08x)", (uint32_t)sb);
-
   if (sb->flags & SBF_ABORT) {
     return NULL;
   }
@@ -55,6 +81,7 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   vnode = LIST_HEAD(&vnode_free_list);
 
   if (vnode == NULL) {
+    Error("vnode_get_new() failed, no memory");
     return NULL;
   }
 
@@ -75,7 +102,6 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   vnode->superblock = sb;
 
   vnode->inode_nr = -1;
-
   vnode->flags = 0;
 
   vnode->char_read_busy = false;
@@ -86,26 +112,18 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   vnode->pipe = NULL;
   
   vnode->tty_sid = INVALID_PID;
-    
   vnode->mode = 0;
   vnode->uid = 9999;
   vnode->gid = 9999;
   vnode->size = 0;
-  vnode->atime = 0;
-  vnode->mtime = 0;
-  vnode->ctime = 0;
-  vnode->blocks = 0;
-  vnode->blksize = 512;  // default to 512
-  vnode->rdev = 0;   // FIXME: rdev
-  vnode->nlink = 0;  // hard links count
 
-  
-  LIST_INIT(&vnode->page_list);
-  
+  LIST_INIT(&vnode->page_list);  
   LIST_INIT(&vnode->dname_list);
   LIST_INIT(&vnode->directory_dname_list);
 
   LIST_INIT(&vnode->knote_list);
+
+  Info("vnode_get_new(sb:%08x) vnode:%08x, ref_cnt:%d", (uint32_t)sb, (uint32_t)vnode, vnode->reference_cnt);
 
   return vnode;
 }
@@ -121,8 +139,6 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
 struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
-
-  Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
   
   KASSERT(sb != NULL);
 
@@ -137,14 +153,12 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
   if (vnode->flags & V_FREE) {    // TODO: Rename to V_INACTIVE
     LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
     
-    // TODO: Recycle vnode in here ?
-    
+    // TODO: Recycle vnode in here ? 
   }
 
-  Info("vnode_get() gotten vnode:%08x", (uint32_t)vnode);
+  Info("vnode_get(sb:%08x, inode_nr:%d), vnode:%08x, cur ref_cnt:%d", (uint32_t)sb, inode_nr,
+                                          (uint32_t)vnode, vnode->reference_cnt);
   return vnode;
-  
-  
 }
 
 
@@ -154,8 +168,6 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
  */
 struct VNode *vnode_get_from_filp(struct Filp *filp)
 {
-  Info("vnode_get_From_filp()");
-  
   if (filp == NULL) {
     Error("vnode_get_from_filp, filp is NULL");
     return NULL;
@@ -166,7 +178,8 @@ struct VNode *vnode_get_from_filp(struct Filp *filp)
     return NULL;
   }
   
-  Info("..vnode_get_from_filp(filp:%08x) vnode:%08x", (uint32_t)filp, (uint32_t)filp->u.vnode);
+  Info("vnode_get_from_filp(filp:%08x) vnode:%08x, cur ref_cnt:%d", (uint32_t)filp,
+                                    (uint32_t)filp->u.vnode, filp->u.vnode->reference_cnt);
   
   return filp->u.vnode;
 }
@@ -181,34 +194,32 @@ struct VNode *vnode_get_from_filp(struct Filp *filp)
  */
 void vnode_put(struct VNode *vnode)
 {
-  Info("vnode_put(vnode:%08x)", (uint32_t)vnode);
+  int sc;
+  
+  Info("vnode_put(vnode:%08x) prior ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
 
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
-
-//  KASSERT(S_ISFIFO(vnode->mode) == 0);
-//  KASSERT(vnode->reference_cnt > 0);
-  
-
-  if (S_ISREG(vnode->mode)) {
-    // bsyncv(vnode);
-  } else if (S_ISDIR(vnode->mode)) {
-    
-    //knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);  
-  }
-
+  KASSERT(vnode->reference_cnt > 0);
 
   vnode->reference_cnt--;
     
   if (vnode->reference_cnt == 0) {    
-    if (vnode->nlink == 0) {
-//      vnode_discard(vnode);    
-    }
+    sc = vfs_close(vnode);
     
-    //TaskWakeupAll(&vnode->rendez);
+    if (sc == 0) {
+      // FIle still has links and remains on disk. 
+      do_vnode_inactive(vnode);
+    } else {
+      // Error or inode storage has been freed due to no links to file.
+      do_vnode_discard(vnode);
+    }
+
+    // TODO: Check if superblock is flagged for lazy unmount.  If no more vnodes
+    // Then perform the free on the superblock.
+    
+    TaskWakeupAll(&vnode->rendez);  
   }
-
-
 }
 
 
@@ -267,15 +278,14 @@ void vnode_put_fifo_writer(struct VNode *vnode)
 }
 
 
-/*
+/* @brief   Increment vnode reference count
  *
  */
 void vnode_ref(struct VNode *vnode)
 {
+  Info("vnode_ref(vnode:%08x) ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
   vnode->reference_cnt++;
 }
-
-
 
 
 /* @brief   Discard a vnode, put it on the free list and mark it as invalid.
@@ -284,29 +294,70 @@ void vnode_ref(struct VNode *vnode)
  */
 void do_vnode_discard(struct VNode *vnode)
 {
-  struct Pipe *pipe;
+//  struct Pipe *pipe; FIXME: Do we need to clean up pipe?
 
-  Info("vnode_discard(vnode:%08x)", (uint32_t)vnode);
+  KASSERT(vnode->reference_cnt == 0);
 
+  rwlock_drain(&vnode->lock);
+  
   if (S_ISREG(vnode->mode)) {
-    Info("close_vnode reg file");
-//    bsyncv(vnode);
+     btruncatev(vnode);
+     bsyncv(vnode);
+  } else if (S_ISDIR(vnode->mode)) {
+     btruncatev(vnode);
+     bsyncv(vnode);
   } else if (S_ISFIFO(vnode->mode)) {
-    Info("close_vnode pipe");
-    
-    pipe = vnode->pipe;
+    free_pipe(vnode->pipe);
+    vnode->pipe = NULL;
+  }
+  
 
-    Info(".. reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+  vnode_hash_remove(vnode);
 
-    free_pipe(pipe);
+  vnode->flags = V_FREE;
+  vnode->reference_cnt = 0;
+
+  vnode->superblock->reference_cnt--;
+
+  LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
+  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
+
+  rwlock_reset(&vnode->lock);
+
+  TaskWakeupAll(&vnode->rendez);
+}
+
+
+/* @brief   Put vnode on end of free list so that it remains cached.
+ *
+ */
+void do_vnode_inactive(struct VNode *vnode)
+{
+//  struct Pipe *pipe;    FIXME: Do we need to handle pipe
+
+  KASSERT(vnode->reference_cnt == 0);
+
+  Info("do_vnode_inactive(vnode:%08x)", (uint32_t)vnode);
+
+//  rwlock_drain(&vnode->lock);
+  
+  if (S_ISREG(vnode->mode)) {
+     bsyncv(vnode);
+  } else if (S_ISDIR(vnode->mode)) {
+     bsyncv(vnode);
+  } else if (S_ISFIFO(vnode->mode)) {
+    free_pipe(vnode->pipe);
+    vnode->pipe = NULL;
   }
   
   vnode->flags = V_FREE;
-  vnode->reference_cnt = 0;
-  vnode->nlink = 0;
 
   LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
-  LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
+  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
+
+//  rwlock_reset(&vnode->lock);
+
+  TaskWakeupAll(&vnode->rendez);
 }
 
 
@@ -318,37 +369,39 @@ void do_vnode_recycle(struct VNode *vnode)
 {
   struct SuperBlock *sb;
 
-  Info("************ vnode_recycle(vnode:%08x) **********", (uint32_t)vnode);  
+  // May need exlusive lock on vnode
+  rwlock_drain(&vnode->lock);
   
   if (vnode->reference_cnt > 0) {
     return;
   }
   
   sb = vnode->superblock;
-  
-  vnode_hash_remove(vnode);
-  
+    
   if (S_ISREG(vnode->mode)) {
     bsyncv(vnode);
     binvalidatev(vnode);
   } else if (S_ISFIFO(vnode->mode)) {
-    // FIXME: Do any special cleanup of file, dir, pipe/fifo ?
+    if (vnode->pipe != NULL) {
+      free_pipe(vnode->pipe);
+      vnode->pipe = NULL;
+    }
   }
+
+  vnode_hash_remove(vnode);
 
   vnode->flags = V_FREE;
   vnode->reference_cnt = 0;
-  vnode->nlink = 0;
 
   LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
-  LIST_ADD_TAIL(&vnode_free_list, vnode, vnode_link);
-
+  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
 
   sb->reference_cnt--;
 
-//  TaskWakeupAll(&vnode->rendez);
+  rwlock_reset(&vnode->lock);
+
+  TaskWakeupAll(&vnode->rendez);
 }
-
-
 
 
 /* @brief   Find an existing vnode in the vnode cache

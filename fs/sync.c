@@ -27,17 +27,15 @@
 /* @brief   Write all mounted filesystems to disk
  *
  * Send sync message to all mounted filesystems
- *
  * TODO: Do we increment superblock reference count, then decrement once finished ?
  */
 int sys_sync(void)
 {
   struct SuperBlock *sb;
-  struct VNode *vnode;
   int saved_sc = 0;
   int sc;
 
-  Info("sys_sync(");
+  Info("sys_sync()");
   
   while (sync_in_progress == true) {
     TaskSleep(&sync_rendez);
@@ -50,7 +48,7 @@ int sys_sync(void)
   while (sb != NULL) {
     if (sb->root != NULL && S_ISDIR(sb->root->mode) && (sb->flags & SBF_READONLY) == 0) {
 
-      sb->reference_cnt ++;
+      sb->reference_cnt++;
       LIST_ADD_TAIL(&sync_superblock_list, sb, sync_link);
     }      
         
@@ -60,7 +58,7 @@ int sys_sync(void)
   while((sb = LIST_HEAD(&sync_superblock_list)) != NULL) {
     LIST_REM_HEAD(&sync_superblock_list, sync_link);
     
-    sc = vfs_sync(sb);
+    sc = vfs_syncfs(sb);
     
     if (saved_sc == 0 && sc != 0) {
       saved_sc = sc;
@@ -76,6 +74,7 @@ int sys_sync(void)
 
   return saved_sc;
 }
+
 
 
 /* @brief   Write all unwritten blocks of a file to disk
@@ -112,8 +111,10 @@ int sys_fsync(int fd)
     return -EACCES;
   }
   
-  sc = vfs_syncfile(vnode);  // TODO: vfs message to a filesystem handler to sync a specific file
-    
+  rwlock_shared(&vnode->lock);
+  sc = vfs_fsync(vnode);  // TODO: vfs message to a filesystem handler to sync a specific file
+  rwlock_release(&vnode->lock);
+  
   return sc;  
 }
 

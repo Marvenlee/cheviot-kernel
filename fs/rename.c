@@ -122,9 +122,6 @@ int sys_rename(char *oldpath, char *newpath)
 		  sc = -ELOOP;
 		}
     
-    if (newl.parent->nlink >= LINK_MAX) {
-      sc = -EMLINK;
-    }    
 	  
 	  // FIXME: Do we need to vnode_put() super_dvnode or next_super_dvnode ?
 	  
@@ -142,6 +139,10 @@ int sys_rename(char *oldpath, char *newpath)
   if (oldl.parent == newl.parent) {
   } else {
   }
+  
+  
+  // FIXME: OR move the parent vnode checking above into filesystem handler.  Only check the
+  // paths are on same device.
   
   sc = vfs_rename(oldl.parent, oldl.last_component, newl.parent, newl.last_component);
 

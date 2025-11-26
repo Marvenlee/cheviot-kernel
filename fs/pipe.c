@@ -158,6 +158,8 @@ int do_close_pipe(struct VNode *vnode, bool is_writer)
   } else {
     vnode_put_fifo_reader(vnode);  
   }
+  
+  return 0;
 }
 
 

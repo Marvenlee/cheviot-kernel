@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
@@ -181,19 +181,28 @@ int do_exec(int fd, char *name, struct execargs *_args)
     return -ENOMEM;
   }
 
+  Info("do_exec: calling sys_mmap() for stack");
+
   if ((stack_base = sys_mmap((void *)0x30000000, USER_STACK_SZ, PROT_READ | PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
     Error("Allocate stack failed");
     free_arg_pool(pool);
     return -ENOMEM;
   }
 
+  Info("do_exec: calling copy_out_argv");
+
   copy_out_argv(stack_base, USER_STACK_SZ, &args);
+
+  Info("do_exec: calling free_arg_pool");
 
   free_arg_pool(pool);
 
   StrLCpy(current->basename, name, sizeof current->basename);
   StrLCpy(current_thread->basename, name, sizeof current_thread->basename);
   
+  Info("do_exec: calling exec_fds");
+  Info("do_exec: calling exec_signals");
+
   exec_fds(current);
   exec_signals(current, current_thread);
 
@@ -490,6 +499,8 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
     sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
   }
 
+  Info("exec: load_process ok");
+
   return 0;
 }
 
@@ -499,13 +510,18 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
  */
 ssize_t read_file(int fd, off_t offset, void *vaddr, size_t sz)
 {
-  size_t nbytes_read;
+  ssize_t nbytes_read;
+  
+  Info("exec: read_file(%d, sz:%d", fd, (int)sz);
   
   if (sys_lseek(fd, offset, SEEK_SET) == -1) {
     return -1;
   }
 
   nbytes_read = sys_read(fd, vaddr, sz);
+
+  Info("exec: read_file nbytes_read:%d", nbytes_read);
+
   return nbytes_read;
 }
 
@@ -515,7 +531,9 @@ ssize_t read_file(int fd, off_t offset, void *vaddr, size_t sz)
  */
 ssize_t kread_file (int fd, off_t offset, void *vaddr, size_t sz)
 {
-  size_t nbytes_read;
+  ssize_t nbytes_read;
+
+  Info("exec: kread_file(%d, sz:%d", fd, (int)sz);
   
   if (sys_lseek(fd, offset, SEEK_SET) == -1) {
     return -1;

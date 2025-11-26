@@ -48,7 +48,11 @@ int sys_truncate(int fd, size_t sz)
         return -EINVAL;
       }
 
-      if ((sc = vfs_truncate(vnode, 0)) != 0) {
+      rwlock_exclusive(&vnode->lock);
+      sc = vfs_truncate(vnode, 0);
+      rwlock_release(&vnode->lock);
+
+      if (sc != 0) {
         return sc;
       }
 

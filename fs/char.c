@@ -315,8 +315,6 @@ int ioctl_tiocnotty(int fd)
   if (vnode->tty_sid == session->sid) {
     vnode->tty_sid = INVALID_PID;
     session->controlling_tty = NULL;
-    // FIXME: Do we need a vnode_dec_ref() ?
-    vnode_put(vnode);          
   }
   
   return 0;
@@ -406,29 +404,22 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
     return -EINVAL;
   }
 
-  vnode_ref(vnode);
-
   if (S_ISCHR(vnode->mode) == 0) {
-    vnode_put(vnode);
     return -EINVAL;
   }
 
   session = get_session(vnode->tty_sid);
 
   if (session == NULL) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
   if (current->sid != session->sid) {
-    vnode_put(vnode);
     return -EPERM;
   }
 
   pgid = session->foreground_pgrp;
 
-  vnode_put(vnode);
-          
   if (CopyOut(_pgid, &pgid, sizeof *_pgid) != 0) {
     return -EFAULT;
   }
@@ -507,6 +498,7 @@ int ioctl_setsyslog(int fd)
 int do_close_char_device(struct VNode *vnode)
 {
   vnode_put(vnode);
+  return 0;
 }
 
 

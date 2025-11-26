@@ -18,7 +18,7 @@
  * message ports on file system commands.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -80,9 +80,17 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode = dvnode;
   } else {
     vnode = vnode_get(dvnode->superblock, reply.args.lookup.inode_nr);
+    
+    if (vnode != NULL) {
+      Info("vfs_lookup, vnode exists in mem, calling vnode_ref");
+      vnode_ref(vnode);
+    } else {
+      Info("vfs_lookup, vnode doesn't exist in mem");
+    }
   }
 
   if (vnode == NULL) {
+    Info("vfs_lookup, allocating new vnode");
     vnode = vnode_get_new(sb);
 
     if (vnode == NULL) {
@@ -91,37 +99,58 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
       return -ENOMEM;
     }
 
-    vnode_ref(vnode);
-
-    vnode->nlink = reply.args.lookup.nlink;           // FIXME: Need to get nlink.
-    vnode->size = reply.args.lookup.size;      
-    vnode->uid = reply.args.lookup.uid;  
-    vnode->gid = reply.args.lookup.gid;
-    vnode->mode = reply.args.lookup.mode;
     vnode->inode_nr = reply.args.lookup.inode_nr;
+    vnode->size  = reply.args.lookup.size;
+    vnode->uid   = reply.args.lookup.uid;
+    vnode->gid   = reply.args.lookup.gid;
+    vnode->mode  = reply.args.lookup.mode;
     vnode->flags = V_VALID;
+
     vnode_hash_enter(vnode);
   } 
 
-  Info("vfs_lookup success: vnode:%08x, ino_nr:%u", (uint32_t)vnode, (uint32_t)vnode->inode_nr);
+  Info("vfs_lookup success: vnode:%08x, ino_nr:%u, ref_cnt:%d", (uint32_t)vnode, (uint32_t)vnode->inode_nr, vnode->reference_cnt);
 
   *result = vnode;
   return 0;
 }
 
 
-/* @brief   Create a file
+/* @brief   Close a VNode when the reference count reaches 0
  *
- * TODO: create needs to populate vnode->nlink
+ * @param   vnode, vnode to close
+ * @return  0 on success, negative errno on failure or file deleted due to no remaining links
+ */
+int vfs_close(struct VNode *vnode) 
+{
+  struct SuperBlock *sb;
+  iorequest_t req = {0};
+  int sc;
+
+  Info("vfs_close(vnode:%08x)", (uint32_t)vnode);
+  
+  sb = vnode->superblock;
+  
+  req.cmd = CMD_CLOSE;
+  req.args.close.inode_nr = vnode->inode_nr;
+  
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
+
+  return sc;
+}
+
+
+/* @brief   Create a regular file
+ *
  */
 int vfs_create(struct VNode *dvnode, char *name, int oflags,
-                             struct stat *stat, struct VNode **result)
+                             uid_t uid, gid_t gid, mode_t mode, struct VNode **result)
 {
   struct SuperBlock *sb;
   struct VNode *vnode;
   iorequest_t req = {0};
   ioreply_t reply = {0};
-  msgiov_t siov[1];
+  msgiov_t siov[2];
   size_t name_sz;
   int sc;
 
@@ -138,13 +167,13 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   req.args.create.dir_inode_nr = dvnode->inode_nr;
   req.args.create.name_sz = name_sz;
   req.args.create.oflags = oflags;
-  req.args.create.mode = stat->st_mode;
-  req.args.create.uid = stat->st_uid;
-  req.args.create.gid = stat->st_gid;
-
+  req.args.create.uid = uid;
+  req.args.create.gid = gid;
+  req.args.create.mode = mode;
+  
   siov[0].addr = name;
   siov[0].size = name_sz;
-    
+  
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
 
   if (sc != 0) {
@@ -162,20 +191,16 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   }
 
   vnode_ref(vnode);
-
-  // TODO: Update nlink of vnode and dvnode
-  // dvnode->nlink = reply.args.create.parent_nlink;      
-  // vnode->nlink = reply.args.create.inode_nlink;
-  vnode->nlink = 1;           // FIXME: Need to get nlink. 
-//  vnode->reference_cnt = 1;
-  vnode->size = reply.args.create.size;      
-  vnode->uid = reply.args.create.uid;  
-  vnode->gid = reply.args.create.gid;
-  vnode->mode = reply.args.create.mode;
+  
   vnode->inode_nr = reply.args.create.inode_nr;
+  vnode->size  = reply.args.create.size;      
+  vnode->uid   = reply.args.create.uid;  
+  vnode->gid   = reply.args.create.gid;
+  vnode->mode  = reply.args.create.mode;
   vnode->flags = V_VALID;
-  vnode_hash_enter(vnode);
 
+  vnode_hash_enter(vnode);
+  
   Error("vfs_create success, vnode:%08x, ino_nr:%u", (uint32_t)vnode, (uint32_t)vnode->inode_nr);
     
   *result = vnode;
@@ -241,6 +266,8 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
 
   nbytes_read = ksendmsg(&sb->msgport, ipc, &req, NULL, 0, NULL, NELEM(riov), riov);
 
+  Info("vfs_read, ksendmsg replied");
+
   if (nbytes_read < 0) {
     Error("vfs_read failed :%d", nbytes_read);
     return nbytes_read;
@@ -249,6 +276,8 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
   if (offset != NULL) {
     *offset += nbytes_read;
   }
+
+  Info("vfs_read: nbytes_read:%d", nbytes_read);
 
   return nbytes_read;
 }
@@ -333,59 +362,29 @@ int vfs_readdir(struct VNode *vnode, void *dst, size_t nbytes, off64_t *cookie)
  *
  * TODO: Needs to update nlink
  */
-int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
+int vfs_mknod(struct VNode *dvnode, char *name, uid_t uid, gid_t gid, mode_t mode)
 {
   struct SuperBlock *sb;
-  struct VNode *vnode;
+//  struct VNode *vnode;
   iorequest_t req = {0};
   ioreply_t reply = {0};
   msgiov_t siov[1];
   int sc;
+
+  Info("vfs_mknod(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
 
   sb = dvnode->superblock;
 
   req.cmd = CMD_MKNOD;
   req.args.mknod.dir_inode_nr = dvnode->inode_nr;
   req.args.mknod.name_sz = StrLen(name) + 1;
-  // req.args.mknod.size = 0;
-  req.args.mknod.uid = stat->st_uid;
-  req.args.mknod.gid = stat->st_gid;
-  req.args.mknod.mode = stat->st_mode;
-  
-  // TODO: Copy stat fields to req
   
   siov[0].addr = name;
   siov[0].size = req.args.mknod.name_sz;
-  
+
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
   
-  if (sc < 0) {
-    return sc;
-  }
-
-  vnode = vnode_get_new(sb);
-
-  if (vnode == NULL) {
-    return -ENOMEM;
-  }
-
-  // TODO: Update nlink of vnode and dvnode
-  // dvnode->nlink = reply.args.mknod.parent_nlink;
-  // vnode->nlink = reply.args.mknod.inode_nlink;
-
-  vnode->nlink = 1;
-
-  vnode->size = reply.args.mknod.size;      
-  vnode->uid = reply.args.mknod.uid;  
-  vnode->gid = reply.args.mknod.gid;
-  vnode->mode = reply.args.mknod.mode;
-  vnode->inode_nr = reply.args.mknod.inode_nr;
-  vnode->flags = V_VALID;
-  vnode_hash_enter(vnode);
-
-  vnode_put(vnode);
-
-  return 0;
+  return sc;
 }
 
 
@@ -393,68 +392,62 @@ int vfs_mknod(struct VNode *dvnode, char *name, struct stat *stat)
  *
  * TODO: Needs to update nlink
  */
-int vfs_mkdir(struct VNode *dvnode, char *name, struct stat *stat)
+int vfs_mkdir(struct VNode *dvnode, char *name, uid_t uid, gid_t gid, mode_t mode)
 {
   struct SuperBlock *sb;
-  struct VNode *vnode;
+//  struct VNode *vnode;
   iorequest_t req = {0};
   ioreply_t reply = {0};
   msgiov_t siov[1];
   int sc;
+
+  Info("vfs_mkdir(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
 
   sb = dvnode->superblock;
 
   req.cmd = CMD_MKDIR;
   req.args.mkdir.dir_inode_nr = dvnode->inode_nr;
   req.args.mkdir.name_sz = StrLen(name) + 1;
-  // req.args.mknod.size = 0;
-  req.args.mkdir.uid = stat->st_uid;
-  req.args.mkdir.gid = stat->st_gid;
-  req.args.mkdir.mode = stat->st_mode;
-  
-  // TODO: Copy stat fields to req
+  req.args.mkdir.uid = uid;
+  req.args.mkdir.gid = gid;
+  req.args.mkdir.mode = mode;
   
   siov[0].addr = name;
   siov[0].size = req.args.mkdir.name_sz;
-  
+    
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
   
-  if (sc < 0) {
-    return sc;
-  }
-
-  vnode = vnode_get_new(sb);
-
-  if (vnode == NULL) {
-    return -ENOMEM;
-  }
-
-  // TODO: Update nlink of vnode and dvnode
-  // dvnode->nlink = reply.args.mkdir.parent_nlink;      
-  // vnode->nlink = reply.args.mkdir.inode_nlink;      
-
-  vnode_ref(vnode);
-
-  vnode->nlink = 1;
-  
-//  vnode->reference_cnt = 1;
-  vnode->size = reply.args.mkdir.size;      
-  vnode->uid = reply.args.mkdir.uid;  
-  vnode->gid = reply.args.mkdir.gid;
-  vnode->mode = reply.args.mkdir.mode;
-  vnode->inode_nr = reply.args.mkdir.inode_nr;
-  vnode->flags = V_VALID;
-  vnode_hash_enter(vnode);
-
-  vnode_put(vnode);
-
-  return 0;
+  return sc;
 }
 
 
 /*
  *
- * TODO: Needs to update nlink
+ */
+int vfs_stat(struct VNode *vnode, struct stat *rstat)
+{
+  struct SuperBlock *sb;
+  iorequest_t req = {0};
+  msgiov_t riov[1];
+  int sc;
+
+  sb = vnode->superblock;
+
+  req.cmd = CMD_STAT;
+  req.args.stat.inode_nr = vnode->inode_nr;
+    
+  riov[0].addr = rstat;
+  riov[0].size = sizeof *rstat;
+    
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, NELEM(riov), riov);
+  
+  return sc;
+}
+
+
+/*
+ *
+ * TODO: Remove - obsolete- use unlink instead.
  */
 int vfs_rmdir(struct VNode *dvnode, struct VNode *vnode, char *name)
 {
@@ -474,9 +467,7 @@ int vfs_rmdir(struct VNode *dvnode, struct VNode *vnode, char *name)
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
 
-  // TODO: Need to update nlink of vnode and parent directory
-  vnode->nlink--;     // for .
-  dvnode->nlink --;   // for ..
+  // TODO: Need to check reference count see if still active.   and vnode_put()
 
   return sc;
 }
@@ -532,8 +523,6 @@ int vfs_rename(struct VNode *src_dvnode, char *src_name,
   siov[1].size = req.args.rename.dst_name_sz;
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
-
-  // TODO: should we update parent dvnode nlinks here ?
 
   return sc;
 }
@@ -602,12 +591,10 @@ int vfs_unlink(struct VNode *dvnode, struct VNode *vnode, char *name)
 
   siov[0].addr = name;
   siov[0].size = req.args.unlink.name_sz;
-
+    
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);
 
-  // TODO: Need to update nlink of vnode and parent directory
-  vnode->nlink--;     // for .
-  dvnode->nlink --;   // for ..
+  // TODO: Need to check ref count of vnode and vnode_put()
 
   return sc;
 }
@@ -617,10 +604,68 @@ int vfs_unlink(struct VNode *dvnode, struct VNode *vnode, char *name)
  *
  * TODO: Needs to update nlink
  */
-int vfs_mklink(struct VNode *dvnode, char *name, char *link, struct stat *stat)
+int vfs_link(struct VNode *dvnode, char *name, struct VNode *target_inode)
 {
-	Error("vfs_mklink -ENOTSUP");
-  return -ENOTSUP;
+  iorequest_t req = {0};
+  struct SuperBlock *sb;
+  msgiov_t siov[1];
+  int sc;
+  
+  sb = dvnode->superblock;
+
+  // TODO: Check if link exists?
+
+  req.cmd = CMD_LINK;
+  req.args.link.dir_inode_nr = dvnode->inode_nr;
+  req.args.link.name_sz = StrLen(name) + 1;
+  req.args.link.target_inode_nr = target_inode->inode_nr;
+  
+  siov[0].addr = name;
+  siov[0].size = req.args.link.name_sz;
+
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
+
+  if (sc != 0) {
+    return sc;
+  }
+
+  return 0;
+}
+
+
+/*
+ *
+ * TODO: Needs to update nlink
+ */
+int vfs_symlink(struct VNode *dvnode, char *name, char *link, uid_t uid, uid_t gid, mode_t mode)
+{
+  iorequest_t req = {0};
+  struct SuperBlock *sb;
+  msgiov_t siov[3];
+  int sc;
+  
+  sb = dvnode->superblock;
+
+  req.cmd = CMD_SYMLINK;
+  req.args.symlink.dir_inode_nr = dvnode->inode_nr;
+  req.args.symlink.name_sz = StrLen(name) + 1;
+  req.args.symlink.link_sz = StrLen(link) + 1;
+  req.args.symlink.uid = uid;
+  req.args.symlink.gid = gid;
+  req.args.symlink.mode = mode;
+
+  siov[0].addr = name;
+  siov[0].size = req.args.symlink.name_sz;
+  siov[1].addr = link;
+  siov[1].size = req.args.symlink.link_sz;
+
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, NELEM(siov), siov, 0, NULL);  
+
+  if (sc != 0) {
+    return sc;
+  }
+
+  return 0;
 }
 
 
@@ -629,18 +674,28 @@ int vfs_mklink(struct VNode *dvnode, char *name, char *link, struct stat *stat)
  */
 int vfs_rdlink(struct VNode *vnode, char *buf, size_t sz)
 {
-	Error("vfs_rdlink -ENOTSUP");
-  return -ENOTSUP;
-}
+  iorequest_t req = {0};
+  struct SuperBlock *sb;
+  msgiov_t riov[1];
+  int sc;
+  
+  KASSERT(buf != NULL);
+  KASSERT(sz > 0);
+  
+  sb = vnode->superblock;
 
+  req.cmd = CMD_RDLINK;
+  req.args.rdlink.inode_nr = vnode->inode_nr;
+  req.args.rdlink.buf_sz = sz;
 
-/*
- *
- */
-int vfs_fsync(struct VNode *vnode)
-{
-	Error("vfs_fsync -ENOTSUP");
-  return -ENOTSUP;
+  riov[0].addr = buf;
+  riov[0].size = sz;
+
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, NELEM(riov), riov);  
+	
+	buf[sz-1] = '\0';
+	
+  return sc;
 }
 
 
@@ -739,22 +794,35 @@ ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, s
 
 
 /*
- * TODO: vfs_sync
+ * TODO: vfs_syncfs
  */
-int vfs_sync(struct SuperBlock *sb)
+int vfs_syncfs(struct SuperBlock *sb)
 {
-  return 0;
+  iorequest_t req = {0};
+  int sc;
+  
+  req.cmd = CMD_SYNCFS;
+  
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
+  return sc;
 }
 
 
 /*
- * TODO: vfs_syncfile
+ *
  */
-int vfs_syncfile(struct VNode *vnode)
+int vfs_fsync(struct VNode *vnode)
 {
-  return 0;
+  iorequest_t req = {0};
+  struct SuperBlock *sb;
+  int sc;
+  
+  sb = vnode->superblock;
+
+  req.cmd = CMD_FSYNC;
+  req.args.fsync.inode_nr = vnode->inode_nr;
+  
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
+  return sc;
 }
-
-
-
 

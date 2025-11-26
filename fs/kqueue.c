@@ -339,7 +339,6 @@ int sys_knotei(int fd, int ino_nr, long hint)       // hint should be bitfield, 
     
   knote(&vnode->knote_list, hint);  
 
-  vnode_put(vnode);
   return 0;
 }
 
@@ -915,7 +914,6 @@ int do_close_kqueue(struct KQueue *kq)
   // TODO: FIXME: Delete all Notes on list
 
   kqueue_put(kq);
-
   return 0;
 }
 

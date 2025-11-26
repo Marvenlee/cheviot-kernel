@@ -17,7 +17,7 @@
  * Open or create a file
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -54,6 +54,9 @@ int sys_open(char *_path, int oflags, mode_t mode)
   }
 
   sc = do_open(&ld, oflags, mode);
+  
+  
+
   lookup_cleanup(&ld);
   return sc;
 }
@@ -75,6 +78,7 @@ int kopen(char *_path, int oflags, mode_t mode)
   }
 
   sc = do_open(&ld, oflags, mode);  
+    
   lookup_cleanup(&ld);
   return sc;  
 }
@@ -92,7 +96,6 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   struct Filp *filp = NULL;
   struct FileDesc *filedesc;
   int sc = 0;
-  struct stat stat;
   
   Info("do_open()");
   
@@ -105,17 +108,13 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       Error("Cannot O_CREAT, no write acces to directory");
       return -ENOENT;
     }
-
-    stat.st_mode = mode;
-    stat.st_uid = current->uid;
-    stat.st_gid = current->gid;
 		
 		if (strcmp(".", ld->last_component) == 0 || strcmp("..", ld->last_component) == 0) {
       Error("Cannot create . or .. named files");
       return -ENOMEM;
     }
     
-    if ((sc = vfs_create(dvnode, ld->last_component, oflags, &stat, &vnode)) != 0) {
+    if ((sc = vfs_create(dvnode, ld->last_component, oflags, current->uid, current->gid, mode, &vnode)) != 0) {
       Error("SysOpen vfs_create error, sc:%d", sc);
       return sc;
     }
@@ -178,6 +177,9 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
 
   filedesc->filp = filp;
   filedesc->flags |= FDF_VALID;
+
+  Info("do_open(), incrementing vnode_ref");
+  vnode_ref(vnode);
 
   return fd;  
 }

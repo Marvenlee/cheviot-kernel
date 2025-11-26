@@ -17,7 +17,7 @@
  * Exec the first process, the IFS driver into existence.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <string.h>
 #include <kernel/arch.h>
