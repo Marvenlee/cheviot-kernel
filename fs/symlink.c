@@ -40,8 +40,6 @@ int sys_symlink(char *_path, char *_link)
 
   // TODO:  sc = vfs_mklink(ld.parent, ld.last_component, _link);
 
-  // knote that directory has changed
-
   lookup_cleanup(&ld);
   return 0;
 }

@@ -141,7 +141,7 @@ syscall_table:
     .long sys_virtualtophysaddr         // 66
     
     .long sys_signalnotify              // 67 
-    .long sys_knotei                    // 68
+    .long sys_deprecatedsyscall                    // 68
     
     .long sys_pivotroot                 // 69
 
@@ -161,8 +161,8 @@ syscall_table:
     
     .long sys_chroot                    // 81
 
-    .long sys_kqueue                    // 82 
-    .long sys_kevent                    // 83
+    .long sys_deprecatedsyscall                    // 82 
+    .long sys_deprecatedsyscall                    // 83
 
     // .long sys_sigreturn
 
@@ -201,7 +201,7 @@ syscall_table:
 
   .long interruptapi_mask_interrupt     // MAX_SYSCALL + 0
   .long interruptapi_unmask_interrupt   // MAX_SYSCALL + 1
-  .long interruptapi_knotei             // MAX_SYSCALL + 2
+  .long interruptapi_notify_event       // MAX_SYSCALL + 2
 
 #define MIN_ISR_SYSCALL             MAX_SYSCALL    
 #define MAX_ISR_SYSCALL             (MAX_SYSCALL + 2)

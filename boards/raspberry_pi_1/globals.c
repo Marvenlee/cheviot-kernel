@@ -27,7 +27,6 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <kernel/kqueue.h>
 #include <kernel/interrupt.h>
 
 /*
@@ -54,7 +53,7 @@ uint32_t *vector_table;
 
 struct InterruptAPI interrupt_api = 
 {
-  .EventNotifyFromISR = interruptapi_knotei,
+  .EventNotifyFromISR = isr_thread_event_signal,
   .MaskInterrupt = interruptapi_mask_interrupt,
   .UnmaskInterrupt = interruptapi_unmask_interrupt,
   .context = NULL

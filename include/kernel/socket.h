@@ -9,7 +9,6 @@
 #include <kernel/msg.h>
 #include <kernel/timer.h>
 #include <kernel/types.h>
-#include <kernel/kqueue.h>
 #include <kernel/types.h>
 #include <limits.h>
 #include <sys/iorequest.h>

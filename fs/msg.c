@@ -18,10 +18,10 @@
  * implement filesystem handlers, block and character device drivers.
  *
  * Filesystem requests are converted to multi-part IOV messages.  The server
- * typically uses kqueue's kevent() to wait for a message to arrive. The server
- * then uses ReceiveMsg to receive the header of a message.  The remainder of
- * the message can be read or modified using ReadMsg and WriteMsg. The
- * server indicates it is finished with the message by calling ReplyMsg.
+ * typically uses eventsto wait for a message to arrive. The server then uses 
+ * ReceiveMsg to receive the header of a message.  The remainder of the 
+ * message can be read or modified using ReadMsg and WriteMsg. The server
+ * indicates it is finished with the message by calling ReplyMsg.
  */
 
 //#define KDEBUG
@@ -33,7 +33,6 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <string.h>
-#include <kernel/kqueue.h>
 #include <sys/syscalls.h>
 #include <sys/iorequest.h>
 
@@ -46,7 +45,7 @@
  * @param   req_sz, size of buffer to read iorequest message header into
  * @return  size of read iorequest header or negative errno on error.
  *
- * This is a non-blocking function.  Use in conjunction with kevent() in order
+ * This is a non-blocking function.  Use in conjunction with events in order
  * to wait for messages to arrive.
  *
  * TODO: Revert msgid to sender's process ID + thread ID, change type to endpoint_t.
@@ -79,7 +78,6 @@ int sys_getmsg(int fd, msgid_t *_msgid, iorequest_t *_req, size_t req_sz)
   msg = kpeekmsg(msgport);
   
   if (msg == NULL) {
-    knote_dequeue(&msgport->knote_list, EVFILT_MSGPORT);
     return 0;
   }
   
@@ -87,7 +85,6 @@ int sys_getmsg(int fd, msgid_t *_msgid, iorequest_t *_req, size_t req_sz)
     msg = kgetmsg(msgport);
     
     if (msg == NULL) {
-      knote_dequeue(&msgport->knote_list, EVFILT_MSGPORT);
       return 0;
     }
   } else {
@@ -608,54 +605,6 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
 }
 
 
-/* @brief   Asynchronously send a message to a server.
- *
- */
-int sys_beginio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt, msgiov_t *_riov)
-{
-  return -ENOSYS;
-}
-
-
-/* @brief   Wait for an I/O operation to complete and get its return status.
- *
- * Options, use on it's own after beginio,  flags say if non-blocking, any if ioid = -1
- * Or register interest in notifications from this fd with kqueue.  Only use this
- * to get status using non-blocking mode.
- */
-int sys_waitio(int fd, int ioid, int flags)
-{
-  return -ENOSYS;
-}
-
-
-/* @brief   Abort an I/O operation
- *
- */
-int sys_abortio(int fd, int ioid, int flags)
-{
-  return -ENOSYS;
-}
-
-
-/* @brief   Allocate buffers to handle asynchronous messages
- *
- */
-int sys_alloc_asyncio(int n)
-{
-  return -ENOSYS;
-}
-
-
-/* @brief   Free buffers used to handle asynchronous messages
- *
- */
-int sys_free_asyncio(int n)
-{
-  return -ENOSYS;
-}
-
-
 /* @brief   Send a message to a message port and wait for a reply.
  *
  * TODO:  Need timeout and abort mechanisms into IPC in case server doesn't respond or terminates.
@@ -693,6 +642,8 @@ int ksendmsg(struct MsgPort *msgport, int ipc, iorequest_t *req, ioreply_t *repl
   msg.src_as = (ipc == IPCOPY) ? &current_proc->as : NULL;
   msg.req = req;
   msg.reply = reply;
+  
+  Info("calling kputmsg()");
     
   sc = kputmsg(msgport, &msg);   
   
@@ -701,9 +652,13 @@ int ksendmsg(struct MsgPort *msgport, int ipc, iorequest_t *req, ioreply_t *repl
     return sc;
   }
   
+  Info("calling kwaitport() on replyport");
+  
   while ((kwaitport(&current_thread->reply_port, NULL)) != 0) {   
     sc = kabortmsg(msgport, &msg);
-
+    
+    Info("kabortmsg returned :%d", sc);
+    
     if (sc != 0) {
       return sc;
     }
@@ -754,7 +709,9 @@ int kabortmsg(struct MsgPort *msgport, struct Msg *msg)
     req->cmd = CMD_ABORT;
         
     LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
-    knote(&msgport->knote_list, NOTE_MSG);
+    
+    // FIXME: notification ?  Error checking of target tid/pid
+    do_thread_event_signal(msgport->target_tid, msgport->target_event);
     
     return 0;
     
@@ -789,7 +746,10 @@ int kputmsg(struct MsgPort *msgport, struct Msg *msg)
   msg->port = msgport;
   LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
 
-  knote(&msgport->knote_list, NOTE_MSG);   // NOTE_MSG_RECEIVED 
+  // FIXME: notification required.  Error checking, thread belonging to msgport owner process
+  do_thread_event_signal(msgport->target_tid, msgport->target_event);
+  
+  // tid_t 
 
   return 0;
 }
@@ -809,6 +769,7 @@ int kreplymsg(struct Msg *msg)
   reply_port = msg->reply_port;
   LIST_ADD_TAIL(&reply_port->pending_msg_list, msg, link);
   TaskWakeup(&reply_port->rendez);
+ 
   return 0;  
 }
 

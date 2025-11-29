@@ -56,8 +56,6 @@ int sys_truncate(int fd, size_t sz)
         return sc;
       }
 
-      // TODO: Check if size has gone up or down.
-      knote(&vnode->knote_list, NOTE_EXTEND | NOTE_ATTRIB);
       return 0;
       
     } else {

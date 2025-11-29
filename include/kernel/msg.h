@@ -5,7 +5,6 @@
 #include <kernel/lists.h>
 #include <kernel/types.h>
 #include <kernel/sync.h>
-#include <kernel/kqueue.h>
 #include <sys/syscalls.h>
 #include <sys/iorequest.h>
 #include <unistd.h>
@@ -54,10 +53,9 @@ struct MsgPort
   struct Rendez rendez;
   msg_list_t pending_msg_list;
   msg_list_t received_msg_list;
-  knote_list_t knote_list;    
-
   uint32_t flags;
-  
+  pid_t target_tid;
+  int target_event;
   void *context;              // For pointer to superblock or other data
 };
 
@@ -106,7 +104,7 @@ int kwaitport(struct MsgPort *msgport, struct timespec *timeout);
 int seekiov(int iov_cnt, msgiov_t *iov, off_t offset, int *ret_i, size_t *ret_remaining, off_t *ret_offset);
 
 struct Msg *msgid_to_msg(struct MsgPort *msgport, msgid_t msgid);
-int init_msgport(struct MsgPort *msgport);
+int init_msgport(struct MsgPort *msgport, pid_t tid, int event);
 int fini_msgport(struct MsgPort *msgport);
 
 

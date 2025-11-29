@@ -46,7 +46,7 @@
  *   Pipes and character devices require shared access for read and write operations.
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -55,7 +55,6 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <string.h>
-#include <kernel/kqueue.h>
 
 
 /* @brief   Allocate a new vnode
@@ -73,6 +72,8 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   struct VNode *vnode;
 
   KASSERT(sb != NULL);
+
+  Info("vnode_get_new(sb:%08x)", (uint32_t)sb);
 
   if (sb->flags & SBF_ABORT) {
     return NULL;
@@ -94,7 +95,7 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
     
     KASSERT(vnode->reference_cnt == 0);    
     
-    do_vnode_recycle(vnode);
+//    do_vnode_recycle(vnode);
   }
 
   vnode->reference_cnt = 1;
@@ -121,8 +122,6 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   LIST_INIT(&vnode->dname_list);
   LIST_INIT(&vnode->directory_dname_list);
 
-  LIST_INIT(&vnode->knote_list);
-
   Info("vnode_get_new(sb:%08x) vnode:%08x, ref_cnt:%d", (uint32_t)sb, (uint32_t)vnode, vnode->reference_cnt);
 
   return vnode;
@@ -140,6 +139,8 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
   
+  Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
+  
   KASSERT(sb != NULL);
 
   if (sb->flags & SBF_ABORT) {
@@ -147,6 +148,7 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
   }
 
   if ((vnode = vnode_find(sb, inode_nr)) == NULL) {
+    Info("vnode_find() failed");
     return NULL;
   }
   
@@ -198,10 +200,18 @@ void vnode_put(struct VNode *vnode)
   
   Info("vnode_put(vnode:%08x) prior ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
 
+  return;
+  
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+  
+
   KASSERT(vnode != NULL);
   KASSERT(vnode->superblock != NULL);
   KASSERT(vnode->reference_cnt > 0);
 
+/*
   vnode->reference_cnt--;
     
   if (vnode->reference_cnt == 0) {    
@@ -220,6 +230,8 @@ void vnode_put(struct VNode *vnode)
     
     TaskWakeupAll(&vnode->rendez);  
   }
+*/
+
 }
 
 
@@ -232,7 +244,7 @@ void vnode_put_fifo_reader(struct VNode *vnode)
 
   KASSERT(S_ISFIFO(vnode->mode));
   
-  vnode->reference_cnt--;
+//  vnode->reference_cnt--;
     
   pipe = vnode->pipe;
   pipe->reader_cnt--;
@@ -245,7 +257,7 @@ void vnode_put_fifo_reader(struct VNode *vnode)
   
   if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
     KASSERT(vnode->reference_cnt == 0);    
-    do_vnode_discard(vnode);
+  //  do_vnode_discard(vnode);
   }
 }
 
@@ -260,7 +272,7 @@ void vnode_put_fifo_writer(struct VNode *vnode)
   KASSERT(S_ISFIFO(vnode->mode));
   
 
-  vnode->reference_cnt--;
+  // vnode->reference_cnt--;
   
   pipe = vnode->pipe;
   pipe->writer_cnt--;
@@ -296,9 +308,20 @@ void do_vnode_discard(struct VNode *vnode)
 {
 //  struct Pipe *pipe; FIXME: Do we need to clean up pipe?
 
+  Info("do_vnode_discard(vnode:%08x)", (uint32_t)vnode);
+
+
+  return;
+  
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+
+
+
   KASSERT(vnode->reference_cnt == 0);
 
-  rwlock_drain(&vnode->lock);
+//  rwlock_drain(&vnode->lock);
   
   if (S_ISREG(vnode->mode)) {
      btruncatev(vnode);
@@ -322,7 +345,7 @@ void do_vnode_discard(struct VNode *vnode)
   LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
   LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
 
-  rwlock_reset(&vnode->lock);
+//  rwlock_reset(&vnode->lock);
 
   TaskWakeupAll(&vnode->rendez);
 }
@@ -334,6 +357,14 @@ void do_vnode_discard(struct VNode *vnode)
 void do_vnode_inactive(struct VNode *vnode)
 {
 //  struct Pipe *pipe;    FIXME: Do we need to handle pipe
+
+  Info("do_vnode_inactive(vnode:%08x)", (uint32_t)vnode);
+
+  return;
+  
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
 
   KASSERT(vnode->reference_cnt == 0);
 
@@ -368,6 +399,15 @@ void do_vnode_inactive(struct VNode *vnode)
 void do_vnode_recycle(struct VNode *vnode)
 {
   struct SuperBlock *sb;
+
+  Info("do_vnode_recycle(vnode:%08x)", (uint32_t)vnode);
+  
+  return;
+
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+
 
   // May need exlusive lock on vnode
   rwlock_drain(&vnode->lock);
@@ -421,11 +461,13 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
   
   while(vnode != NULL) {
     if ((vnode->flags & V_VALID) && vnode->superblock == sb && vnode->inode_nr == inode_nr) {
+      Info("vnode found: %08x", (uint32_t)vnode);
       return vnode;
     }
     vnode = LIST_NEXT(vnode, hash_link);
   }
 
+  Info("vnode not found");
   return NULL;
 }
 

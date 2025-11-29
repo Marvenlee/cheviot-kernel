@@ -144,7 +144,7 @@ syscall_table:
     .long sys_virtualtophysaddr         // 66
     
     .long sys_signalnotify              // 67 
-    .long sys_knotei                    // 68
+    .long sys_deprecatedsyscall                    // 68
     
     .long sys_pivotroot                 // 69
 
@@ -164,8 +164,8 @@ syscall_table:
     
     .long sys_chroot                    // 81
 
-    .long sys_kqueue                    // 82 
-    .long sys_kevent                    // 83
+    .long sys_deprecatedsyscall                    // 82 
+    .long sys_deprecatedsyscall                    // 83
 
 		.long sys_setegid										// 84
 		.long sys_seteuid										// 85
@@ -204,7 +204,7 @@ syscall_table:
     
     .long sys_reminterruptserver        // 108
     
-    .long sys_thread_event_kevent_mask  // 109
+    .long sys_thread_event_timedwait  // 109
     
     .long sys_thread_create             // 110
     .long sys_thread_join               // 111
@@ -260,11 +260,11 @@ syscall_table:
 
     .long sys_sysctl                    // 147
     .long sys_revoke                    // 148
-    .long sys_beginio                   // 149
-    .long sys_alloc_asyncio             // 150
-    .long sys_free_asyncio              // 151
-    .long sys_waitio                    // 152
-    .long sys_abortio                   // 153
+    .long sys_deprecatedsyscall                   // 149
+    .long sys_deprecatedsyscall             // 150
+    .long sys_deprecatedsyscall              // 151
+    .long sys_deprecatedsyscall                    // 152
+    .long sys_deprecatedsyscall                   // 153
     
     .long sys_dumpkerneltables          // 154
 

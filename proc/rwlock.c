@@ -32,7 +32,7 @@
  * See fs/vnode.c for table of rwlock usage among the filesystem system calls  
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>

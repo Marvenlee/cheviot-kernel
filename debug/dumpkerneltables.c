@@ -38,21 +38,23 @@ int sys_dumpkerneltables(int cmd, uint32_t arg1, uint32_t arg2)
     case KDUMP_KERNEL_PROCESSES:
       dump_kernel_processes(cmd, arg1, arg2);
       break;
+
     case KDUMP_KERNEL_FILPS:
       dump_kernel_filps(cmd, arg1, arg2);
       break;
+
     case KDUMP_KERNEL_VNODES:
       dump_kernel_vnodes(cmd, arg1, arg2);
       break;
+
     case KDUMP_KERNEL_SUPERBLOCKS:
       dump_kernel_superblocks(cmd, arg1, arg2);
       break;
-    case KDUMP_KERNEL_KQUEUES:
-      dump_kernel_kqueues(cmd, arg1, arg2);
-      break;
+
     case KDUMP_KERNEL_PIPES:
       dump_kernel_pipes(cmd, arg1, arg2);
       break;
+
     default:      
       break;
   }
@@ -230,34 +232,6 @@ void dump_kernel_superblocks(int cmd, int arg1, int arg2)
 
   Info("-----------------------------------------------");
 
-}
-
-
-/*
- *
- */
-void dump_kernel_kqueues(int cmd, int arg1, int arg2)
-{
-  struct KQueue *kq;
-  uint32_t base, nkqueue;
-  
-  base = arg1;
-  nkqueue = max_kqueue - base;
-  
-  if (arg2 < nkqueue) {
-    nkqueue = arg2;
-  }
-      
-  for(uint32_t t=base; t < base + nkqueue; t++) {
-    kq = &kqueue_table[t];
-    
-    if (kq->reference_cnt > 0) {
-      Info("-----------------------------------------------");
-      Info("kq:%08x, reference_cnt:%d", (uint32_t)kq, kq->reference_cnt);
-    }   
-  }
-
-  Info("-----------------------------------------------");
 }
 
 

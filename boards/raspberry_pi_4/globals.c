@@ -28,7 +28,6 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
-#include <kernel/kqueue.h>
 #include <kernel/interrupt.h>
 
 

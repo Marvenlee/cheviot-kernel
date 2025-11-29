@@ -88,7 +88,7 @@ void interrupt_top_half(void)
         if (isr_handler->isr_callback != NULL) {            
           if (isr_handler->isr_callback == NULL) {
             interruptapi_mask_interrupt(irq);
-            interruptapi_knotei(&interrupt_api, NOTE_INT);  
+            interruptapi_send_event(&interrupt_api, NOTE_INT);  
           } else {
             pmap_switch(isr_handler->isr_process, current);                
             interrupt_api.context = isr_handler;

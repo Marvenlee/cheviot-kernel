@@ -120,7 +120,7 @@ void discard_vnodes(struct SuperBlock *sb)
   while ((vnode = LIST_HEAD(&sb->vnode_list)) != NULL) {
     LIST_REM_HEAD(&sb->vnode_list, vnode_link);             // TODO: Move into vnode_discard?    
     
-    // FIXME:   vnode_discard(vnode);     // Performs knote removal, cache block removal.
+    // FIXME:   vnode_discard(vnode);     // Performs cache block removal.
   } 
 }
 

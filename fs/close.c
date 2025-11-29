@@ -46,7 +46,6 @@ int do_close(struct Process *proc, int fd)
   struct Filp *filp;
   struct VNode *vnode;
   struct SuperBlock *sb;
-  struct KQueue *kq;
   mode_t mode;
   int sc = 0;
   
@@ -103,16 +102,6 @@ int do_close(struct Process *proc, int fd)
           do_close_superblock(sb);
         }
         
-        break;
-      case FILP_TYPE_KQUEUE:
-        kq = filp->u.kqueue;
-                
-        fd_free(proc, fd);
-
-        if (filp_release(filp) == 0) {
-          do_close_kqueue(kq);
-        }
-                
         break;
       default:
         KernelPanic();

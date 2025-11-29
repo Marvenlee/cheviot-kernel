@@ -9,7 +9,6 @@
 #include <kernel/msg.h>
 #include <kernel/timer.h>
 #include <kernel/types.h>
-#include <kernel/kqueue.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
 #include <limits.h>
@@ -34,7 +33,6 @@ struct DName;
 struct Page;
 struct Msgport;
 struct ISRHandler;
-struct KQueue;
 struct TTYState;
 
 // List types
@@ -176,8 +174,6 @@ struct VNode
     
   dname_list_t dname_list;              // All dname entries pointing to this vnode
   dname_list_t directory_dname_list;    // All entries within this directory
-
-  knote_list_t knote_list;
 };
 
 
@@ -258,7 +254,6 @@ struct Filp
   union {
     struct VNode *vnode;
     struct SuperBlock *superblock;
-    struct KQueue *kqueue;
   } u;
   
   filp_link_t filp_entry;               // FIXME: VNode link, needed ?  
@@ -268,7 +263,6 @@ struct Filp
 #define FILP_TYPE_FREE         0
 #define FILP_TYPE_VNODE        1
 #define FILP_TYPE_SUPERBLOCK   2
-#define FILP_TYPE_KQUEUE       3
 #define FILP_TYPE_PIPE         5
 #define FILP_TYPE_SOCKET       6
 #define FILP_TYPE_SOCKETPAIR   7
@@ -496,7 +490,7 @@ int walk_component (struct lookupdata *ld);
 struct VNode *path_advance(struct VNode *dvnode, char *component);
 
 // fs/mknod.c */
-int sys_mknod2(char *_handlerpath, uint32_t flags, mode_t mode);
+int sys_mknod2(char *_handlerpath, mode_t mode);
 
 /* fs/mount.c */
 int sys_pivotroot(char *_new_root, char *_old_root);
@@ -505,7 +499,7 @@ int sys_ismount(char *_path);
 bool is_mountpoint(struct VNode *vnode);
 
 /* fs/msgport.c */
-int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat);
+int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid, int event);
 int sys_unmount(char *_path, uint32_t flags);
 int close_msgport(struct Process *proc, int fd);
  

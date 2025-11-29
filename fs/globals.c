@@ -17,7 +17,6 @@
 #include <kernel/types.h>
 #include <kernel/filesystem.h>
 #include <kernel/proc.h>
-#include <kernel/kqueue.h>
 #include <kernel/interrupt.h>
 #include <kernel/msg.h>
 
@@ -66,17 +65,6 @@ struct DName dname_table[NR_DNAME];
 dname_list_t dname_lru_list;
 dname_list_t dname_hash[DNAME_HASH];
 
-/*
- * VFS kqueue and knote event handling
- */
-int max_kqueue;
-struct KQueue *kqueue_table;
-kqueue_list_t kqueue_free_list;
-
-int max_knote;
-struct KNote *knote_table;
-knote_list_t knote_free_list;
-knote_list_t knote_hash[KNOTE_HASH_SZ];
 
 /*
  * TODO: VNode for sending system logs to a user-mode /procfs driver

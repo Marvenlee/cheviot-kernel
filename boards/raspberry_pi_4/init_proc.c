@@ -59,17 +59,23 @@ void init_processes(void)
 
   LIST_INIT(&thread_reaper_detached_thread_list);
   InitRendez(&thread_reaper_rendez);
+
+  for (int t = 0; t < 32; t++) {
+    CIRCLEQ_INIT(&sched_queue[t]);
+  }
+  
+  Info("sched queues initialized");
   
   for (int t = 0; t < NIRQ; t++) {
     LIST_INIT(&isr_handler_list[t]);
     irq_handler_cnt[t]=0;
   }
   
-  for (int t = 0; t < 32; t++) {
-    CIRCLEQ_INIT(&sched_queue[t]);
+  for (int t = 0; t < max_isr_handler; t++) {
+    LIST_ADD_TAIL(&isr_handler_free_list, &isr_handler_table[t], free_link);
   }
 
-  Info("isr_handler and sched queue initialized");
+  Info("isr_handler queues and free list initialized");
 
   memset (pid_table, 0, max_pid * sizeof (struct PidDesc));
 

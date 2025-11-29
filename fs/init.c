@@ -55,8 +55,6 @@ void init_vfs_lists(void)
   LIST_INIT(&filp_free_list);
   LIST_INIT(&dname_lru_list);
   LIST_INIT(&free_superblock_list);
-  LIST_INIT(&kqueue_free_list);
-  LIST_INIT(&knote_free_list);
   LIST_INIT(&isr_handler_free_list);
 
   // TODO: Need pagetables allocated for this file cache?
@@ -93,22 +91,6 @@ void init_vfs_lists(void)
     LIST_ADD_TAIL(&free_superblock_list, &superblock_table[t], link);
     rwlock_init(&superblock_table[t].lock);
   }
-
-  for (int t = 0; t < max_kqueue; t++) {
-    LIST_ADD_TAIL(&kqueue_free_list, &kqueue_table[t], free_link);
-  }
-
-  for (int t = 0; t < max_knote; t++) {
-    LIST_ADD_TAIL(&knote_free_list, &knote_table[t], link);
-  }
-
-  for (int t = 0; t < max_isr_handler; t++) {
-    LIST_ADD_TAIL(&isr_handler_free_list, &isr_handler_table[t], free_link);
-  }
-
-  for (int t = 0; t < KNOTE_HASH_SZ; t++) {
-    LIST_INIT(&knote_hash[t]);
-  }  
 }
 
 

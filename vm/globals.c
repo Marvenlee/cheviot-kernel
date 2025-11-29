@@ -20,7 +20,6 @@
 #include <kernel/types.h>
 #include <kernel/filesystem.h>
 #include <kernel/proc.h>
-#include <kernel/kqueue.h>
 #include <kernel/interrupt.h>
 #include <kernel/msg.h>
 

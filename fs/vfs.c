@@ -106,6 +106,8 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode->mode  = reply.args.lookup.mode;
     vnode->flags = V_VALID;
 
+
+
     vnode_hash_enter(vnode);
   } 
 
@@ -264,6 +266,8 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
   riov[0].addr = dst;
   riov[0].size = nbytes;
 
+  Info("vfs_read, calling ksendmsg");
+
   nbytes_read = ksendmsg(&sb->msgport, ipc, &req, NULL, 0, NULL, NELEM(riov), riov);
 
   Info("vfs_read, ksendmsg replied");
@@ -378,6 +382,9 @@ int vfs_mknod(struct VNode *dvnode, char *name, uid_t uid, gid_t gid, mode_t mod
   req.cmd = CMD_MKNOD;
   req.args.mknod.dir_inode_nr = dvnode->inode_nr;
   req.args.mknod.name_sz = StrLen(name) + 1;
+  req.args.mknod.mode = mode;
+  req.args.mknod.uid = uid;
+  req.args.mknod.gid = gid;
   
   siov[0].addr = name;
   siov[0].size = req.args.mknod.name_sz;

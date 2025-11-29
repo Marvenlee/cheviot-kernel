@@ -8,7 +8,6 @@
 #include <kernel/lists.h>
 #include <kernel/proc.h>
 #include <kernel/vm.h>
-#include <kernel/kqueue.h>
 #include <kernel/msg.h>
 
 
@@ -175,15 +174,6 @@ extern struct SuperBlock pipe_sb;
 extern int max_isr_handler;
 extern struct ISRHandler *isr_handler_table;
 extern isr_handler_list_t isr_handler_free_list;
-
-extern int max_kqueue;
-extern struct KQueue *kqueue_table;
-extern kqueue_list_t kqueue_free_list;
-
-extern int max_knote;
-extern struct KNote *knote_table;
-extern knote_list_t knote_free_list;
-extern knote_list_t knote_hash[KNOTE_HASH_SZ];
 
 
 /*

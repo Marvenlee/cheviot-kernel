@@ -36,9 +36,8 @@
  * This mounts a filesystem on top of an existing vnode. A file handle
  * is returned that points to this mount. A server can then use this
  * handle to receive and process messages from the kernel's virtual file
- * system. The sys_kevent, sys_getmsg, sys_replymsg, sys_readmsg and
- * sys_writemsg system calls are available to servers to process file
- * system requests.
+ * system. The sys_getmsg, sys_replymsg, sys_readmsg and sys_writemsg
+ * system calls are available to servers to process file system requests.
  *
  * TODO: Atomically create node on filesystem and mount this message port on it.
  * Avoids need for 2 steps and possible race conditions during mount.
@@ -46,7 +45,7 @@
  * TODO: Do we need to lock the vnodes ?
  * 
  */ 
-int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
+int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid, int event)
 {
   struct lookupdata ld;
   struct stat stat;
@@ -70,6 +69,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 
   if (root_vnode != NULL) {
     if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
+      Error("createmsgport failed: sc: %d", sc);
       return sc;
     }
 
@@ -79,13 +79,18 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 
     if (vnode_covered == NULL) {
       lookup_cleanup(&ld);
+      Error("createmsgport failed: vnode_covered = null -ENOENT");
       return  -ENOENT;
     }
 
+    Info("createmsgport: vnode covered mode : %0o", vnode_covered->mode);
+    Info("createmsgport: stat.st_mode : %0o", stat.st_mode);
+    
     if (! ((S_ISDIR(stat.st_mode) && S_ISDIR(vnode_covered->mode))
         || (S_ISCHR(stat.st_mode) && S_ISCHR(vnode_covered->mode))
         || (S_ISBLK(stat.st_mode) && S_ISBLK(vnode_covered->mode)))) {
       lookup_cleanup(&ld);
+      Error("createmsgport failed: not dir, chr or blk, -EINVAL ******************");
       return -EINVAL;
     }
     
@@ -93,6 +98,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
 
     if (vnode_covered->vnode_covered != NULL) {
       lookup_cleanup(&ld);
+      Error("createmsgport failed: vnode_covered != NULL, -EEXIST");
       return -EEXIST;
     }
   } else { 
@@ -104,6 +110,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
   
   if (fd < 0) {
+    Error("createmsgport failed: no free FDs -EMFILE");
     return -EMFILE;
   }
   
@@ -111,6 +118,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   
   if (filp == NULL) {
     fd_free(current, fd);
+    Error("createmsgport failed: no free filps -EMFILE");
     return -EMFILE;
   }
     
@@ -119,24 +127,24 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   if (sb == NULL) {
     fd_free(current, fd);
     filp_release(filp);
+    Error("createmsgport failed: no free superblocks -EMFILE");
     return -EMFILE;
   }
      
   if (fd < 0) {
-    Error("createmsgport failed to alloc file descriptor");
+    Error("createmsgport failed to alloc file descriptor, -ENOMEM");
     if (do_lookup_cleanup) {
       lookup_cleanup(&ld);
     }
     
     // FIXME: No freeing of fd, filp or superblock
-    
     return -ENOMEM;
   }
   
   mount_root_vnode = vnode_get_new(sb);
 
   if (mount_root_vnode == NULL) {
-    Error("createmsgport failed to alloc vnode");
+    Error("createmsgport failed to alloc vnode, -ENOMEM");
 // FIXME:   fd_free(current, fd);
 // FIXME:   filp_release(fd);
     
@@ -147,7 +155,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
     return -ENOMEM;
   }
 
-  init_msgport(&sb->msgport);
+  init_msgport(&sb->msgport, tid, event);
   
   sb->msgport.context = sb;
 
@@ -180,7 +188,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   }
     
   mount_root_vnode->vnode_covered = vnode_covered;
-  knote(&mount_root_vnode->knote_list, NOTE_ATTRIB);
 
   if (root_vnode == NULL) {
     root_vnode = mount_root_vnode;
@@ -189,8 +196,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat)
   if (vnode_covered != NULL) {
     vnode_covered->vnode_mounted_here = mount_root_vnode;
     vnode_ref(vnode_covered);
-    
-    knote(&vnode_covered->knote_list, NOTE_ATTRIB);
   }
 
   vnode_ref(mount_root_vnode);
@@ -244,16 +249,17 @@ int sys_unmount(char *_path, uint32_t flags)
  * @param   msgport, message port to initialize
  * @return  0 on success, negative errno on error
  */
-int init_msgport(struct MsgPort *msgport)
+int init_msgport(struct MsgPort *msgport, pid_t tid, int event)
 {
   LIST_INIT(&msgport->pending_msg_list);
   LIST_INIT(&msgport->received_msg_list);
-  LIST_INIT(&msgport->knote_list);
   
   InitRendez(&msgport->rendez);
   
   msgport->context = NULL;
   msgport->flags = 0;
+  msgport->target_tid = tid;
+  msgport->target_event = event;
   
   return 0;
 }
@@ -265,10 +271,10 @@ int init_msgport(struct MsgPort *msgport)
  * @return  0 on success, negative errno on error
  *
  * Removes any pending and received messages and places these on the messages's
- * reply ports.  Removes any kquueue knotes associated with the message port.
- *
+ * reply ports.
+ 
  * NOTE: Message port will be freed elsewhere. Therefore any messages or
- * knote events should not rely on the message port still existing.
+ * should not rely on the message port still existing.
  */
 int fini_msgport(struct MsgPort *port)
 {
@@ -297,10 +303,6 @@ int fini_msgport(struct MsgPort *port)
     LIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
     TaskWakeup(&msg->reply_port->rendez);   // FIXME: Is this used?
   }
-  
-  drain_knote_list(&port->knote_list);
-  
-  knote(&msg->reply_port->knote_list, NOTE_MSG);
   
   return 0;
 }

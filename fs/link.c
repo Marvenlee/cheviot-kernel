@@ -63,8 +63,6 @@ int sys_unlink(char *_path)
     ld.vnode = NULL;
   }
   
-  knote(&dvnode->knote_list,  NOTE_WRITE | NOTE_ATTRIB);    // Can't knote deleted vnode
-  
   lookup_cleanup(&ld);
   return 0;  
 }

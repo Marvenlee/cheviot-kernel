@@ -150,18 +150,18 @@ am__kernel_SOURCES_DIST = proc/globals.c proc/id.c proc/interrupt.c \
 	proc/usage.c fs/access.c fs/block.c fs/cache.c fs/char.c \
 	fs/close.c fs/dir.c fs/dnlc.c fs/exec.c fs/exec_root.c \
 	fs/file.c fs/filedesc.c fs/filp.c fs/fproc.c fs/globals.c \
-	fs/init.c fs/ioctl.c fs/kqueue.c fs/link.c fs/lookup.c \
-	fs/mknod.c fs/mount.c fs/msg.c fs/msgport.c fs/open.c \
-	fs/pipe.c fs/read.c fs/rename.c fs/revoke.c fs/seek.c \
-	fs/select.c fs/signal.c fs/stat.c fs/superblock.c fs/symlink.c \
-	fs/sync.c fs/truncate.c fs/vfs.c fs/vnode.c fs/write.c \
-	utility/doprintf.c utility/lookup3.c utility/string.c vm/as.c \
-	vm/bounds.c vm/globals.c vm/ipcopy.c vm/memregion.c vm/mmap.c \
-	vm/page.c vm/pagefault.c socket/host.c socket/recv.c \
-	socket/send.c socket/socket.c socket/socketpair.c \
-	socket/sockname.c socket/sockopt.c debug/debug.c \
-	debug/dumpkerneltables.c boards/raspberry_pi_1/arm.S \
-	boards/raspberry_pi_1/aux_uart.c boards/raspberry_pi_1/debug.c \
+	fs/init.c fs/ioctl.c fs/link.c fs/lookup.c fs/mknod.c \
+	fs/mount.c fs/msg.c fs/msgport.c fs/open.c fs/pipe.c fs/read.c \
+	fs/rename.c fs/revoke.c fs/seek.c fs/select.c fs/signal.c \
+	fs/stat.c fs/superblock.c fs/symlink.c fs/sync.c fs/truncate.c \
+	fs/vfs.c fs/vnode.c fs/write.c utility/doprintf.c \
+	utility/lookup3.c utility/string.c vm/as.c vm/bounds.c \
+	vm/globals.c vm/ipcopy.c vm/memregion.c vm/mmap.c vm/page.c \
+	vm/pagefault.c socket/host.c socket/recv.c socket/send.c \
+	socket/socket.c socket/socketpair.c socket/sockname.c \
+	socket/sockopt.c debug/debug.c debug/dumpkerneltables.c \
+	boards/raspberry_pi_1/arm.S boards/raspberry_pi_1/aux_uart.c \
+	boards/raspberry_pi_1/debug.c \
 	boards/raspberry_pi_1/exception.c \
 	boards/raspberry_pi_1/globals.c boards/raspberry_pi_1/gpio.c \
 	boards/raspberry_pi_1/idle.c boards/raspberry_pi_1/init_arm.c \
@@ -236,19 +236,19 @@ am_kernel_OBJECTS = proc/globals.$(OBJEXT) proc/id.$(OBJEXT) \
 	fs/dir.$(OBJEXT) fs/dnlc.$(OBJEXT) fs/exec.$(OBJEXT) \
 	fs/exec_root.$(OBJEXT) fs/file.$(OBJEXT) fs/filedesc.$(OBJEXT) \
 	fs/filp.$(OBJEXT) fs/fproc.$(OBJEXT) fs/globals.$(OBJEXT) \
-	fs/init.$(OBJEXT) fs/ioctl.$(OBJEXT) fs/kqueue.$(OBJEXT) \
-	fs/link.$(OBJEXT) fs/lookup.$(OBJEXT) fs/mknod.$(OBJEXT) \
-	fs/mount.$(OBJEXT) fs/msg.$(OBJEXT) fs/msgport.$(OBJEXT) \
-	fs/open.$(OBJEXT) fs/pipe.$(OBJEXT) fs/read.$(OBJEXT) \
-	fs/rename.$(OBJEXT) fs/revoke.$(OBJEXT) fs/seek.$(OBJEXT) \
-	fs/select.$(OBJEXT) fs/signal.$(OBJEXT) fs/stat.$(OBJEXT) \
-	fs/superblock.$(OBJEXT) fs/symlink.$(OBJEXT) fs/sync.$(OBJEXT) \
-	fs/truncate.$(OBJEXT) fs/vfs.$(OBJEXT) fs/vnode.$(OBJEXT) \
-	fs/write.$(OBJEXT) utility/doprintf.$(OBJEXT) \
-	utility/lookup3.$(OBJEXT) utility/string.$(OBJEXT) \
-	vm/as.$(OBJEXT) vm/bounds.$(OBJEXT) vm/globals.$(OBJEXT) \
-	vm/ipcopy.$(OBJEXT) vm/memregion.$(OBJEXT) vm/mmap.$(OBJEXT) \
-	vm/page.$(OBJEXT) vm/pagefault.$(OBJEXT) socket/host.$(OBJEXT) \
+	fs/init.$(OBJEXT) fs/ioctl.$(OBJEXT) fs/link.$(OBJEXT) \
+	fs/lookup.$(OBJEXT) fs/mknod.$(OBJEXT) fs/mount.$(OBJEXT) \
+	fs/msg.$(OBJEXT) fs/msgport.$(OBJEXT) fs/open.$(OBJEXT) \
+	fs/pipe.$(OBJEXT) fs/read.$(OBJEXT) fs/rename.$(OBJEXT) \
+	fs/revoke.$(OBJEXT) fs/seek.$(OBJEXT) fs/select.$(OBJEXT) \
+	fs/signal.$(OBJEXT) fs/stat.$(OBJEXT) fs/superblock.$(OBJEXT) \
+	fs/symlink.$(OBJEXT) fs/sync.$(OBJEXT) fs/truncate.$(OBJEXT) \
+	fs/vfs.$(OBJEXT) fs/vnode.$(OBJEXT) fs/write.$(OBJEXT) \
+	utility/doprintf.$(OBJEXT) utility/lookup3.$(OBJEXT) \
+	utility/string.$(OBJEXT) vm/as.$(OBJEXT) vm/bounds.$(OBJEXT) \
+	vm/globals.$(OBJEXT) vm/ipcopy.$(OBJEXT) \
+	vm/memregion.$(OBJEXT) vm/mmap.$(OBJEXT) vm/page.$(OBJEXT) \
+	vm/pagefault.$(OBJEXT) socket/host.$(OBJEXT) \
 	socket/recv.$(OBJEXT) socket/send.$(OBJEXT) \
 	socket/socket.$(OBJEXT) socket/socketpair.$(OBJEXT) \
 	socket/sockname.$(OBJEXT) socket/sockopt.$(OBJEXT) \
@@ -318,11 +318,11 @@ am__depfiles_remade = boards/raspberry_pi_1/$(DEPDIR)/arm.Po \
 	fs/$(DEPDIR)/file.Po fs/$(DEPDIR)/filedesc.Po \
 	fs/$(DEPDIR)/filp.Po fs/$(DEPDIR)/fproc.Po \
 	fs/$(DEPDIR)/globals.Po fs/$(DEPDIR)/init.Po \
-	fs/$(DEPDIR)/ioctl.Po fs/$(DEPDIR)/kqueue.Po \
-	fs/$(DEPDIR)/link.Po fs/$(DEPDIR)/lookup.Po \
-	fs/$(DEPDIR)/mknod.Po fs/$(DEPDIR)/mount.Po \
-	fs/$(DEPDIR)/msg.Po fs/$(DEPDIR)/msgport.Po \
-	fs/$(DEPDIR)/open.Po fs/$(DEPDIR)/pipe.Po fs/$(DEPDIR)/read.Po \
+	fs/$(DEPDIR)/ioctl.Po fs/$(DEPDIR)/link.Po \
+	fs/$(DEPDIR)/lookup.Po fs/$(DEPDIR)/mknod.Po \
+	fs/$(DEPDIR)/mount.Po fs/$(DEPDIR)/msg.Po \
+	fs/$(DEPDIR)/msgport.Po fs/$(DEPDIR)/open.Po \
+	fs/$(DEPDIR)/pipe.Po fs/$(DEPDIR)/read.Po \
 	fs/$(DEPDIR)/rename.Po fs/$(DEPDIR)/revoke.Po \
 	fs/$(DEPDIR)/seek.Po fs/$(DEPDIR)/select.Po \
 	fs/$(DEPDIR)/signal.Po fs/$(DEPDIR)/stat.Po \
@@ -515,12 +515,12 @@ kernel_SOURCES = proc/globals.c proc/id.c proc/interrupt.c proc/pid.c \
 	proc/thread_sched.c proc/timer.c proc/usage.c fs/access.c \
 	fs/block.c fs/cache.c fs/char.c fs/close.c fs/dir.c fs/dnlc.c \
 	fs/exec.c fs/exec_root.c fs/file.c fs/filedesc.c fs/filp.c \
-	fs/fproc.c fs/globals.c fs/init.c fs/ioctl.c fs/kqueue.c \
-	fs/link.c fs/lookup.c fs/mknod.c fs/mount.c fs/msg.c \
-	fs/msgport.c fs/open.c fs/pipe.c fs/read.c fs/rename.c \
-	fs/revoke.c fs/seek.c fs/select.c fs/signal.c fs/stat.c \
-	fs/superblock.c fs/symlink.c fs/sync.c fs/truncate.c fs/vfs.c \
-	fs/vnode.c fs/write.c utility/doprintf.c utility/lookup3.c \
+	fs/fproc.c fs/globals.c fs/init.c fs/ioctl.c fs/link.c \
+	fs/lookup.c fs/mknod.c fs/mount.c fs/msg.c fs/msgport.c \
+	fs/open.c fs/pipe.c fs/read.c fs/rename.c fs/revoke.c \
+	fs/seek.c fs/select.c fs/signal.c fs/stat.c fs/superblock.c \
+	fs/symlink.c fs/sync.c fs/truncate.c fs/vfs.c fs/vnode.c \
+	fs/write.c utility/doprintf.c utility/lookup3.c \
 	utility/string.c vm/as.c vm/bounds.c vm/globals.c vm/ipcopy.c \
 	vm/memregion.c vm/mmap.c vm/page.c vm/pagefault.c \
 	socket/host.c socket/recv.c socket/send.c socket/socket.c \
@@ -687,7 +687,6 @@ fs/fproc.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/globals.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/init.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/ioctl.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
-fs/kqueue.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/link.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/lookup.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
 fs/mknod.$(OBJEXT): fs/$(am__dirstamp) fs/$(DEPDIR)/$(am__dirstamp)
@@ -966,7 +965,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/globals.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/init.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/ioctl.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/kqueue.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/link.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/lookup.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@fs/$(DEPDIR)/mknod.Po@am__quote@ # am--include-marker
@@ -1407,7 +1405,6 @@ distclean: distclean-am
 	-rm -f fs/$(DEPDIR)/globals.Po
 	-rm -f fs/$(DEPDIR)/init.Po
 	-rm -f fs/$(DEPDIR)/ioctl.Po
-	-rm -f fs/$(DEPDIR)/kqueue.Po
 	-rm -f fs/$(DEPDIR)/link.Po
 	-rm -f fs/$(DEPDIR)/lookup.Po
 	-rm -f fs/$(DEPDIR)/mknod.Po
@@ -1567,7 +1564,6 @@ maintainer-clean: maintainer-clean-am
 	-rm -f fs/$(DEPDIR)/globals.Po
 	-rm -f fs/$(DEPDIR)/init.Po
 	-rm -f fs/$(DEPDIR)/ioctl.Po
-	-rm -f fs/$(DEPDIR)/kqueue.Po
 	-rm -f fs/$(DEPDIR)/link.Po
 	-rm -f fs/$(DEPDIR)/lookup.Po
 	-rm -f fs/$(DEPDIR)/mknod.Po

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -25,7 +25,6 @@
 #include <poll.h>
 #include <string.h>
 #include <fcntl.h>
-#include <kernel/kqueue.h>
 
 
 /* @brief   The access() system call
@@ -49,7 +48,6 @@ int sys_access(char *pathname, mode_t amode)
   sc = check_access(vnode, NULL, amode);
   rwlock_release(&vnode->lock);
 
-  knote(&vnode->knote_list, NOTE_ATTRIB);
   lookup_cleanup(&ld);
 
   return sc;
@@ -100,7 +98,6 @@ int sys_chmod(char *_path, mode_t mode)
       sc = -EPERM;
     }
 
-    knote(&vnode->knote_list, NOTE_ATTRIB);
     lookup_cleanup(&ld);
     return sc;
   }
@@ -140,7 +137,6 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
       sc = -EPERM;
     }
 
-    knote(&vnode->knote_list, NOTE_ATTRIB);
     lookup_cleanup(&ld);
     return 0;
   }
@@ -182,7 +178,6 @@ int sys_fchmod(int fd, mode_t mode)
         sc = EPERM;
       }
 
-      knote(&vnode->knote_list, NOTE_ATTRIB);
       return sc;
     }
     
@@ -229,7 +224,6 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
         sc = -EPERM;
       }
 
-      knote(&vnode->knote_list, NOTE_ATTRIB);
       return sc;
     }
 

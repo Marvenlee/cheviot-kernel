@@ -33,7 +33,7 @@
  * TODO: Allow creation of named pipes/sockets.
  *       Change flags to mode, change _stat to dev_t
  */ 
-int sys_mknod2(char *_path, uint32_t flags, mode_t mode)
+int sys_mknod2(char *_path, mode_t mode)
 {
   struct lookupdata ld;
   struct Process *current;
@@ -41,7 +41,7 @@ int sys_mknod2(char *_path, uint32_t flags, mode_t mode)
   
   current = get_current_process();
 
-  Info("sys_mknod2()");
+  Info("sys_mknod2() ************************************************************");
 
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     return sc;
@@ -52,9 +52,14 @@ int sys_mknod2(char *_path, uint32_t flags, mode_t mode)
     return -EEXIST;
   }
 
+
+  // TODO: Check if mode is char or dev
+  
+
   sc = vfs_mknod(ld.parent, ld.last_component, current->uid, current->gid, mode);
 
   if (sc != 0) {
+    Error("vfs_mknod() failed, sc:%d", sc);
     lookup_cleanup(&ld);
     return -ENOMEM;  
   }

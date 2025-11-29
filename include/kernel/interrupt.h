@@ -4,7 +4,6 @@
 
 #include <kernel/lists.h>
 #include <kernel/types.h>
-#include <kernel/kqueue.h>
 
 
 // Forward declarations
@@ -29,9 +28,7 @@ struct ISRHandler
   int event;                    // event to send to thread on interrupt
 
   int priority;
-  int flags;
-    
-  knote_list_t knote_list;      // List of knotes waiting on this ISR.
+  int flags;    
 };
 
 

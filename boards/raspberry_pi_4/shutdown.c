@@ -27,7 +27,6 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
-#include <kernel/kqueue.h>
 #include <string.h>
 #include <kernel/board/peripheral_base.h>
 

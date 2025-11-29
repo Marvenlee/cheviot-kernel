@@ -17,7 +17,7 @@
  * Process management
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
@@ -95,7 +95,7 @@ void sys_exit(int status)
   struct Process *parent;
   struct Thread *current_thread;
   
-  Info("sys_exit(%d)", status);
+  Info("sys_exit(%d) ************************************", status);
   
   current_thread = get_current_thread();
   current = get_current_process();

@@ -27,7 +27,6 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
-#include <kernel/kqueue.h>
 #include <string.h>
 
 /* @brief Entry point into the kernel
@@ -70,8 +69,6 @@ void Main(void)
   max_filp = NR_FILP;
   max_vnode = NR_VNODE;
   max_pipe = NR_PIPE;
-  max_kqueue = NR_KQUEUE;
-  max_knote = NR_KNOTE;
   max_isr_handler = NR_ISR_HANDLER;
   
   init_bootstrap_allocator();
@@ -86,8 +83,6 @@ void Main(void)
   superblock_table  = bootstrap_alloc(max_superblock * sizeof(struct SuperBlock));
   filp_table        = bootstrap_alloc(max_filp * sizeof(struct Filp));
   vnode_table       = bootstrap_alloc(max_vnode * sizeof(struct VNode));
-  kqueue_table      = bootstrap_alloc(max_kqueue * sizeof(struct KQueue));
-  knote_table       = bootstrap_alloc(max_knote * sizeof(struct KNote));
   isr_handler_table = bootstrap_alloc(max_isr_handler * sizeof(struct ISRHandler));
   
   init_io_pagetables();

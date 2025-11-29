@@ -115,7 +115,6 @@ void dump_kernel_processes(int cmd, int arg1, int arg2);
 void dump_kernel_filps(int cmd, int arg1, int arg2);
 void dump_kernel_vnodes(int cmd, int arg1, int arg2);
 void dump_kernel_superblocks(int cmd, int arg1, int arg2);
-void dump_kernel_kqueues(int cmd, int arg1, int arg2);
 void dump_kernel_pipes(int cmd, int arg1, int arg2);
 
 // boards/<board>/debug.c

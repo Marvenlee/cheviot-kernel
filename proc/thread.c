@@ -17,7 +17,7 @@
  * Thread management
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
@@ -255,7 +255,7 @@ struct Thread *fork_thread(struct Process *new_proc, struct Process *old_proc, s
   }
     
   init_thread(thread, get_cpu(), new_proc, stack, tid, 0x00000000, true, old_thread->basename);
-  init_msgport(&thread->reply_port);
+  init_msgport(&thread->reply_port, -1, -1);
   dup_schedparams(thread, old_thread);
 
   get_user_stack_tcb(old_thread, &user_stack, &user_stack_sz, &user_tcb);
@@ -331,7 +331,7 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
   }
   
   init_thread(thread, get_cpu(), new_proc, stack, tid, sig_mask, detached, name);
-  init_msgport(&thread->reply_port);
+  init_msgport(&thread->reply_port, -1, -1);
   init_schedparams(thread, policy, priority);
 
   if (flags & THREADF_KERNEL) {
@@ -372,16 +372,12 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
 //  Info("init_thread thread:%08x, tid:%d, proc:%08x", (uint32_t)thread, tid, (uint32_t)proc);
 
   thread->intr_flags = 0;
-  thread->kevent_event_mask = 0;
   thread->event_mask = 0;
   thread->pending_events = 0;
   thread->detached = detached;
 
   thread->msg = NULL;
 
-  thread->event_knote = NULL;
-  thread->event_kqueue = NULL;
-  LIST_INIT(&thread->knote_list);
   LIST_INIT(&thread->isr_handler_list);
 
   // TODO: init signal state

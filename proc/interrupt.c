@@ -38,8 +38,7 @@
  * @return  file descriptor or negative errno on error
  *
  * Upon the interrupt occuring the thread with the specified thread_id
- * is notified of the event. If the target thread is calling kqueue, then
- * -EINTR is returned.  If the target thread is waiting on this event
+ * is notified of the event. If the target thread is waiting on this event
  * with thread_event_wait() then the target thread is awakened.
  *
  * On creation of an interrupt server, the interrupt is placed in a masked

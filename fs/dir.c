@@ -25,7 +25,6 @@
 #include <kernel/utility.h>
 #include <poll.h>
 #include <string.h>
-#include <kernel/kqueue.h>
 
 
 /* @brief   Change the current directory
@@ -318,8 +317,6 @@ int sys_createdir(char *_path, mode_t mode)
     lookup_cleanup(&ld);
     return sc;
   }    
-
-  knote(&dvnode->knote_list, NOTE_WRITE | NOTE_ATTRIB);
 
   lookup_cleanup(&ld);
   return 0;

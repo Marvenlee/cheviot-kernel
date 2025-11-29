@@ -24,7 +24,6 @@ struct Filp;
 struct Session;
 struct Pgrp;
 struct PidDesc;
-struct KQueue;
 
 
 // Process related list types
@@ -184,13 +183,8 @@ struct Thread
 
   // TODO: Remove events, use sigsuspend() to temporarilly unmask and wait for signals.
   uint32_t intr_flags;          // Mask of what sources can interrupt TaskSleepInterruptible
-  uint32_t kevent_event_mask;   // Allowed wakeup events in kevent().
   uint32_t pending_events;
   uint32_t event_mask;
-
-  struct KNote *event_knote;
-  struct KQueue *event_kqueue;
-  knote_list_t knote_list;
 
   struct MsgPort reply_port;
   struct Msg *msg;
@@ -392,6 +386,7 @@ void get_user_stack_tcb(struct Thread *thread, void **user_stack, size_t *user_s
 uint32_t sys_thread_event_check(uint32_t event_mask);
 uint32_t sys_thread_event_wait(uint32_t event_mask);
 int sys_thread_event_signal(int tid, int event);
+int do_thread_event_signal(int tid, int event);
 int isr_thread_event_signal(struct Thread *thread, int event);
 
 // proc/thread_futex.c

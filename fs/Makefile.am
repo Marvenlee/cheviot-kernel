@@ -17,7 +17,6 @@ kernel_SOURCES += \
   fs/globals.c \
   fs/init.c \
   fs/ioctl.c \
-  fs/kqueue.c \
   fs/link.c \
   fs/lookup.c \
   fs/mknod.c \

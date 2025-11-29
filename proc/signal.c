@@ -17,7 +17,7 @@
  * Unix-like signal handling
  */
 
-//#define KDEBUG
+#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/error.h>

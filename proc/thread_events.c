@@ -19,7 +19,7 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-//#define KDEBUG 1
+#define KDEBUG 1
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
@@ -27,67 +27,6 @@
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
-#include <kernel/kqueue.h>
-
-/* @brief   Allow thread events to wake up a thread blocked on kevent().
- *
- * This will apply to ANY kqueue we have registered with.
- */
- 
-int sys_thread_event_kevent_mask(int kq, uint32_t event_mask)
-{
-  struct KQueue *kqueue;
-  struct Thread *cthread;
-  struct Process *cproc;
-  
-  int sc = 0;
-  struct kevent ev;
-  
-  ev.ident = get_current_tid();  
-  ev.filter = EVFILT_THREAD_EVENT;          
-  ev.flags = 0;
-  ev.fflags = 0;
-  ev.data = NULL;
-  ev.udata = NULL;
-    
-  Info("sys_thread_event_kevent_mask(%08x)", event_mask);
-  
-  cproc = get_current_process();
-  cthread = get_current_thread();
-  
-  cthread->kevent_event_mask = event_mask;
-  
-  if (cthread->event_knote == NULL) {
-    kqueue = get_kqueue(cproc, kq);
-  
-    if (kqueue == NULL) {
-      return -EINVAL;
-    }
-  
-    while (kqueue->busy == true) {
-      TaskSleep(&kqueue->busy_rendez);
-    }
-    kqueue->busy = true;
-
-     
-    
-    sc = alloc_knote(kqueue, &ev, &cthread->event_knote);
-    
-    if (sc == 0) {
-      cthread->event_kqueue = kqueue;
-      enable_knote(kqueue, cthread->event_knote);
-    } else {
-      cthread->kevent_event_mask = 0;
-      cthread->event_kqueue = kqueue;
-      sc = -ENOMEM;
-    }
-
-    kqueue->busy = false;
-    TaskWakeup(&kqueue->busy_rendez);
-  }
-  
-  return sc;
-}
 
 
 /*
@@ -143,6 +82,49 @@ uint32_t sys_thread_event_wait(uint32_t event_mask)
 /*
  *
  */
+uint32_t sys_thread_event_timedwait(uint32_t event_mask, struct timespec *_timeout)
+{
+  struct Thread *cthread;
+  int_state_t int_state;
+  uint32_t caught_events;
+  struct timespec timeout;
+  struct timespec *timeoutp;
+  
+  cthread = get_current_thread();
+
+  
+  if (_timeout != NULL) {
+    if (CopyIn(&timeout, _timeout, sizeof timeout) != 0) {
+      return -EFAULT;
+    }
+    
+    timeoutp = &timeout;
+  } else {
+    timeoutp = NULL;
+  }
+  
+  // Should interrupts be disabled for all of this?
+  
+  cthread->event_mask = event_mask;
+  
+  if ((cthread->pending_events & cthread->event_mask) == 0) {
+    TaskSleepInterruptible(&cthread->rendez, timeoutp, INTRF_ALL);   // FIXME: Check sc result, could be signal or event
+                                                     // Should we loop ?
+                                                     // Should we exit if pending signals?
+  }
+  
+  int_state = DisableInterrupts();
+  caught_events = cthread->pending_events & cthread->event_mask;
+  cthread->pending_events &= ~caught_events;
+  RestoreInterrupts(int_state);
+  
+  return caught_events;
+}
+
+
+/*
+ *
+ */
 int sys_thread_event_signal(int tid, int event)
 {
   struct Thread *thread;
@@ -153,13 +135,18 @@ int sys_thread_event_signal(int tid, int event)
   thread = get_thread(tid);
   
   if (thread == NULL || thread->process != cthread->process) {
+    Error("sys_thread_event_signal() -EPERM");
     return -EPERM;
+  }
+
+  if (event < 0 || event > 31) {
+    return -EINVAL;
   }
 
   int_state = DisableInterrupts();
 
   thread->pending_events |= (1<<event);
-  if ((thread->pending_events & thread->kevent_event_mask) != 0) {  
+  if ((thread->pending_events & thread->event_mask) != 0) {  
     TaskWakeupSpecific(thread, INTRF_EVENT);
   }
   
@@ -167,6 +154,36 @@ int sys_thread_event_signal(int tid, int event)
 
   return 0;
 }
+
+
+int do_thread_event_signal(int tid, int event)
+{
+  struct Thread *thread;
+  int_state_t int_state;
+    
+  thread = get_thread(tid);
+  
+  if (thread == NULL) {
+    Error("do_thread_event_signal() -ENOENT");
+    return -ENOENT;
+  }
+
+  if (event < 0 || event > 31) {
+    return -EINVAL;
+  }
+
+  int_state = DisableInterrupts();
+
+  thread->pending_events |= (1<<event);
+  if ((thread->pending_events & thread->event_mask) != 0) {  
+    TaskWakeupSpecific(thread, INTRF_EVENT);
+  }
+  
+  RestoreInterrupts(int_state);
+
+  return 0;
+}
+
 
 
 /*
@@ -180,7 +197,7 @@ int isr_thread_event_signal(struct Thread *thread, int event)
   }
 
   thread->pending_events |= (1<<event);
-  if ((thread->pending_events & thread->kevent_event_mask) != 0) {  
+  if ((thread->pending_events & thread->event_mask) != 0) {  
     TaskWakeupSpecific(thread, INTRF_EVENT);
   }
   return 0;
