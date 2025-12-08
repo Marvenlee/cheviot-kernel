@@ -18,7 +18,7 @@
  * message ports on file system commands.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -831,5 +831,15 @@ int vfs_fsync(struct VNode *vnode)
   
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, NULL, 0, NULL, 0, NULL);
   return sc;
+}
+
+
+/*
+ *
+ */
+int vfs_poll(struct VNode *vnode, uint32_t *revents)
+{
+  *revents = 0;
+  return 0;
 }
 

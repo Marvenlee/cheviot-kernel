@@ -535,6 +535,9 @@ int sys_rename(char *oldpath, char *newpath);
 off_t sys_lseek(int fd, off_t pos, int whence);
 int sys_lseek64(int fd, off64_t *pos, int whence);
 
+/* fs/select.c */
+int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct timeval *_timeout);
+
 /* fs/superblock.c */
 struct SuperBlock *get_superblock(struct Process *proc, int fd);
 struct SuperBlock *alloc_superblock(void);
@@ -569,6 +572,7 @@ int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid);
 int vfs_isatty(struct VNode *vnode);
 int vfs_syncfs(struct SuperBlock *sb);
 int vfs_fsync(struct VNode *vnode);
+int vfs_poll(struct VNode *vnode, uint32_t *revents);
 
 ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset);
 ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset);

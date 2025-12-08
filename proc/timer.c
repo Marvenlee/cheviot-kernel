@@ -256,6 +256,41 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
 }
 
 
+/*
+ *
+ */
+int sleep_ticks(int ticks)
+{
+  int_state_t int_state;
+  struct Process *current_proc;
+  struct Thread *current;
+  struct Timer *timer;
+  struct timespec req;
+
+  current_proc = get_current_process();
+  current = get_current_thread();
+  
+  timer = &current->sleep_timer;  
+  timer->thread = current;
+  timer->armed = true;
+  timer->callback = SleepCallback;
+
+  int_state = DisableInterrupts();
+  
+  timer->expiration_time = hardclock_time + ticks;
+  
+  RestoreInterrupts(int_state);
+  
+  LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+
+  while (timer->armed == true) {
+    TaskSleep(&current->rendez);
+  }
+
+  // TODO: if interrupted, work out remaining time and store in _rem, return -EINTR
+  
+  return 0;
+}
 
 
 /* @brief   Arm a timer to expire at either a relative or absolute time
@@ -313,6 +348,24 @@ uint64_t get_hardclock(void)
   RestoreInterrupts(int_state);
 
   return now;
+}
+
+
+/*
+ *
+ */
+uint64_t timeval_to_ticks(struct timeval *tv)
+{
+  return ((uint64_t)tv->tv_sec * JIFFIES_PER_SECOND) + ((uint64_t)tv->tv_usec * MICROSECONDS_PER_JIFFY);
+}
+
+
+/*
+ *
+ */
+uint64_t timespec_to_ticks(struct timespec *ts)
+{
+  return ((uint64_t)ts->tv_sec * JIFFIES_PER_SECOND) + ((uint64_t)ts->tv_nsec * NANOSECONDS_PER_JIFFY);
 }
 
 
@@ -402,4 +455,5 @@ void timer_bottom_half_task(void *arg)
     // an extra JIFFY for the next timer interrupt?
   }
 }
+
 

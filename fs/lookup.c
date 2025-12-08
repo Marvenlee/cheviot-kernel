@@ -17,7 +17,7 @@
  * File system pathname lookup and conversion to vnodes.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>

@@ -19,7 +19,7 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-#define KDEBUG 1
+//#define KDEBUG 1
 
 #include <kernel/arch.h>
 #include <kernel/dbg.h>

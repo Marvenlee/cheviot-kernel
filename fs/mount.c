@@ -17,7 +17,7 @@
  * Mount a server, filesystem handler or device driver message port
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -173,8 +173,6 @@ int sys_ismount(char *_path)
   struct lookupdata ld;
   int sc;  
 
-  Info("sys_ismount()");
-
   if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
     Error("sys_ismount lookup failed: %d", sc);
     return sc;
@@ -187,8 +185,6 @@ int sys_ismount(char *_path)
   }
   
   sc = is_mountpoint(ld.vnode);
-
-  Info ("is_mountpoint() returned :%d", sc);
 
   lookup_cleanup(&ld);  
   return sc;  

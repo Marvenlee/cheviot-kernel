@@ -45,11 +45,15 @@ struct Timer
  */
 int sys_alarm(int seconds);
 int sys_sleep(int seconds);
-int SetAlarm();
+int sys_nanosleep(struct timespec *_req, struct timespec *_rem);
+int sleep_ticks(int ticks);
 int SetTimeout (int milliseconds, void (*callback)(struct Timer *timer), void *arg);
 uint64_t get_hardclock(void);
 void TimerTopHalf(void);
 void timer_bottom_half_task(void *arg);
+
+uint64_t timeval_to_ticks(struct timeval *tv);
+uint64_t timespec_to_ticks(struct timespec *ts);
 
 // Architecture-specific busy-wait sleep
 int arch_spin_nanosleep(struct timespec *reg);

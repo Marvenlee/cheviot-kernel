@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -41,8 +41,6 @@ int sys_mknod2(char *_path, mode_t mode)
   
   current = get_current_process();
 
-  Info("sys_mknod2() ************************************************************");
-
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
     return sc;
   }
@@ -55,7 +53,6 @@ int sys_mknod2(char *_path, mode_t mode)
 
   // TODO: Check if mode is char or dev
   
-
   sc = vfs_mknod(ld.parent, ld.last_component, current->uid, current->gid, mode);
 
   if (sc != 0) {

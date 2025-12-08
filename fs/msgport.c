@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -44,7 +44,16 @@
  *
  * TODO: Do we need to lock the vnodes ?
  * 
- */ 
+ *
+ * TODO: Split into createport and mountport
+ * Add unmountport and freeport.  Freeport cannot work without unmountport first ??
+ *
+ * Or do ports have their own namespace in the FS/proc manager?
+ *
+ */
+ 
+ 
+ 
 int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid, int event)
 {
   struct lookupdata ld;
@@ -58,8 +67,6 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
   int fd = -1;
   int sc;
   bool do_lookup_cleanup;
-    
-  Info("sys_createmsgport()");
 
   current = get_current_process();
 

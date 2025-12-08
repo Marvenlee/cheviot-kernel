@@ -17,7 +17,7 @@
  * Initialization of the kernel's filesystem state
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/board/boot.h>

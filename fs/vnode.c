@@ -46,7 +46,7 @@
  *   Pipes and character devices require shared access for read and write operations.
  */
 
-#define KDEBUG
+//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
