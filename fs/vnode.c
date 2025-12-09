@@ -46,8 +46,6 @@
  *   Pipes and character devices require shared access for read and write operations.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -55,6 +53,8 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <string.h>
+
+#define KLOG_GROUP(LOG_FS_VNODE)
 
 
 /* @brief   Allocate a new vnode

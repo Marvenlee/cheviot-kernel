@@ -18,8 +18,6 @@
  * Debugging functions and Debug() system call.
  */
 
-#define KDEBUG
-
 #include <kernel/board/peripheral_base.h>
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>

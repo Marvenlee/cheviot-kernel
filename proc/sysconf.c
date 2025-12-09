@@ -17,8 +17,6 @@
  * System configuration info
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
@@ -27,6 +25,8 @@
 #include <kernel/types.h>
 #include <kernel/arch.h>
 #include <unistd.h>
+
+#define KLOG_GROUP(LOG_PROC_SYSCONF)
 
 
 /* @brief   Get system configuration information

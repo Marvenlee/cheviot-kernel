@@ -17,8 +17,6 @@
  * Address space creation and deletion
  */
 
-//#define KDEBUG 1
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -30,6 +28,8 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <sys/mman.h>
+
+#define KLOG_GROUP(LOG_VM_AS)
 
 
 /* @brief   Initialize an address space

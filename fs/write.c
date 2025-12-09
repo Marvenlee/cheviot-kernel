@@ -14,10 +14,8 @@
  * limitations under the License.
  *
  * --
- * Write to a file
+ * Syscall to write to a file
  */
-
-//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -27,6 +25,8 @@
 #include <kernel/vm.h>
 #include <sys/mount.h>
 #include <sys/syslimits.h>
+
+#define KLOG_GROUP(LOG_FS_WRITE)
 
 
 /* @brief   Write the contents of a buffer to a file

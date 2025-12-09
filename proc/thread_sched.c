@@ -18,8 +18,6 @@
  * Scheduling related functions
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
@@ -30,6 +28,8 @@
 #include <sys/privileges.h>
 #include <pthread.h>
 #include <sys/_pthreadtypes.h>
+
+#define KLOG_GROUP(LOG_PROC_THREAD_SCHED)
 
 
 /* @brief   Set thread scheduling policy and priority

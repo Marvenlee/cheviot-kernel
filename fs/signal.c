@@ -17,8 +17,6 @@
  * Signalling foreground process group from TTY device drivers
  */
 
-#define KDEBUG
-
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -28,6 +26,8 @@
 #include <kernel/globals.h>
 #include <kernel/dbg.h>
 #include <poll.h>
+
+#define KLOG_GROUP(LOG_FS_SIGNAL)
 
 
 /* @brief   Send a signal to processes with a particular open file

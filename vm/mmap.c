@@ -17,8 +17,6 @@
  * System calls for virtual memory management.
  */
 
-//#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -31,6 +29,8 @@
 #include <string.h>
 #include <sys/privileges.h>
 #include <sys/mman.h>
+
+#define KLOG_GROUP(LOG_VM_MMAP)
 
 
 /* @brief   Allocate and map an area of memory

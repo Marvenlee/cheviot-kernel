@@ -17,8 +17,6 @@
  * Process management
  */
 
-//#define KDEBUG
-
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -32,6 +30,9 @@
 #include <string.h>
 #include <sys/execargs.h>
 #include <sys/wait.h>
+
+#define KLOG_GROUP(LOG_PROC_PROC)
+
 
 /* @brief   Fork the calling process
  *

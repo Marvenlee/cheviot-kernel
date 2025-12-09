@@ -17,8 +17,6 @@
  * Memory bounds checking functions
  */
 
-//#define KDEBUG 1
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/board/peripheral_base.h>
 #include <kernel/board/boot.h>
@@ -33,6 +31,8 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <machine/cheviot_hal.h>
+
+#define KLOG_GROUP(LOG_BOARD_INIT)
 
 
 /* @brief   Set pointers to RPI4 peripherals

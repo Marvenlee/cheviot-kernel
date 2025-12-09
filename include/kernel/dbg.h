@@ -8,7 +8,13 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-//#define NDEBUG
+
+#define LOG_LEVEL_ERROR   0
+#define LOG_LEVEL_WARN    1
+#define LOG_LEVEL_INFO    2
+#define LOG_LEVEL_DEBUG   3
+
+#include <kernel/dbg_config.h>
 
 #ifdef NDEBUG
 #undef KDEBUG
@@ -16,25 +22,28 @@
 
 #ifdef KDEBUG
 
-#ifndef DEBUG_LEVEL
-#define DEBUG_LEVEL 2
+#define KLOG_GROUP(file_debug_level)                    \
+  #define FILE_DEBUG_LEVEL file_debug_level
+
+#ifndef FILE_DEBUG_LEVEL
+#define FILE_DEBUG_LEVEL 2
 #endif
 
 #define klog_error(fmt, args...) DoLog(fmt, ##args)
 
-#if DEBUG_LEVEL >= 1
+#if FILE_DEBUG_LEVEL >= 1
 #define klog_warn(fmt, args...) DoLog(fmt, ##args)
 #else
 #define klog_warn(fmt, args...)
 #endif
 
-#if DEBUG_LEVEL >= 2
+#if FILE_DEBUG_LEVEL >= 2
 #define klog_info(fmt, args...) DoLog(fmt, ##args)
 #else
 #define klog_info(fmt, args...)
 #endif
 
-#if DEBUG_LEVEL >= 3
+#if FILE_DEBUG_LEVEL >= 3
 #define klog_debug(fmt, args...) DoLog(fmt, ##args)
 #else
 #define klog_debug(fmt, args...)

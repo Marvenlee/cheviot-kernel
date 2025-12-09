@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -26,6 +24,8 @@
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_FS_MKNOD)
 
 
 /* @brief   Create a node on a file system that can be mounted onto

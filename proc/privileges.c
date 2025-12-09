@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -29,6 +27,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_PROC_PRIVILEGES)
 
 
 /* @brief   Restrict process permissions to perform certain system calls.

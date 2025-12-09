@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -25,6 +23,8 @@
 #include <poll.h>
 #include <string.h>
 #include <sys/mount.h>
+
+#define KLOG_GROUP(LOG_FS_MSGPORT)
 
 
 /* @brief   Create a named msgport (mount point) in the file system namespace

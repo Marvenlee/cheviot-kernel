@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>
 #include <kernel/board/task.h>
@@ -25,6 +23,8 @@
 #include <kernel/signal.h>
 #include <kernel/types.h>
 #include <ucontext.h>
+
+#define KLOG_GROUP(LOG_BOARD_SIGNALS)
 
 
 /* @brief   Restore context when returning from a signal handler

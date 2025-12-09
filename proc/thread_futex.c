@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -30,6 +28,8 @@
 #include <signal.h>
 #include <sys/execargs.h>
 #include <sys/wait.h>
+
+#define KLOG_GROUP(LOG_PROC_FUTEX)
 
 
 /* @brief   Free a futex

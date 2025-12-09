@@ -17,8 +17,6 @@
  * Mount a server, filesystem handler or device driver message port
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -29,6 +27,8 @@
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_FS_MOUNT)
 
 
 /* @brief   Pivot the root directory

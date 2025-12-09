@@ -17,8 +17,6 @@
  * Functions for allocating physical pages of system RAM.
  */
 
-//#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -30,6 +28,8 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <sys/mman.h>
+
+#define KLOG_GROUP(LOG_VM_PAGE)
 
 
 /* @brief   Allocate a page in kernel memory

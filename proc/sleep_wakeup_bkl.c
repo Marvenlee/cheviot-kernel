@@ -27,8 +27,6 @@
  * See Maurice Bach's "Design of the UNIX Operating System" book
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
@@ -36,6 +34,8 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/arch.h>
+
+#define KLOG_GROUP(LOG_PROC_BKL)
 
 
 // Static prototypes

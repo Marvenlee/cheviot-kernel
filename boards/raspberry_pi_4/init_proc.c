@@ -12,13 +12,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
+ *
+ * --
  * Kernel initialization.
  */
-
-#define KDEBUG
 
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -35,6 +32,8 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <sys/time.h>
+
+#define KLOG_GROUP(LOG_BOARD_INIT)
 
 
 /* @brief Initialize process management data structures

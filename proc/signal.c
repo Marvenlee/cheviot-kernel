@@ -17,8 +17,6 @@
  * Unix-like signal handling
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/filesystem.h>
@@ -30,6 +28,8 @@
 #include <kernel/vm.h>
 #include <signal.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_PROC_SIGNAL)
 
 
 /* @brief   Define the default actions and properties of each signal.

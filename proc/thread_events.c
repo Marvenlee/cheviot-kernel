@@ -19,14 +19,14 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-//#define KDEBUG 1
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
+
+#define KLOG_GROUP(LOG_PROC_THREAD_EVENTS)
 
 
 /*

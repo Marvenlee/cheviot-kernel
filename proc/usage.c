@@ -17,8 +17,6 @@
  * Thread CPU usage monitoring (for top command)
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
@@ -30,6 +28,8 @@
 #include <unistd.h>
 #include <sys/resource.h>
 #include <string.h>
+
+#define KLOG_GROUP(LOG_PROC_USAGE)
 
 
 /*

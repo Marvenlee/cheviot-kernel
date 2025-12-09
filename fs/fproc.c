@@ -17,8 +17,6 @@
  * Manages a process's file descriptor tables, current directory and current root. 
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -27,6 +25,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 
+#define KLOG_GROUP(LOG_FS_FPROC)
 
 /* @brief   Allocate and initialize a process's filesystem state
  *

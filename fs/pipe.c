@@ -17,14 +17,14 @@
  * Unnamed pipe handling.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_FS_PIPE)
 
 
 /*

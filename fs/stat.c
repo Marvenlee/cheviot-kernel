@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <sys/mount.h>
+
+#define KLOG_GROUP(LOG_FS_STAT)
 
 
 /* @brief   Get the file statistics of a named file

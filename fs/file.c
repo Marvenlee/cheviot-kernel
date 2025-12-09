@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -26,6 +24,8 @@
 #include <sys/time.h>
 #include <time.h>
 #include <string.h>
+
+#define KLOG_GROUP(LOG_FS_FILE)
 
 
 /* @brief   Read from a file through the VFS file cache

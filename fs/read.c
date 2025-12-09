@@ -14,10 +14,8 @@
  * limitations under the License.
  *
  * --
- * Read a file
+ * Syscall to read a file
  */
-
-//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -27,6 +25,8 @@
 #include <kernel/vm.h>
 #include <sys/mount.h>
 #include <sys/syslimits.h>
+
+#define KLOG_GROUP(LOG_FS_READ)
 
 
 /* @brief   Read the contents of a file to a buffer

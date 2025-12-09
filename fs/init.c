@@ -17,8 +17,6 @@
  * Initialization of the kernel's filesystem state
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/board/boot.h>
 #include <kernel/board/globals.h>
@@ -27,6 +25,8 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/msg.h>
+
+#define KLOG_GROUP(LOG_FS_INIT)
 
 
 /* @brief   Initialize the kernel's virtual filesystem

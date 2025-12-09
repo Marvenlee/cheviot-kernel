@@ -17,8 +17,6 @@
  * ARM-specific thread user/kernel context handling.
  */
 
-//#define KDEBUG
- 
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>
 #include <kernel/board/init.h>
@@ -30,6 +28,7 @@
 #include <kernel/utility.h>
 #include <string.h>
 
+#define KLOG_GROUP(LOG_BOARD_UCONTEXT)
 
 /*
  * TODO: Remove me, added for debugging

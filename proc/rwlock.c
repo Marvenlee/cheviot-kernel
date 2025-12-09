@@ -32,8 +32,6 @@
  * See fs/vnode.c for table of rwlock usage among the filesystem system calls  
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
@@ -41,6 +39,8 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/arch.h>
+
+#define KLOG_GROUP(LOG_PROC_RWLOCK)
 
 
 /* @brief   Acquire exclusive-access to item guarded by rwlock

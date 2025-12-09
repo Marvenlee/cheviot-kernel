@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/vm.h>
+
+#define KLOG_GROUP(LOG_FS_SEEK)
 
 
 /* @brief   Seek to a new file position

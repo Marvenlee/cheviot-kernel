@@ -17,7 +17,8 @@
  * Thread management
  */
 
-//#define KDEBUG
+#define KLOG_GROUP(LOG_PROC_THREAD)
+
 
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>

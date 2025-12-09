@@ -18,8 +18,6 @@
  * message ports on file system commands.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -28,6 +26,8 @@
 #include <kernel/utility.h>
 #include <sys/iorequest.h>
 #include <string.h>
+
+#define KLOG_GROUP(LOG_FS_VFS)
 
 
 /* @brief   Lookup a file within a directory

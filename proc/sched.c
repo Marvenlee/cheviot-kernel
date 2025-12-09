@@ -27,6 +27,8 @@
 #include <kernel/types.h>
 #include <kernel/arch.h>
 
+#define KLOG_GROUP(LOG_PROC_SCHED)
+
 
 /* @brief   Perform a task switch
  *

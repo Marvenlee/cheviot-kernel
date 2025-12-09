@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
 #include <kernel/board/globals.h>
@@ -28,6 +26,8 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
+
+#define KLOG_GROUP(LOG_BOARD_TIMER)
 
 
 /* @brief Initialize the timer peripheral

@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-
-//#define KDEBUG
-
 #include <kernel/types.h>
 #include <kernel/proc.h>
 #include <kernel/filesystem.h>
@@ -28,6 +25,7 @@
 #include <sys/termios.h>
 #include <unistd.h>
 
+#define KLOG_GROUP(LOG_FS_CHAR)
 
 /* @brief   Read data from a character device
  *

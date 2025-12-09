@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -26,6 +24,7 @@
 #include <sys/mount.h>
 #include <limits.h>
 
+#define KLOG_GROUP(LOG_FS_BLOCK)
 
 /* @brief   Read from a block device
  * 

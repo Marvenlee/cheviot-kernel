@@ -17,12 +17,12 @@
  * User and Group ID management
  */
 
-//#define KDEBUG
-
 #include <sys/types.h>
 #include <kernel/proc.h>
 #include <kernel/dbg.h>
 #include <unistd.h>
+
+#define KLOG_GROUP(LOG_PROC_ID)
 
 
 /* @brief   Get the real user ID of the calling process

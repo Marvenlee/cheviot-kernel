@@ -17,8 +17,6 @@
  * Page fault handling.
  */
 
-//#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -30,6 +28,8 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <sys/mman.h>
+
+#define KLOG_GROUP(LOG_VM_PAGEFAULT)
 
 
 /* @brief   Page fault exception handler

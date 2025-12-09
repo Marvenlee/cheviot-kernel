@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-//#define KDEBUG 1
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
+
+#define KLOG_GROUP(LOG_FS_SYMLINK)
+
 
 /* @brief   Create a symbolic link in the file system
  *

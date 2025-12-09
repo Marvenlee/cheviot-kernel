@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -24,6 +22,8 @@
 #include <kernel/vm.h>
 #include <poll.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_FS_RENAME)
 
 
 /* @brief   Rename a file or directory

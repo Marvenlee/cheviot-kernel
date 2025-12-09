@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -23,6 +21,8 @@
 #include <kernel/types.h>
 #include <kernel/vm.h>
 #include <string.h>
+
+#define KLOG_GROUP(LOG_FS_REVOKE)
 
 
 /* @brief   Revoke system call

@@ -24,8 +24,6 @@
  * indicates it is finished with the message by calling ReplyMsg.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/globals.h>
 #include <kernel/proc.h>
@@ -35,6 +33,8 @@
 #include <string.h>
 #include <sys/syscalls.h>
 #include <sys/iorequest.h>
+
+#define KLOG_GROUP(LOG_FS_MSG)
 
 
 /* @brief   Get a message from a mount's message port

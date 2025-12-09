@@ -18,8 +18,6 @@
  * Used by device drivers to receive notification of interrupts.
  */
 
-//#define KDEBUG 1
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -28,6 +26,8 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <sys/privileges.h>
+
+#define KLOG_GROUP(LOG_PROC_INTERRUPT)
 
 
 /* @brief   Registers an interrupt notification server

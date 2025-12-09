@@ -12,11 +12,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-//#define KDEBUG
-
-/*
+ *
+ * --
  * Kernel initialization.
  */
 
@@ -30,6 +27,9 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <kernel/vm.h>
+
+#define KLOG_GROUP(LOG_BOARD_INIT)
+
 
 /* @brief Initialize processor-specific tables, peripherals and registers
  *

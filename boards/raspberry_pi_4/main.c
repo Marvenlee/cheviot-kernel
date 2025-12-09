@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
 #include <kernel/board/globals.h>
@@ -29,6 +27,9 @@
 #include <kernel/vm.h>
 #include <string.h>
 #include <kernel/board/peripheral_base.h>
+
+#define KLOG_GROUP(LOG_BOARD_INIT)
+
 
 /* @brief Entry point into the kernel
  *

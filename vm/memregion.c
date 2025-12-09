@@ -17,8 +17,6 @@
  * Address space management of regions created by mmap
  */
 
-//#define KDEBUG
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -29,6 +27,8 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <sys/mman.h>
+
+#define KLOG_GROUP(LOG_VM_MEMREGION)
 
 
 /*

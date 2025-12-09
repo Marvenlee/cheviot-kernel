@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -26,6 +24,7 @@
 #include <string.h>
 #include <fcntl.h>
 
+#define KLOG_GROUP(LOG_FS_ACCESS)
 
 /* @brief   The access() system call
  * 

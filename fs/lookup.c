@@ -17,8 +17,6 @@
  * File system pathname lookup and conversion to vnodes.
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
@@ -26,6 +24,8 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <string.h>
+
+#define KLOG_GROUP(LOG_FS_LOOKUP)
 
 
 /* @brief Vnode lookup of a path

@@ -43,8 +43,6 @@
  *    Efficient Implementation of a Timer Facility" by G Varghese & T,Lauck
  */
 
-//#define KDEBUG 1
-
 #include <kernel/arch.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -56,6 +54,7 @@
 #include <time.h>
 #include <sys/privileges.h>
 
+#define KLOG_GROUP(LOG_PROC_TIMER)
 
 
 /* @brief   Returns the system time in seconds and microseconds.

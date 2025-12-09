@@ -24,8 +24,6 @@
  * track of page table entries referencing a Page.
  */
 
-//#define KDEBUG
-
 #include <kernel/board/arm.h>
 #include <kernel/board/globals.h>
 #include <kernel/dbg.h>
@@ -36,6 +34,9 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 #include <sys/mman.h>
+
+#define KLOG_GROUP(LOG_BOARD_PMAP)
+
 
 /*
  *

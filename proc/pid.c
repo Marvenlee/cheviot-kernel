@@ -17,8 +17,6 @@
  * Process, thread, process group and session ID management
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/filesystem.h>
@@ -28,6 +26,7 @@
 #include <sys/wait.h>
 #include <string.h>
 
+#define KLOG_GROUP(LOG_PROC_PID)
 
 
 /* @brief   Get the process ID of the calling thread
