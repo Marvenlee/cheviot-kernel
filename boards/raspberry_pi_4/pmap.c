@@ -279,8 +279,8 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, int flags)
   pde_idx = (va & L1_ADDR_BITS) >> L1_IDX_SHIFT;
 
   if ((pmap->l1_table[pde_idx] & L1_TYPE_MASK) == L1_TYPE_INV) {
-    Error("******** pmap_protect failed ******");
-  	KernelPanic();
+    klog_error("******** pmap_protect failed ******");
+  	kernelpanic();
   }
 
   phys_pt = (uint32_t *)(pmap->l1_table[pde_idx] & L1_C_ADDR_MASK);
@@ -292,8 +292,8 @@ int pmap_protect(struct AddressSpace *as, vm_addr va, int flags)
   pa = pt[pte_idx] & L2_ADDR_MASK;
 
   if ((pt[pte_idx] & L2_TYPE_MASK) == L2_TYPE_INV) {
-    Error("******** pmap_protect failed ******");
-    KernelPanic();
+    klog_error("******** pmap_protect failed ******");
+    kernelpanic();
   }
 
   vpte->flags = flags;
@@ -318,17 +318,17 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
   struct PmapVPTE *vpte;
   struct PmapVPTE *vpte_base;
 
-  Info("pmap_extract(as:%08x, va:%08x", (uint32_t)as, (uint32_t)va);
+  klog_info("pmap_extract(as:%08x, va:%08x", (uint32_t)as, (uint32_t)va);
 
   pmap = &as->pmap;
   pde_idx = (va & L1_ADDR_BITS) >> L1_IDX_SHIFT;
 
   if ((pmap->l1_table[pde_idx] & L1_TYPE_MASK) == L1_TYPE_INV) {
-    Info("extract failed, no page table");
+    klog_info("extract failed, no page table");
     return -1;    
   }
 
-  Info("pde_idx %d: pde:%08x", pde_idx, pmap->l1_table[pde_idx]);
+  klog_info("pde_idx %d: pde:%08x", pde_idx, pmap->l1_table[pde_idx]);
 
   phys_pt = (uint32_t *)(pmap->l1_table[pde_idx] & L1_C_ADDR_MASK);
   pt = (uint32_t *)pmap_pa_to_va((vm_addr)phys_pt);
@@ -339,11 +339,11 @@ int pmap_extract(struct AddressSpace *as, vm_addr va, vm_addr *pa, uint32_t *fla
   current_paddr = pt[pte_idx] & L2_ADDR_MASK;
 
   if ((pt[pte_idx] & L2_TYPE_MASK) == L2_TYPE_INV) {
-    Info("extract failed, no page table entry");
+    klog_info("extract failed, no page table entry");
     return -1;
   }
 
-  Info("pmap_extract: va:%08x, pte:%08x", (uint32_t)va, (uint32_t)pt[pte_idx]);
+  klog_info("pmap_extract: va:%08x, pte:%08x", (uint32_t)va, (uint32_t)pt[pte_idx]);
 
   if (pa != NULL) {
     *pa = current_paddr;
@@ -390,7 +390,7 @@ bool pmap_is_page_present(struct AddressSpace *as, vm_addr addr)
 
   if ((pmap->l1_table[pde_idx] & L1_TYPE_MASK) == L1_TYPE_INV) {
 		if (addr >= 0x0001C000 && addr <= 0x00028000) {
-	  	Error("page table not present addr:%08x, pde_idx=%d", addr, pde_idx);
+	  	klog_error("page table not present addr:%08x, pde_idx=%d", addr, pde_idx);
 		}
   	
     return false;
@@ -474,7 +474,7 @@ int pmap_create(struct AddressSpace *as)
   uint32_t *pd = NULL;
   int t;
 
-  Info("pmap_create: as:%08x", (uint32_t)as);
+  klog_info("pmap_create: as:%08x", (uint32_t)as);
 	
 	ppd = LIST_HEAD(&free_pmappagedir_list);
 	
@@ -486,7 +486,7 @@ int pmap_create(struct AddressSpace *as)
   
   pd = ppd->pagedir;
 
-  Info(".. pagedir:%08x", (uint32_t)pd);
+  klog_info(".. pagedir:%08x", (uint32_t)pd);
 
   for (t = 0; t < 2048; t++) {
     pmap_write_l1(pd, t, L1_TYPE_INV);
@@ -637,23 +637,23 @@ int pmap_pagetable_walk(struct AddressSpace *as, uint32_t access, void *vaddr, v
           fault = true;
         }
       } else {      
-        Warn("pmap_pagetable_walk -EFAULT write on non-write page");
+        klog_warn("pmap_pagetable_walk -EFAULT write on non-write page");
         return -EFAULT;
       }
     }
   } else {
-    Warn("Cannot extract pte (note:we don't lazy alloc pages)");    
+    klog_warn("Cannot extract pte (note:we don't lazy alloc pages)");    
     return -EFAULT;
   }
     
   if (fault) {
     if (page_fault(bvaddr, access) != 0) {
-      Warn("pmap_pagetable_walk -EFAULT 2");
+      klog_warn("pmap_pagetable_walk -EFAULT 2");
       return -EFAULT;
     }
     
     if (pmap_extract(as, (vm_addr)bvaddr, &bpaddr, &flags) != 0) {
-        Warn("pmap_pagetable_walk -EFAULT 3");
+        klog_warn("pmap_pagetable_walk -EFAULT 3");
       return -EFAULT;
     }
   }    

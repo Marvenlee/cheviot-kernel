@@ -33,29 +33,29 @@ int sys_fcntl(int fd, int cmd, int arg)
   struct Filp *filp;
   int new_fd;
 
-  Info("sys_fcntl(fd:%d, cmd:%d, arg:%d)", fd, cmd, arg);
+  klog_info("sys_fcntl(fd:%d, cmd:%d, arg:%d)", fd, cmd, arg);
   
   current = get_current_process();
   
   if (fd < 0 || fd >= FILEDESC_MAX) {
-    Error("sys_fcntl() fd out of range: %d, -EINVAL", fd);
+    klog_error("sys_fcntl() fd out of range: %d, -EINVAL", fd);
     return -EINVAL;
   }
 
   if ((current->fproc.fd_table[fd].flags & FDF_VALID) == 0) {  
-    Info("fd %d not valid -EBADF", fd);
+    klog_info("fd %d not valid -EBADF", fd);
     return -EBADF;
   }
     
   if ((filp = filp_get(current, fd)) == NULL) {
-    Info("fd %d cannot get filp -EINVAL", fd);
+    klog_info("fd %d cannot get filp -EINVAL", fd);
     return -EINVAL;
   }
     
   switch(cmd) {
     case F_DUPFD:	/* Duplicate fildes but clear close-on-exec flag */
       if (arg < 0 || arg >= FILEDESC_MAX) {
-        Info("Fcntl F_DUPFD -EBADF");
+        klog_info("Fcntl F_DUPFD -EBADF");
         return -EBADF;
       }
 
@@ -64,7 +64,7 @@ int sys_fcntl(int fd, int cmd, int arg)
 
     case F_DUPFD_CLOEXEC:       /* Duplicate fildes and set close-on-exec flag */
       if (arg < 0 || arg >= FILEDESC_MAX) {
-        Info("Fcntl F_DUPFD_CLOEXEC -EBADF");
+        klog_info("Fcntl F_DUPFD_CLOEXEC -EBADF");
         return -EBADF;
       }
 
@@ -88,19 +88,19 @@ int sys_fcntl(int fd, int cmd, int arg)
       return 0;
       		
     case F_GETFL:	/* Get file flags */
-      Info("Fcntl F_GETFL unimplemented");
+      klog_info("Fcntl F_GETFL unimplemented");
 
       // TODO: Effectively open flags bit O_RW, O_APPEND, O_NONBLOCK
       // TODO: Add as oflags state to filp on open() or any vnode creation
       return -EINVAL;
       
     case F_SETFL:	/* Set file flags */
-      Info("Fcntl F_SETFL unimplemented");
+      klog_info("Fcntl F_SETFL unimplemented");
       // TODO: Effectively open flags bit O_RW, O_APPEND, O_NONBLOCK
       return -EINVAL;
       
     default:
-      Error("Fcntl: unknown command :  %d", cmd);
+      klog_error("Fcntl: unknown command :  %d", cmd);
       break;
   }
   
@@ -115,7 +115,7 @@ int sys_dup(int fd)
   int new_fd;
   struct Process *current;
   
-  Info("sys_dup(%d)", fd);
+  klog_info("sys_dup(%d)", fd);
   
   current = get_current_process();
 
@@ -133,17 +133,17 @@ int sys_dup2(int fd, int new_fd)
 {
   struct Process *current;
 
-  Info("sys_dup2(fd:%d, new_fd:%d)", fd, new_fd);
+  klog_info("sys_dup2(fd:%d, new_fd:%d)", fd, new_fd);
 
   current = get_current_process();
 
   if (fd < 0 || fd >= FILEDESC_MAX || new_fd < 0 || new_fd >= FILEDESC_MAX) {
-    Error("sys_dup2() fd out of range: %d, -EINVAL", fd);
+    klog_error("sys_dup2() fd out of range: %d, -EINVAL", fd);
     return -EINVAL;
   }
 
   if (current->fproc.fd_table[new_fd].flags & FDF_VALID) {
-    KASSERT(current->fproc.fd_table[new_fd].filp != NULL);
+    kassert(current->fproc.fd_table[new_fd].filp != NULL);
     do_close(current, new_fd);    
   }
   
@@ -161,19 +161,19 @@ int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd, uint32_t flags)
   struct FileDesc *filedesc;
   int new_fd;
   
-  Info("dup_fd(fd:%d, min:%d, max:%d)", fd, min_fd, max_fd);
+  klog_info("dup_fd(fd:%d, min:%d, max:%d)", fd, min_fd, max_fd);
   
   filp = filp_get(proc, fd);
   
   if (filp == NULL) {
-    Error("dup_fd() filp is null, -EINVAL");
+    klog_error("dup_fd() filp is null, -EINVAL");
     return -EINVAL;
   }
   
   new_fd = fd_alloc(proc, min_fd, max_fd, &filedesc);
   
   if (new_fd < 0) {
-    Error("dup_fd() fd_alloc failed, -EMFILE");
+    klog_error("dup_fd() fd_alloc failed, -EMFILE");
     return -EMFILE;
   }
   
@@ -194,11 +194,11 @@ int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd, uint32_t flags)
  */
 int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **filedesc)
 {  
-  Info("fd_alloc(proc:%08x, min:%d, max:%d, fdesc**:%08x)", (uint32_t)proc, min_fd, max_fd, (uint32_t)filedesc);
+  klog_info("fd_alloc(proc:%08x, min:%d, max:%d, fdesc**:%08x)", (uint32_t)proc, min_fd, max_fd, (uint32_t)filedesc);
 
   for (int fd=min_fd; fd <= max_fd; fd++) {
     if ((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) == 0) {
-      KASSERT((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+      kassert((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
 
       proc->fproc.fd_table[fd].filp = NULL;
       proc->fproc.fd_table[fd].flags = FDF_ALLOCED;
@@ -208,7 +208,7 @@ int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **fil
     }
   }
   
-  Error("fd_alloc failed");
+  klog_error("fd_alloc failed");
   
   *filedesc = NULL;
   return -EMFILE;
@@ -220,16 +220,16 @@ int fd_alloc(struct Process *proc, int min_fd, int max_fd, struct FileDesc **fil
  */
 int fd_free(struct Process *proc, int fd)
 {
-  Info("fd_free(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  klog_info("fd_free(proc:%08x, fd:%d)", (uint32_t)proc, fd);
   
   if (fd < 0 || fd >= FILEDESC_MAX) {
-    Error("fd_free: fd out of range -EINVAL fd:%d", fd);
+    klog_error("fd_free: fd out of range -EINVAL fd:%d", fd);
     return -EINVAL;
   }
 
   
-  KASSERT((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
-  KASSERT((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) != 0);
+  kassert((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+  kassert((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) != 0);
 
   proc->fproc.fd_table[fd].filp = NULL;
   proc->fproc.fd_table[fd].flags = 0;
@@ -243,16 +243,16 @@ int fd_free(struct Process *proc, int fd)
  */
 int fd_invalidate(struct Process *proc, int fd)
 {
-  Info("fd_invalidate(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  klog_info("fd_invalidate(proc:%08x, fd:%d)", (uint32_t)proc, fd);
   
   if (fd < 0 || fd >= FILEDESC_MAX) {
-    Error("fd_free: fd out of range -EINVAL fd:%d", fd);
+    klog_error("fd_free: fd out of range -EINVAL fd:%d", fd);
     return -EINVAL;
   }
 
 
-  KASSERT((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
-  KASSERT((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) != 0);
+  kassert((proc->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+  kassert((proc->fproc.fd_table[fd].flags & FDF_ALLOCED) != 0);
 
   proc->fproc.fd_table[fd].flags &= ~FDF_VALID;
   
@@ -267,10 +267,10 @@ int fork_fds(struct Process *newp, struct Process *oldp)
 {
   int sc;
   
-  Info("**** fork_fds(newp:%08x, oldp:%08x)", (uint32_t)newp, (uint32_t)oldp);
+  klog_info("**** fork_fds(newp:%08x, oldp:%08x)", (uint32_t)newp, (uint32_t)oldp);
   
   if ((sc = init_fproc(newp)) != 0) {
-    Info("init_fproc failed in fork_fds, sc:%d", sc);
+    klog_info("init_fproc failed in fork_fds, sc:%d", sc);
     return sc;
   }
   
@@ -289,12 +289,12 @@ int fork_fds(struct Process *newp, struct Process *oldp)
 
   for (int fd = 0; fd < FILEDESC_MAX; fd++) {          
     if (oldp->fproc.fd_table[fd].flags & FDF_VALID) {
-      KASSERT(oldp->fproc.fd_table[fd].filp != NULL);
+      kassert(oldp->fproc.fd_table[fd].filp != NULL);
       
       newp->fproc.fd_table[fd].filp = oldp->fproc.fd_table[fd].filp;      
       newp->fproc.fd_table[fd].flags = oldp->fproc.fd_table[fd].flags;
 
-      KASSERT((newp->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
+      kassert((newp->fproc.fd_table[fd].flags & ~FDF_ALL) == 0);
       
       filp_ref(newp->fproc.fd_table[fd].filp);
 
@@ -317,11 +317,11 @@ int fork_fds(struct Process *newp, struct Process *oldp)
  */
 int exec_fds(struct Process *proc)
 {
-  Info("exec_fds(proc:%08x)", (uint32_t)proc);
+  klog_info("exec_fds(proc:%08x)", (uint32_t)proc);
 
   for (int fd = 0; fd < FILEDESC_MAX; fd++) {
     if (proc->fproc.fd_table[fd].flags & FDF_CLOSE_ON_EXEC) {
-      Info("close on exec, fd:%d", fd);
+      klog_info("close on exec, fd:%d", fd);
       proc->fproc.fd_table[fd].flags &= ~FDF_CLOSE_ON_EXEC;
       do_close(proc, fd);      
     }

@@ -59,7 +59,7 @@ void init_processes(void)
   struct CPU *cpu;
   struct Process *proc;
 
-  Info("InitProcesses.,");
+  klog_info("InitProcesses.,");
   
   bkl_locked = false;
   bkl_owner = NULL;
@@ -80,13 +80,13 @@ void init_processes(void)
     proc->in_use = false;
   }
 
-  Info(".. process table entries inited");
+  klog_info(".. process table entries inited");
   
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
     LIST_INIT(&timing_wheel[t]);
   }
 
-  Info(".. timing wheel inited");
+  klog_info(".. timing wheel inited");
 
   InitRendez(&timer_rendez);
   softclock_time = hardclock_time = 0;
@@ -99,44 +99,44 @@ void init_processes(void)
   cpu->interrupt_stack = (vm_addr)&interrupt_stack_top;
   cpu->exception_stack = (vm_addr)&exception_stack_top;
 
-  Info(".. cpu struct inited");
+  klog_info(".. cpu struct inited");
 
   root_process =
       create_process(BootstrapRootProcess, SCHED_RR, 16, PROCF_USER, &cpu_table[0]);
 
-  Info("root process created");
+  klog_info("root process created");
 
   timer_process =
       create_process(TimerBottomHalf, SCHED_RR, 31, PROCF_KERNEL, &cpu_table[0]);
 
-  Info("timer process created");
+  klog_info("timer process created");
 
   interrupt_dpc_process =
       create_process(interrupt_dpc, SCHED_RR, 30, PROCF_KERNEL, &cpu_table[0]);
 
-  Info("interrupt dpc process created");
+  klog_info("interrupt dpc process created");
 
   bdflush_process =
       create_process(bdflush, SCHED_RR, 17, PROCF_KERNEL, &cpu_table[0]);
 
-  Info("bdflush process created");
+  klog_info("bdflush process created");
 
   // Can we not schedule a no-op bit of code if no processes running?
   // Do we really need an idle task in separate address-space ? 
   cpu->idle_process = create_process(Idle, SCHED_IDLE, 0, PROCF_KERNEL, &cpu_table[0]);
 
-  Info("idle process created");
+  klog_info("idle process created");
 
   // Pick root process to run,  Switch To Root here  
   root_process->state = PROC_STATE_RUNNING;
   cpu->current_process = root_process;
 
-  Info("marking processes as initialized");
+  klog_info("marking processes as initialized");
 
   ProcessesInitialized();
 
 
-  Info("switching to root_process");
+  klog_info("switching to root_process");
 
   pmap_switch(root_process, NULL);           
   
@@ -252,7 +252,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   cpsr = cpsr_dnm_state | USR_MODE | CPSR_DEFAULT_BITS;  
 #endif
 
-  Info("Setting up process register state");
+  klog_info("Setting up process register state");
   
   uc = (struct UserContext *)((vm_addr)proc + PROCESS_SZ -
                               sizeof(struct UserContext));

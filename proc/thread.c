@@ -57,18 +57,18 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
   int priority;
   int policy;
 
-  Info("sys_thread_create(entry:%08x, tcb:%08x)", (uint32_t)entry, (uint32_t)user_tcb);
+  klog_info("sys_thread_create(entry:%08x, tcb:%08x)", (uint32_t)entry, (uint32_t)user_tcb);
   
   current_proc = get_current_process();
   current_thread = get_current_thread();
   
   if (_attr == NULL) {
-    Error("no pthreadattrs");
+    klog_error("no pthreadattrs");
     return -EINVAL;
   }
   
   if (copyin(&attr, _attr, sizeof attr) != 0) {
-    Error("failed to copyin pthreadattrs");
+    klog_error("failed to copyin pthreadattrs");
     return -EFAULT;
   }
 
@@ -79,7 +79,7 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
     policy = 0;
     priority = 8;
   } else {
-    Error("invalid inheritsched  ** defaulting to current");
+    klog_error("invalid inheritsched  ** defaulting to current");
     policy = current_thread->sched_policy;
     priority = current_thread->priority;
     //return -EINVAL;
@@ -90,14 +90,14 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
     if ((user_stack = sys_mmap((void *)0x30000000, user_stack_sz, PROT_READ | PROT_WRITE, 
                                0, -1, 0)) == MAP_FAILED) {
 
-      Info("failed to allocate stack");
+      klog_info("failed to allocate stack");
       return -ENOMEM;
     }    
   } else {
     if (attr.stacksize < PAGE_SIZE || (attr.stacksize % PAGE_SIZE) != 0
         || ((uintptr_t)attr.stackaddr % PAGE_SIZE) != 0) {
 
-      Info("supplied stack addr and size is invalid");
+      klog_info("supplied stack addr and size is invalid");
       return -EINVAL;
     }
 
@@ -108,8 +108,8 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
   flags = THREADF_USER;
   detached = (attr.detached == PTHREAD_CREATE_DETACHED) ? true: false;
   
-  Info("entry:%08x, arg:%08x, stack:%08x, stack_sz:%08x", (uint32_t)entry, (uint32_t)arg, (uint32_t)user_stack, (uint32_t) user_stack_sz);
-  Info("user_tcb:%08x", (uint32_t)user_tcb);
+  klog_info("entry:%08x, arg:%08x, stack:%08x, stack_sz:%08x", (uint32_t)entry, (uint32_t)arg, (uint32_t)user_stack, (uint32_t) user_stack_sz);
+  klog_info("user_tcb:%08x", (uint32_t)user_tcb);
   
   thread = do_create_thread(current_proc, NULL, entry, arg,
                               policy, priority, 
@@ -120,13 +120,13 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
                               get_cpu(), current_proc->basename);
 
   if (thread == NULL) {
-    Info("unable to create thread, no mem");
+    klog_info("unable to create thread, no mem");
     return -ENOMEM;
   }
 
   thread_start(thread);
   
-  Info("thread created");
+  klog_info("thread created");
   
   return get_thread_tid(thread);
 }
@@ -143,7 +143,7 @@ int sys_thread_join(pid_t tid, intptr_t *_status)
   intptr_t status;
   int sc;
   
-  Info("sys_thread_join(tid:%d)", (int)tid);
+  klog_info("sys_thread_join(tid:%d)", (int)tid);
   
   thread = get_thread(tid);
   
@@ -166,7 +166,7 @@ int sys_thread_join(pid_t tid, intptr_t *_status)
  */
 void sys_thread_exit(intptr_t exit_status)
 {
-  Error("sys_thread_exit()");
+  klog_error("sys_thread_exit()");
   
   do_exit_thread(exit_status);
 }
@@ -199,7 +199,7 @@ void *sys_thread_self(void)
 
   current_thread = get_current_thread();
 
-  Info("sys_thread_self() u_tcb:%08x", (uint32_t)current_thread->user_tcb);
+  klog_info("sys_thread_self() u_tcb:%08x", (uint32_t)current_thread->user_tcb);
 
   return current_thread->user_tcb;
 }
@@ -306,8 +306,8 @@ struct Thread *do_create_thread(struct Process *new_proc, void (*entry)(void *),
   pid_t tid;
   void *stack;
     
-  Info("do_create_thread (new_proc:%08x, entry:%08x)", (uint32_t)new_proc, (uint32_t)entry);
-  Info("u_stack:%08x, u_stack_sz:%08x, u_tcb:%08x", (uint32_t)user_stack, (uint32_t)user_stack_sz, (uint32_t)user_tcb);    
+  klog_info("do_create_thread (new_proc:%08x, entry:%08x)", (uint32_t)new_proc, (uint32_t)entry);
+  klog_info("u_stack:%08x, u_stack_sz:%08x, u_tcb:%08x", (uint32_t)user_stack, (uint32_t)user_stack_sz, (uint32_t)user_tcb);    
 
   thread = alloc_thread_struct();
 
@@ -369,7 +369,7 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
   thread->blocking_rendez = NULL;
   thread->exit_status = 0;
 
-//  Info("init_thread thread:%08x, tid:%d, proc:%08x", (uint32_t)thread, tid, (uint32_t)proc);
+//  klog_info("init_thread thread:%08x, tid:%d, proc:%08x", (uint32_t)thread, tid, (uint32_t)proc);
 
   thread->intr_flags = 0;
   thread->event_mask = 0;
@@ -440,7 +440,7 @@ int do_exit_thread(intptr_t status)
   struct Thread *thread;
   struct Process *proc;
   
-//  Error("do_exit_thread");
+//  klog_error("do_exit_thread");
   
   proc = get_current_process();
   thread = get_current_thread();
@@ -461,7 +461,7 @@ int do_exit_thread(intptr_t status)
   if (LIST_EMPTY(&proc->thread_list)) {
     // We are the final thread, detach and notify the parent process to finish cleanup.    
 
-//    Info("thread:%08x, tid:%d, is last thread of proc:%d", (uint32_t)thread, thread->tid, proc->pid);
+//    klog_info("thread:%08x, tid:%d, is last thread of proc:%d", (uint32_t)thread, thread->tid, proc->pid);
     thread->detached = true;
     
     proc->state = PROC_STATE_EXITED;
@@ -501,7 +501,7 @@ int do_join_thread(struct Thread *thread, intptr_t *status)
   struct Process *proc;
   struct Thread *current_thread;
   
-  Info("do_join_thread");
+  klog_info("do_join_thread");
   
   proc = get_current_process();
   current_thread = get_current_thread();
@@ -561,7 +561,7 @@ struct Thread *alloc_thread_struct(void)
   thread = LIST_HEAD(&free_thread_list);
   
   if (thread == NULL) {
-    Error("alloc thread struct failed");
+    klog_error("alloc thread struct failed");
     return NULL;
   }  
   

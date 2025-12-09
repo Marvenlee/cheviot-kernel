@@ -64,12 +64,12 @@ int sys_exec(char *_path, struct execargs *_args)
   }
 
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
-    Error("Exec failed to lookup file");
+    klog_error("Exec failed to lookup file");
     return sc;
   }
 
   if ((fd = do_open(&ld, O_RDONLY, 0)) < 0) {
-    Error("Exec failed to open file, fd = %d", fd);
+    klog_error("Exec failed to open file, fd = %d", fd);
     lookup_cleanup(&ld);
     return -ENOENT;
   }
@@ -84,7 +84,7 @@ int sys_exec(char *_path, struct execargs *_args)
   if (filp == NULL) {
     lookup_cleanup(&ld);
 
-    Info("sys_exec() -EBADF");
+    klog_info("sys_exec() -EBADF");
     return -EBADF;
   }
   
@@ -110,7 +110,7 @@ int sys_exec(char *_path, struct execargs *_args)
   sys_close(fd);
   
   if (sc != 0) {
-    Error("Exec failed to exec, sc = %d", sc);
+    klog_error("Exec failed to exec, sc = %d", sc);
     sys_exit(-1);   // TODO: exit code for exec() failure?
   }
 
@@ -133,30 +133,30 @@ int do_exec(int fd, char *name, struct execargs *_args)
   struct execargs args;
   char *pool;
     
-  Info("do_exec");
+  klog_info("do_exec");
   
   current = get_current_process();
   current_thread = get_current_thread();
   
   if (check_elf_headers(fd) != 0) {
-    Error("CheckELFHeaders failed");
+    klog_error("CheckELFHeaders failed");
     return -ENOEXEC;
   }
   
   if ((pool = alloc_arg_pool()) == NULL)
   {
-    Error("AllocArgPool failed\n");
+    klog_error("AllocArgPool failed\n");
     return -EBUSY;
   }
   
   if (copy_in_argv(pool, &args, _args) != 0) {
-    Error("copyinArgv failed");
+    klog_error("copyinArgv failed");
     free_arg_pool(pool);
     return -EFAULT;
   }
 
   if (current->exit_in_progress == true) {
-    Error("exit_in_progress is true, exiting thread");
+    klog_error("exit_in_progress is true, exiting thread");
     do_exit_thread(0);
   }
 
@@ -168,7 +168,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
   current->exit_in_progress = false;
 
   if (cleanup_address_space(&current->as) != 0) {
-    Error("exec cleanup address space failed");
+    klog_error("exec cleanup address space failed");
     free_arg_pool(pool);
     return -ENOMEM;
   }
@@ -176,32 +176,32 @@ int do_exec(int fd, char *name, struct execargs *_args)
   fini_futexes(current);
 
   if (load_process(current, fd, &entry_point) != 0) {
-    Error("LoadProcess failed");
+    klog_error("LoadProcess failed");
     free_arg_pool(pool);
     return -ENOMEM;
   }
 
-  Info("do_exec: calling sys_mmap() for stack");
+  klog_info("do_exec: calling sys_mmap() for stack");
 
   if ((stack_base = sys_mmap((void *)0x30000000, USER_STACK_SZ, PROT_READ | PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
-    Error("Allocate stack failed");
+    klog_error("Allocate stack failed");
     free_arg_pool(pool);
     return -ENOMEM;
   }
 
-  Info("do_exec: calling copy_out_argv");
+  klog_info("do_exec: calling copy_out_argv");
 
   copy_out_argv(stack_base, USER_STACK_SZ, &args);
 
-  Info("do_exec: calling free_arg_pool");
+  klog_info("do_exec: calling free_arg_pool");
 
   free_arg_pool(pool);
 
   StrLCpy(current->basename, name, sizeof current->basename);
   StrLCpy(current_thread->basename, name, sizeof current_thread->basename);
   
-  Info("do_exec: calling exec_fds");
-  Info("do_exec: calling exec_signals");
+  klog_info("do_exec: calling exec_fds");
+  klog_info("do_exec: calling exec_signals");
 
   exec_fds(current);
   exec_signals(current, current_thread);
@@ -327,7 +327,7 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   return 0;
 
 cleanup:
-  Info("copyinArgv failed");
+  klog_info("copyinArgv failed");
   return -EFAULT;
 }
 
@@ -339,10 +339,10 @@ int copy_out_argv(void *stack_base, int stack_size, struct execargs *args) {
   void *args_base;
   vm_size difference;
 
-	Info("copy_out_argv(stack_base:%08x, stack_size:%d, execargs:%08x",
+	klog_info("copy_out_argv(stack_base:%08x, stack_size:%d, execargs:%08x",
 											(uint32_t)stack_base, stack_size, (uint32_t)args);
 
-  Info("args->total_size:%08x", (uint32_t)args->total_size);
+  klog_info("args->total_size:%08x", (uint32_t)args->total_size);
 
   args_base = stack_base + stack_size - ALIGN_UP(args->total_size, 16);
   difference = (vm_addr)execargs_buf - (vm_addr) args_base;
@@ -387,30 +387,30 @@ static int check_elf_headers(int fd)
       if (ehdr.e_ident[EI_MAG0] != ELFMAG0 || ehdr.e_ident[EI_MAG1] != 'E' ||
         ehdr.e_ident[EI_MAG2] != 'L' || ehdr.e_ident[EI_MAG3] != 'F') {
 
-        Error("no ELF magic marker");
+        klog_error("no ELF magic marker");
       }
         
       if (ehdr.e_ident[EI_CLASS] != ELFCLASS32) {
-        Error("Not ELF32 class");
+        klog_error("Not ELF32 class");
       }
 
       if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
-        Error("Not ELF LSB");
+        klog_error("Not ELF LSB");
       }
 
       if (ehdr.e_type != ET_EXEC) {
-        Error("Not ELF ET_EXEC");
+        klog_error("Not ELF ET_EXEC");
       }
 
       if (ehdr.e_phnum == 0) {
-        Error("No ELF program headers");
+        klog_error("No ELF program headers");
       }
     }    
   } else {
-    Error("CheckElfHeaders - kread failed %d", rc);
+    klog_error("CheckElfHeaders - kread failed %d", rc);
   }
 
-  Error("FILE IS NOT EXECUTABLE");
+  klog_error("FILE IS NOT EXECUTABLE");
   return -ENOEXEC;
 }
 
@@ -432,12 +432,12 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
   Elf32_EHdr ehdr;
   Elf32_PHdr phdr;
 
-  Info("load_process");
+  klog_info("load_process");
   
   rc = kread_file(fd, 0, &ehdr, sizeof(Elf32_EHdr));
 
   if (rc != sizeof(Elf32_EHdr)) {
-    Error("ELF header could not read");
+    klog_error("ELF header could not read");
     return -EIO;
   }
 
@@ -450,7 +450,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
     rc = kread_file(fd, phdr_offs + t * sizeof(Elf32_PHdr), &phdr, sizeof(Elf32_PHdr));
 
     if (rc != sizeof(Elf32_PHdr)) {
-      Error("Kread phdr failed");
+      klog_error("Kread phdr failed");
       return -EIO;
     }
 
@@ -465,7 +465,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
     sec_prot = 0;
 
     if (sec_mem_sz < sec_file_sz) {
-      Error("sec_mem_sz < file_sz");
+      klog_error("sec_mem_sz < file_sz");
       return -EIO;
     }
     
@@ -482,7 +482,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
       ret_addr = sys_mmap(sec_addr, sec_mem_sz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_FIXED, -1, 0);
 
       if (ret_addr == MAP_FAILED) {
-        Error("Failed to alloc fixed mem");
+        klog_error("Failed to alloc fixed mem");
         return -ENOMEM;
       }
     }
@@ -491,7 +491,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
       rc = read_file(fd, sec_offs, (void *)phdr.p_vaddr, sec_file_sz);
 
       if (rc != sec_file_sz) {
-        Error("Failed to read file");
+        klog_error("Failed to read file");
         return -ENOMEM;
       }
     }
@@ -499,7 +499,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
     sys_mprotect(sec_addr, sec_mem_sz, sec_prot);
   }
 
-  Info("exec: load_process ok");
+  klog_info("exec: load_process ok");
 
   return 0;
 }
@@ -512,7 +512,7 @@ ssize_t read_file(int fd, off_t offset, void *vaddr, size_t sz)
 {
   ssize_t nbytes_read;
   
-  Info("exec: read_file(%d, sz:%d", fd, (int)sz);
+  klog_info("exec: read_file(%d, sz:%d", fd, (int)sz);
   
   if (sys_lseek(fd, offset, SEEK_SET) == -1) {
     return -1;
@@ -520,7 +520,7 @@ ssize_t read_file(int fd, off_t offset, void *vaddr, size_t sz)
 
   nbytes_read = sys_read(fd, vaddr, sz);
 
-  Info("exec: read_file nbytes_read:%d", nbytes_read);
+  klog_info("exec: read_file nbytes_read:%d", nbytes_read);
 
   return nbytes_read;
 }
@@ -533,7 +533,7 @@ ssize_t kread_file (int fd, off_t offset, void *vaddr, size_t sz)
 {
   ssize_t nbytes_read;
 
-  Info("exec: kread_file(%d, sz:%d", fd, (int)sz);
+  klog_info("exec: kread_file(%d, sz:%d", fd, (int)sz);
   
   if (sys_lseek(fd, offset, SEEK_SET) == -1) {
     return -1;

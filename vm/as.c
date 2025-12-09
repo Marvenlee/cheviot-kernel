@@ -69,19 +69,19 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
   struct Page *page;
 
   Info ("fork address space(new_as:%08x, old_ad:%08x)", (uint32_t)new_as, (uint32_t)old_as);
-	Info("new as:%08x, current as:%08x", (uint32_t)new_as, (uint32_t)old_as);
+	klog_info("new as:%08x, current as:%08x", (uint32_t)new_as, (uint32_t)old_as);
 
-  KASSERT(new_as != NULL);
-  KASSERT(old_as != NULL);
+  kassert(new_as != NULL);
+  kassert(old_as != NULL);
 
   if (pmap_create(new_as) != 0) {
-    Error("faile to create pmap");
+    klog_error("faile to create pmap");
     return -1;
   }
 
 
   if (fork_memregions(new_as, old_as) != 0) {
-    Error("Failed to fork memregions");
+    klog_error("Failed to fork memregions");
     pmap_destroy(new_as);
     free_address_space(new_as);
     return -1;
@@ -136,7 +136,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
 #endif        
         
         if (pmap_enter(new_as, va, pa, flags) != 0) {
-        	Error("**** Phys pmap enter failed *****");
+        	klog_error("**** Phys pmap enter failed *****");
           goto cleanup;
         }
       }

@@ -46,10 +46,10 @@ int sys_open(char *_path, int oflags, mode_t mode)
   struct lookupdata ld;
   int sc;
 
-  Info("sys_open()");
+  klog_info("sys_open()");
 
   if ((sc = lookup(_path, LOOKUP_PARENT, &ld)) != 0) {
-    Error("Open - lookup failed, sc = %d", sc);
+    klog_error("Open - lookup failed, sc = %d", sc);
     return sc;
   }
 
@@ -70,10 +70,10 @@ int kopen(char *_path, int oflags, mode_t mode)
   struct lookupdata ld;
   int sc;
 
-  Info("kopen()");
+  klog_info("kopen()");
 
   if ((sc = lookup(_path, LOOKUP_PARENT | LOOKUP_KERNEL, &ld)) != 0) {
-    Error("Kopen - lookup failed, sc = %d", sc);
+    klog_error("Kopen - lookup failed, sc = %d", sc);
     return sc;
   }
 
@@ -97,7 +97,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   struct FileDesc *filedesc;
   int sc = 0;
   
-  Info("do_open()");
+  klog_info("do_open()");
   
   current = get_current_process();
   vnode = ld->vnode;
@@ -105,30 +105,30 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       
   if (vnode == NULL) {
     if ((oflags & O_CREAT) && check_access(dvnode, NULL, W_OK) != 0) {
-      Error("Cannot O_CREAT, no write acces to directory");
+      klog_error("Cannot O_CREAT, no write acces to directory");
       return -ENOENT;
     }
 		
 		if (strcmp(".", ld->last_component) == 0 || strcmp("..", ld->last_component) == 0) {
-      Error("Cannot create . or .. named files");
+      klog_error("Cannot create . or .. named files");
       return -ENOMEM;
     }
     
     if ((sc = vfs_create(dvnode, ld->last_component, oflags, current->uid, current->gid, mode, &vnode)) != 0) {
-      Error("SysOpen vfs_create error, sc:%d", sc);
+      klog_error("SysOpen vfs_create error, sc:%d", sc);
       return sc;
     }
     
   }
    
-  Info("do_open calling fd_alloc()");
+  klog_info("do_open calling fd_alloc()");
   
   fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
   
-  Info("do_open, alloced fd, fd: %d", fd);
+  klog_info("do_open, alloced fd, fd: %d", fd);
   
   if (fd < 0) {
-    Error("do_open failed to alloc filedesc -ENOMEM");
+    klog_error("do_open failed to alloc filedesc -ENOMEM");
     return -ENOMEM;
   }
 
@@ -136,7 +136,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   
   if (filp == NULL) {
     fd_free(current, fd);
-    Error("do_open failed to alloc filp -ENOMEM");
+    klog_error("do_open failed to alloc filp -ENOMEM");
     return -ENOMEM;
   }
 
@@ -154,11 +154,11 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
       }
 #endif
       if ((sc = vfs_truncate(vnode, 0)) != 0) {
-        Error("SysOpen O_TRUNC failed, sc=%d", sc);
+        klog_error("SysOpen O_TRUNC failed, sc=%d", sc);
         fd_free(current, fd);
         filp_release(filp);
 
-        Error("do_open truncate failed, sc = %d", sc);
+        klog_error("do_open truncate failed, sc = %d", sc);
 
         return sc;
       }
@@ -178,7 +178,7 @@ int do_open(struct lookupdata *ld, int oflags, mode_t mode)
   filedesc->filp = filp;
   filedesc->flags |= FDF_VALID;
 
-  Info("do_open(), incrementing vnode_ref");
+  klog_info("do_open(), incrementing vnode_ref");
   vnode_ref(vnode);
 
   return fd;  

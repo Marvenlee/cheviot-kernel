@@ -51,7 +51,7 @@ void init_processes(void)
   struct Process *proc;
   struct Thread *thread;
   
-  Info("init_processes() ...");
+  klog_info("init_processes() ...");
   
   bkl_locked = false;
   bkl_owner = NULL;
@@ -64,7 +64,7 @@ void init_processes(void)
     CIRCLEQ_INIT(&sched_queue[t]);
   }
   
-  Info("sched queues initialized");
+  klog_info("sched queues initialized");
   
   for (int t = 0; t < NIRQ; t++) {
     LIST_INIT(&isr_handler_list[t]);
@@ -75,7 +75,7 @@ void init_processes(void)
     LIST_ADD_TAIL(&isr_handler_free_list, &isr_handler_table[t], free_link);
   }
 
-  Info("isr_handler queues and free list initialized");
+  klog_info("isr_handler queues and free list initialized");
 
   memset (pid_table, 0, max_pid * sizeof (struct PidDesc));
 
@@ -84,21 +84,21 @@ void init_processes(void)
     LIST_ADD_TAIL(&free_piddesc_list, &pid_table[t], free_link);
   }
 
-  Info("free piddesc list initialized");
+  klog_info("free piddesc list initialized");
   
   LIST_INIT(&free_session_list);  
   for (int t = 0; t < max_pid; t++) {
     LIST_ADD_TAIL(&free_session_list, &session_table[t], free_link);
   }
 
-  Info("free session list initialized");
+  klog_info("free session list initialized");
 
   LIST_INIT(&free_pgrp_list);  
   for (int t = 0; t < max_pid; t++) {
     LIST_ADD_TAIL(&free_pgrp_list, &pgrp_table[t], free_link);
   }
 
-  Info("free pgrp list initialized");
+  klog_info("free pgrp list initialized");
   
   free_process_cnt = max_process;
   LIST_INIT(&free_process_list);  
@@ -111,7 +111,7 @@ void init_processes(void)
     LIST_ADD_TAIL(&free_process_list, proc, free_link);
   }
 
-  Info("free process list initialized");
+  klog_info("free process list initialized");
 
   // free_thread_cnt = max_thread;
   LIST_INIT(&free_thread_list);
@@ -122,7 +122,7 @@ void init_processes(void)
     LIST_ADD_TAIL(&free_thread_list, thread, free_link);
   }
    
-  Info("free thread list initialized");
+  klog_info("free thread list initialized");
   
   LIST_INIT(&free_futex_list);
   
@@ -137,20 +137,20 @@ void init_processes(void)
     LIST_INIT(&futex_hash_table[t]);
   }
   
-  Info("futex lists initialized");
+  klog_info("futex lists initialized");
     
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
     LIST_INIT(&timing_wheel[t]);
   }
   
-  Info(".. timing wheel inited");
+  klog_info(".. timing wheel inited");
   
   InitRendez(&timer_rendez);
   softclock_time = hardclock_time = 0;
   
   init_cpu_tables();
   
-  Info(".. cpu struct inited");
+  klog_info(".. cpu struct inited");
 
   root_process = do_create_process(exec_root, NULL,
                               SCHED_RR, 16,
@@ -158,7 +158,7 @@ void init_processes(void)
                               "root",
                               &cpu_table[0]);
 
-  Info("root process created");
+  klog_info("root process created");
 
   // Does the timer thread and kernel threads run in the root address space?
   // May as well, and then use the ASID mechanism to reduce overhead.
@@ -172,7 +172,7 @@ void init_processes(void)
                                &cpu_table[0],
                                "reaper-kt");
                                
-  Info("thread reaper thread created, tid:%d", get_thread_tid(thread_reaper_thread));
+  klog_info("thread reaper thread created, tid:%d", get_thread_tid(thread_reaper_thread));
 
   thread_start(thread_reaper_thread);
 
@@ -189,7 +189,7 @@ void init_processes(void)
                                &cpu_table[0],
                                "timer-kt");
                                
-  Info("timer thread created, tid:%d", get_thread_tid(timer_thread));
+  klog_info("timer thread created, tid:%d", get_thread_tid(timer_thread));
 
   thread_start(timer_thread);
 
@@ -204,9 +204,9 @@ void init_processes(void)
 
   cpu_table[0].idle_thread->state = THREAD_STATE_READY;
 
-  Info("idle thread created for cpu 0, tid:%d", get_thread_tid(cpu_table[0].idle_thread));
+  klog_info("idle thread created for cpu 0, tid:%d", get_thread_tid(cpu_table[0].idle_thread));
 
-  Info("... init_processes() done");
+  klog_info("... init_processes() done");
 }
 
 
@@ -220,7 +220,7 @@ void start_scheduler(void)
   struct Thread *next;
   int q;
   
-  Info("start_scheduler()");
+  klog_info("start_scheduler()");
         
   for (q = 31; q >= 0; q--) {
     if ((sched_queue_bitmap & (1 << q)) != 0) {
@@ -234,7 +234,7 @@ void start_scheduler(void)
     next = cpu->idle_thread;
   }
 
-  KASSERT(next != NULL);
+  kassert(next != NULL);
   
   next->state = THREAD_STATE_RUNNING;    
 

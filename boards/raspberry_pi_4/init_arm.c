@@ -47,13 +47,13 @@ void init_arm(void)
 {
   vm_addr vbar;
 
-  Info("init_arm()");
+  klog_info("init_arm()");
   
   cpsr_dnm_state = hal_get_cpsr() & CPSR_DNM_MASK;
 
-  Info(".. cpsr = %08x", (uint32_t)cpsr_dnm_state);
+  klog_info(".. cpsr = %08x", (uint32_t)cpsr_dnm_state);
     
-  Info(".. setting vector_table pointers");
+  klog_info(".. setting vector_table pointers");
 
   vbar = (vm_addr)vector_table;
 
@@ -76,25 +76,25 @@ void init_arm(void)
   *(uint32_t volatile *)(vbar + 0x38) = (uint32_t)irq_vector;
   *(uint32_t volatile *)(vbar + 0x3C) = (uint32_t)fiq_vector;
 
-  Info("..hal_set_vbar(%08x)", (uint32_t)vector_table);
+  klog_info("..hal_set_vbar(%08x)", (uint32_t)vector_table);
   
   hal_set_vbar((vm_addr)vector_table);
 
 #if 0 // FIXME hal_set_cpacr
-  Info("hal_set_cpacr()");  
+  klog_info("hal_set_cpacr()");  
   uint32_t cpacr;
   cpacr = hal_get_cpacr();
   cpacr |= (0x03 << 20);
   hal_set_cpacr(cpacr);
 #endif
 
-  Info("hal_set_fpexc()");  
+  klog_info("hal_set_fpexc()");  
   uint32_t fpexc;
   fpexc = hal_get_fpexc();
   fpexc |= (1<<30);
   hal_set_fpexc(fpexc);
 
-  Info("Init ARM done");  
+  klog_info("Init ARM done");  
 
 }
 

@@ -109,7 +109,7 @@ void KernelUnlock(void)
       bkl_owner = (void *)NULL;
     }
   } else {
-    KernelPanic();
+    kernelpanic();
   }
 }
 
@@ -138,8 +138,8 @@ void TaskSleep(struct Rendez *rendez)
 
   int_state = DisableInterrupts();
 
-  KASSERT(bkl_locked == true);
-  KASSERT(bkl_owner == current);
+  kassert(bkl_locked == true);
+  kassert(bkl_owner == current);
   
   thread = LIST_HEAD(&bkl_blocked_list);
 
@@ -159,8 +159,8 @@ void TaskSleep(struct Rendez *rendez)
   SchedUnready(current);
   Reschedule();
   
-  KASSERT(bkl_locked == true);
-  KASSERT(bkl_owner == current);
+  kassert(bkl_locked == true);
+  kassert(bkl_owner == current);
 
   RestoreInterrupts(int_state);
 }
@@ -190,8 +190,8 @@ int TaskSleepInterruptible(struct Rendez *rendez, struct timespec *ts, uint32_t 
 
   int_state = DisableInterrupts();
 
-  KASSERT(bkl_locked == true);
-  KASSERT(bkl_owner == current);
+  kassert(bkl_locked == true);
+  kassert(bkl_owner == current);
 
   if (TaskCheckInterruptible(current, intr_flags) != 0) {
     RestoreInterrupts(int_state);
@@ -266,7 +266,7 @@ int TaskCheckInterruptible(struct Thread *thread, uint32_t intr_flags)
 #if 0  // FIXME: Allow signals to interrupt TaskSleepInterruptible
   if (intr_flags & INTRF_SIGNAL) {  
     if((thread->signal.sig_pending & ~thread->signal.sig_mask) != 0 ) {
-      Info("signal interrupt %08x", (thread->signal.sig_pending & ~thread->signal.sig_mask));
+      klog_info("signal interrupt %08x", (thread->signal.sig_pending & ~thread->signal.sig_mask));
       return -EINTR;
     }
   }
@@ -296,13 +296,13 @@ static void TaskTimedSleepCallback(struct Timer *timer)
   if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED) {
 
     if (thread->blocking_rendez != rendez) {
-      Info("TaskTimedSleepCallback()");
-      Info("rendez: %08x, blocking_rendez: %08x", (uint32_t)rendez, (uint32_t)blocking_rendez);
-      Info("thread: %08x", (uint32_t)thread);
-      Info("thread state :%d", thread->state);
+      klog_info("TaskTimedSleepCallback()");
+      klog_info("rendez: %08x, blocking_rendez: %08x", (uint32_t)rendez, (uint32_t)blocking_rendez);
+      klog_info("thread: %08x", (uint32_t)thread);
+      klog_info("thread state :%d", thread->state);
     }
 
-    KASSERT(thread->blocking_rendez == rendez);
+    kassert(thread->blocking_rendez == rendez);
 
     LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
     thread->blocking_rendez = NULL;
@@ -328,8 +328,8 @@ void TaskWakeup(struct Rendez *rendez)
   thread = LIST_HEAD(&rendez->blocked_list);
 
   if (thread != NULL) {
-    KASSERT(thread->blocking_rendez == rendez);   
-    KASSERT(thread->state == THREAD_STATE_RENDEZ_BLOCKED);   
+    kassert(thread->blocking_rendez == rendez);   
+    kassert(thread->state == THREAD_STATE_RENDEZ_BLOCKED);   
 
     LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
     thread->blocking_rendez = NULL;
@@ -356,7 +356,7 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
 
   if (thread != NULL && thread->state == THREAD_STATE_RENDEZ_BLOCKED &&
       ((thread->intr_flags & intr_reason) != 0 || intr_reason == 0)) {    // FIXME: intr_reason confusing
-    KASSERT(thread->blocking_rendez != NULL);
+    kassert(thread->blocking_rendez != NULL);
     rendez = thread->blocking_rendez;
     LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
     thread->blocking_rendez = NULL;
@@ -394,7 +394,7 @@ void  TaskWakeupAll(struct Rendez *rendez)
     thread = LIST_HEAD(&rendez->blocked_list);
 
     if (thread != NULL) {
-      KASSERT(bkl_locked == true);
+      kassert(bkl_locked == true);
       
       LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
       thread->blocking_rendez = NULL;

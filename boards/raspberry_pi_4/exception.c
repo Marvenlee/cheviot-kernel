@@ -37,7 +37,7 @@
  */
 void reset_handler(void)
 {
-  KernelPanic();
+  kernelpanic();
 }
 
 
@@ -46,8 +46,8 @@ void reset_handler(void)
  */
 void reserved_handler(void)
 {
-  Info("reserved_handler");
-  KernelPanic();
+  klog_info("reserved_handler");
+  kernelpanic();
 }
 
 
@@ -56,8 +56,8 @@ void reserved_handler(void)
  */
 void fiq_handler(void)
 {
-  Info("fiq_handler");
-  KernelPanic();
+  klog_info("fiq_handler");
+  kernelpanic();
 }
 
 
@@ -67,7 +67,7 @@ void sys_unknownsyscallhandler(void)
 {
   struct Thread *cthread;
   
-	Error("Unknown syscall called");
+	klog_error("Unknown syscall called");
   
   cthread = get_current_thread();
   cthread->signal.si_code[SIGSYS-1] = 0;
@@ -82,7 +82,7 @@ void sys_deprecatedsyscall(void)
 {
   struct Thread *cthread;
 
-	Error("deprecated syscall called");
+	klog_error("deprecated syscall called");
 
   cthread = get_current_thread();
   cthread->signal.si_code[SIGSYS-1] = 0;
@@ -103,26 +103,26 @@ void undef_instr_handler(struct UserContext *context)
     KernelLock();
   }
 
-  Info("undef_instr_handler");
+  klog_info("undef_instr_handler");
     
   cthread = get_current_thread();
 
   if (mode != USR_MODE && mode != SYS_MODE) {
-    KernelPanic();
+    kernelpanic();
   }
 
-  Error("pc addr:%08x", (uint32_t)context->pc);
+  klog_error("pc addr:%08x", (uint32_t)context->pc);
 
   do_signal_thread(cthread, SIGILL, 0, (intptr_t)context->pc);
-  KernelPanic();    // FIXME: Remove
+  kernelpanic();    // FIXME: Remove
 
   check_signals(context);
 
   if (bkl_locked == false) {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("BKL is not locked when returning from undef_instr_handler");
-    KernelPanic();
+    klog_error("BKL is not locked when returning from undef_instr_handler");
+    kernelpanic();
   }
 
   KernelUnlock();
@@ -148,31 +148,31 @@ void prefetch_abort_handler(struct UserContext *context)
   } else if (bkl_owner != cthread) {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("Prefetch Abort bkl not owner, fault addr = %08x", fault_addr);
-    KernelPanic();
+    klog_error("Prefetch Abort bkl not owner, fault addr = %08x", fault_addr);
+    kernelpanic();
   } else {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("Prefetch Abort in kernel, fault addr = %08x", fault_addr);
-    KernelPanic();
+    klog_error("Prefetch Abort in kernel, fault addr = %08x", fault_addr);
+    kernelpanic();
   }
 
   if (page_fault(fault_addr, PROT_EXEC) != 0) {
     if (mode == USR_MODE || mode == SYS_MODE) {
       PrintUserContext(context);
-      Error("Prefetch Abort: fault addr = %08x", fault_addr);
+      klog_error("Prefetch Abort: fault addr = %08x", fault_addr);
       
       do_signal_thread(cthread, SIGSYS, 0, (intptr_t)fault_addr);
       
-      KernelPanic();    // FIXME: Remove
+      kernelpanic();    // FIXME: Remove
     } else {
       PrintUserContext(context);
-      Error("In unexpected processor mode, fault addr = %08x", fault_addr);
-      KernelPanic();
+      klog_error("In unexpected processor mode, fault addr = %08x", fault_addr);
+      kernelpanic();
     }
   }
 
-  KASSERT(context->pc != 0);
+  kassert(context->pc != 0);
 
   if (mode == USR_MODE || mode == SYS_MODE) {
     check_signals(context);
@@ -180,8 +180,8 @@ void prefetch_abort_handler(struct UserContext *context)
     if (bkl_locked == false) {
       DisableInterrupts();
       PrintUserContext(context);
-      Error("BKL is not locked when returning from prefetch page fault");
-      KernelPanic();
+      klog_error("BKL is not locked when returning from prefetch page fault");
+      kernelpanic();
     }
     KernelUnlock();
   }
@@ -218,9 +218,9 @@ void data_abort_handler(struct UserContext *context)
   } else if (bkl_owner != cthread) {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("fault addr = %08x", fault_addr);
-    Error("dfsr = %08x", dfsr);
-    KernelPanic();
+    klog_error("fault addr = %08x", fault_addr);
+    klog_error("dfsr = %08x", dfsr);
+    kernelpanic();
   }
 
   status = DFSR_STATUS(dfsr);
@@ -229,12 +229,12 @@ void data_abort_handler(struct UserContext *context)
 	  if (mode == USR_MODE) {
         do_signal_thread(cthread, SIGSEGV, 0, (intptr_t)fault_addr);
 
-  	    Error("Alignment fault in user_space panic");
-  	    Error("align fault addr: %08x", fault_addr);      
-        KernelPanic();    // FIXME: Remove
+  	    klog_error("Alignment fault in user_space panic");
+  	    klog_error("align fault addr: %08x", fault_addr);      
+        kernelpanic();    // FIXME: Remove
 	  } else {
-	    Error("Alignment fault in kernel, panic");
-      KernelPanic();
+	    klog_error("Alignment fault in kernel, panic");
+      kernelpanic();
     }
 	} else {
     if (dfsr & DFSR_RW)
@@ -244,35 +244,35 @@ void data_abort_handler(struct UserContext *context)
 
     if (page_fault(fault_addr, access) != 0) {
       if (mode == SVC_MODE && cthread->catch_state.pc != 0xfee15bad) {
-        Error("Page fault failed during copyin/copyout");
-        Error("fault_addr: %08x, access:%08x", fault_addr, access);
+        klog_error("Page fault failed during copyin/copyout");
+        klog_error("fault_addr: %08x, access:%08x", fault_addr, access);
         
         context->pc = cthread->catch_state.pc;
         cthread->catch_state.pc = 0xfee15bad;
       } else if (mode == USR_MODE || mode == SYS_MODE) {
         PrintUserContext(context);
-        Error("Unhandled USER Data Abort: fault addr = %08x", fault_addr);
-        Error("Stack:");
+        klog_error("Unhandled USER Data Abort: fault addr = %08x", fault_addr);
+        klog_error("Stack:");
         PrintMemDump(context->sp, 32);
-        Error("PC:");
+        klog_error("PC:");
         PrintMemDump(context->pc, 32);
-        Error("mode = %08x", mode);
+        klog_error("mode = %08x", mode);
         
         do_signal_thread(cthread, SIGSEGV, 0, (intptr_t)fault_addr);
 
-        KernelPanic();  // FIXME: Remove
+        kernelpanic();  // FIXME: Remove
 
       } else {
-        Error("Unhandled fault, mode = %08x", mode);
+        klog_error("Unhandled fault, mode = %08x", mode);
         PrintUserContext(context);
-        Error("fault addr = %08x", fault_addr);
+        klog_error("fault addr = %08x", fault_addr);
         pmap_switch(cproc, NULL);
-        KernelPanic();
+        kernelpanic();
       }
     }
   }
   
-  KASSERT(context->pc != 0);
+  kassert(context->pc != 0);
 
   if (mode == USR_MODE || mode == SYS_MODE) {
     check_signals(context);
@@ -280,7 +280,7 @@ void data_abort_handler(struct UserContext *context)
     if (bkl_locked == false) {
       DisableInterrupts();
       PrintUserContext(context);
-      KernelPanic();
+      kernelpanic();
     }
 
     KernelUnlock();

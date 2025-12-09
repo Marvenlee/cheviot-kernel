@@ -74,7 +74,7 @@ const uint32_t sigprop[NSIG] = {
  */
 void sig_exit(int signal)
 {
-  Info("sig_exit(signal:%d)", signal);
+  klog_info("sig_exit(signal:%d)", signal);
   sys_exit(signal<<8);
 }
 
@@ -151,17 +151,17 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 	struct sigaction act, oact;
 	struct Process *cproc;
 	
-	Info("sys_sigaction(signal:%d)", signal);
+	klog_info("sys_sigaction(signal:%d)", signal);
 	
 	cproc = get_current_process();	
 
 	if (signal <= 0 || signal > NSIG) {
-  	Info("sys_sigaction -EINVAL");
+  	klog_info("sys_sigaction -EINVAL");
 	  return -EINVAL;
 	}
 	
 	if (signal == SIGKILL || signal == SIGSTOP) {
-  	Error("sys_sigaction -EINVAL SIGKILL | SIGSTOP");
+  	klog_error("sys_sigaction -EINVAL SIGKILL | SIGSTOP");
 		return -EINVAL;
 	}
 	
@@ -173,14 +173,14 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 		oact.sa_mask = cproc->signal.handler_mask[signal-1];
 
 		if (copyout (oact_out, &oact, sizeof (struct sigaction)) != 0) {
-    	Info("sys_sigaction -EFAULT act_out");
+    	klog_info("sys_sigaction -EFAULT act_out");
 		  return -EFAULT;
 		}
 	}
 	
 	if (act_in != NULL) {
 		if (copyin(&act, act_in, sizeof (struct sigaction)) != 0) {
-    	Info("sys_sigaction -EFAULT act_in");
+    	klog_info("sys_sigaction -EFAULT act_in");
 			return -EFAULT;
     }
 
@@ -217,10 +217,10 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
  */
 int sys_kill(pid_t pid, int signal)
 {
-	Info("sys_kill(pid:%d, signal:%d)", pid, signal);
+	klog_info("sys_kill(pid:%d, signal:%d)", pid, signal);
     
 	if (signal <= 0 || signal > NSIG || pid == 0) {
-	  Error("kill -EINVAL signal out of range");
+	  klog_error("kill -EINVAL signal out of range");
 	  return -EINVAL;
 	}
 	
@@ -255,7 +255,7 @@ int do_kill_process(pid_t pid, int signal, int code, intptr_t val)
   struct Process *cproc;
 	struct Process *proc;
 
-  Info("do_kill_process(%d, %d)", pid, signal);
+  klog_info("do_kill_process(%d, %d)", pid, signal);
 
   cproc = get_current_process();
 	proc = get_process(pid);
@@ -281,10 +281,10 @@ int do_kill_process_group(pid_t pgid, int signal, int code, intptr_t val)
 	struct Process *proc;
   struct Pgrp *pgrp;
   
-  Info("do_kill_process_group(%d, %d)", pgid, signal);
+  klog_info("do_kill_process_group(%d, %d)", pgid, signal);
 
 	if (pgid < 0 || pgid >= max_process) {
-    Info("pgrp out of range");
+    klog_info("pgrp out of range");
 	  return -EINVAL;
 	}
 	
@@ -320,7 +320,7 @@ int do_kill_thread(struct Thread *thread, int signal)
  */
 void do_signal_process(struct Process *proc, int signal, int code, intptr_t val)
 {
-  Info("do_signal_process(%08x, %d)", (uint32_t)proc, signal);
+  klog_info("do_signal_process(%08x, %d)", (uint32_t)proc, signal);
 
   struct Thread *thread;
     
@@ -471,7 +471,7 @@ int sys_sigpending(sigset_t *set_out)
  */ 
 void do_signal_default(int sig)
 {
-//  Info("do_signal_default(%d)", sig);
+//  klog_info("do_signal_default(%d)", sig);
   
 	if (sigprop[sig] & SP_KILL) {
 		sig_exit(sig);

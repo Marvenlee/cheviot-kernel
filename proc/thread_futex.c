@@ -73,20 +73,20 @@ int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, in
   lock_futex_table();
   
   if (copyin(&cval, uaddr, sizeof cval) != 0) {
-    Error("-- failed to copyin uaddr");
+    klog_error("-- failed to copyin uaddr");
     unlock_futex_table();
     return -EFAULT;
   }
   
   if (cval != val) {
-    Error("-- cval != val, EAGAIN");
+    klog_error("-- cval != val, EAGAIN");
     unlock_futex_table();
 		return -EAGAIN;
   }
   
   if (timeout != NULL) {
     if (copyin(&ts, timeout, sizeof ts) == 0) {
-      Error("-- timeout copyin failed");
+      klog_error("-- timeout copyin failed");
       unlock_futex_table();
   		return -EFAULT;
     }
@@ -97,7 +97,7 @@ int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, in
   futex = futex_get(current_proc, uaddr, FUTEX_CREATE);
 
   if (futex == NULL) {
-    Error("-- cannot find mutex for uaddr:%08x", uaddr);
+    klog_error("-- cannot find mutex for uaddr:%08x", uaddr);
     unlock_futex_table();
     return -EINVAL;
   }
@@ -267,7 +267,7 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
   futex = LIST_HEAD(&free_futex_list);
 
   if (futex == NULL) {
-    Error("no free futex");
+    klog_error("no free futex");
     return NULL;
   }
 

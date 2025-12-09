@@ -44,7 +44,7 @@ int sys_truncate(int fd, size_t sz)
 
     if (vnode) {
       if (!S_ISREG(vnode->mode)) {
-        Error("truncate: vnode is not reg file!");
+        klog_error("truncate: vnode is not reg file!");
         return -EINVAL;
       }
 

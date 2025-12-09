@@ -38,7 +38,7 @@ ssize_t read_from_block(struct VNode *vnode, void *dst, size_t sz, off64_t *offs
 {
   size_t total_xfered = 0;
 
-  Info("read_from_block(vnode:%08x, sz:%u, ...)", (uint32_t)vnode, (uint32_t)sz);
+  klog_info("read_from_block(vnode:%08x, sz:%u, ...)", (uint32_t)vnode, (uint32_t)sz);
 
   while (total_xfered < sz) {
     size_t remaining = sz - total_xfered;
@@ -70,7 +70,7 @@ ssize_t write_to_block(struct VNode *vnode, void *src, size_t sz, off64_t *offse
 {
 	size_t total_xfered = 0;
 
-  Info("write_to_block() vnode:%08x, sz:%u", (uint32_t)vnode, (uint32_t)sz);
+  klog_info("write_to_block() vnode:%08x, sz:%u", (uint32_t)vnode, (uint32_t)sz);
 
   while (total_xfered < sz) {
     size_t remaining = sz - total_xfered;

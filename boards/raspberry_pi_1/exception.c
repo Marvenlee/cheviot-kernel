@@ -36,7 +36,7 @@
  */
 void reset_handler(void)
 {
-  KernelPanic();
+  kernelpanic();
 }
 
 
@@ -45,7 +45,7 @@ void reset_handler(void)
  */
 void reserved_handler(void)
 {
-  KernelPanic();
+  kernelpanic();
 }
 
 
@@ -54,7 +54,7 @@ void reserved_handler(void)
  */
 void fiq_handler(void)
 {
-  KernelPanic();
+  kernelpanic();
 }
 
 /*
@@ -82,7 +82,7 @@ void undef_instr_handler(struct UserContext *context)
 
   if ((context->cpsr & CPSR_MODE_MASK) != USR_MODE &&
       (context->cpsr & CPSR_MODE_MASK) != SYS_MODE) {
-    KernelPanic();
+    kernelpanic();
   }
 
   current->signal.si_code[SIGILL-1] = 0;
@@ -110,13 +110,13 @@ void prefetch_abort_handler(struct UserContext *context)
   } else if (bkl_owner != current) {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("Prefetch Abort bkl not owner, fault addr = %08x", fault_addr);
-    KernelPanic();
+    klog_error("Prefetch Abort bkl not owner, fault addr = %08x", fault_addr);
+    kernelpanic();
   } else {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("Prefetch Abort in kernel, fault addr = %08x", fault_addr);
-    KernelPanic();
+    klog_error("Prefetch Abort in kernel, fault addr = %08x", fault_addr);
+    kernelpanic();
   }
 
   if (page_fault(fault_addr, PROT_EXEC) != 0) {
@@ -127,12 +127,12 @@ void prefetch_abort_handler(struct UserContext *context)
       
     } else {
       PrintUserContext(context);
-      Error("In unexpected processor mode, fault addr = %08x", fault_addr);
-      KernelPanic();
+      klog_error("In unexpected processor mode, fault addr = %08x", fault_addr);
+      kernelpanic();
     }
   }
 
-  KASSERT(context->pc != 0);
+  kassert(context->pc != 0);
 
   if (mode == USR_MODE || mode == SYS_MODE) {
     CheckSignals(context);
@@ -140,8 +140,8 @@ void prefetch_abort_handler(struct UserContext *context)
     if (bkl_locked == false) {
       DisableInterrupts();
       PrintUserContext(context);
-      Error("BKL is not locked when returning from prefetch page fault");
-      KernelPanic();
+      klog_error("BKL is not locked when returning from prefetch page fault");
+      kernelpanic();
     }
     KernelUnlock();
   }
@@ -176,8 +176,8 @@ void data_abort_handler(struct UserContext *context)
   } else if (bkl_owner != current) {
     DisableInterrupts();
     PrintUserContext(context);
-    Error("fault addr = %08x", fault_addr);
-    KernelPanic();
+    klog_error("fault addr = %08x", fault_addr);
+    kernelpanic();
   }
   
   if (dfsr & DFSR_RW)
@@ -187,12 +187,12 @@ void data_abort_handler(struct UserContext *context)
 
   if (page_fault(fault_addr, access) != 0) {
     if (mode == SVC_MODE && current->catch_state.pc != 0xdeadbeef) {
-      Error("Page fault failed during copyin/copyout");
+      klog_error("Page fault failed during copyin/copyout");
       context->pc = current->catch_state.pc;
       current->catch_state.pc = 0xdeadbeef;
     } else if (mode == USR_MODE || mode == SYS_MODE) {
       PrintUserContext(context);
-      Error("? USER Data Abort: fault addr = %08x", fault_addr);
+      klog_error("? USER Data Abort: fault addr = %08x", fault_addr);
 
       current->signal.si_code[SIGSEGV-1] = 0;    // TODO: Could be access bit?
       current->signal.sigsegv_ptr = fault_addr;
@@ -200,12 +200,12 @@ void data_abort_handler(struct UserContext *context)
             
     } else {
       PrintUserContext(context);
-      Error("fault addr = %08x", fault_addr);
-      KernelPanic();
+      klog_error("fault addr = %08x", fault_addr);
+      kernelpanic();
     }
   }
 
-  KASSERT(context->pc != 0);
+  kassert(context->pc != 0);
 
   if (mode == USR_MODE || mode == SYS_MODE) {
     CheckSignals(context);
@@ -213,7 +213,7 @@ void data_abort_handler(struct UserContext *context)
     if (bkl_locked == false) {
       DisableInterrupts();
       PrintUserContext(context);
-      KernelPanic();
+      kernelpanic();
     }
 
     KernelUnlock();

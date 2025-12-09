@@ -135,7 +135,7 @@ int sys_thread_event_signal(int tid, int event)
   thread = get_thread(tid);
   
   if (thread == NULL || thread->process != cthread->process) {
-    Error("sys_thread_event_signal() -EPERM");
+    klog_error("sys_thread_event_signal() -EPERM");
     return -EPERM;
   }
 
@@ -164,7 +164,7 @@ int do_thread_event_signal(int tid, int event)
   thread = get_thread(tid);
   
   if (thread == NULL) {
-    Error("do_thread_event_signal() -ENOENT");
+    klog_error("do_thread_event_signal() -ENOENT");
     return -ENOENT;
   }
 

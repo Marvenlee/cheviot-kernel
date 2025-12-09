@@ -45,7 +45,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
   ssize_t retval;
   struct Process *current;
   
-  Info("sys_write(fd:%d, src:%08x, sz:%d", fd, (uint32_t)src, sz);
+  klog_info("sys_write(fd:%d, src:%08x, sz:%d", fd, (uint32_t)src, sz);
 
   if ((retval = bounds_check(src, sz)) != 0) {
     return retval;
@@ -58,7 +58,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-      Info("sys_write - check access W_OK");
+      klog_info("sys_write - check access W_OK");
 
       if (check_access(vnode, filp, W_OK) == 0) {        
         rwlock_shared(&vnode->lock);
@@ -93,7 +93,7 @@ ssize_t sys_write(int fd, void *src, size_t sz)
     }    
 
   } else {
-    Info("sys_write() -EBADF a");
+    klog_info("sys_write() -EBADF a");
 
     retval = -EBADF;
   }
@@ -152,7 +152,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
           rwlock_downgrade(&vnode->lock);
 
         } else {
-          Info("sys_pwritev() -EBADF a");
+          klog_info("sys_pwritev() -EBADF a");
           retval = -EBADF;
         }
 
@@ -166,7 +166,7 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     }
 
   } else {
-    Info("sys_pwritev() -EBADF b");
+    klog_info("sys_pwritev() -EBADF b");
     retval = -EBADF;
   }
   

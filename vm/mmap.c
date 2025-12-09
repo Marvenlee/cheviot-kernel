@@ -55,7 +55,7 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
   struct MemRegion *mr;
   uint64_t privileges;
     
-  Info("sys_mmap(_addr:%08x, len:%08x)", (uint32_t)_addr, (uint32_t)len);
+  klog_info("sys_mmap(_addr:%08x, len:%08x)", (uint32_t)_addr, (uint32_t)len);
   
   flags &= VM_FLAGS_MASK;
   prot &= VM_PROT_MASK;
@@ -69,7 +69,7 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
   }
 
   if (check_privileges(current, privileges) != 0) {
-    Error("mmap failed, privileges");
+    klog_error("mmap failed, privileges");
     return MAP_FAILED;
   }
 
@@ -83,7 +83,7 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
   mr = memregion_create(as, addr, len, flags, MR_TYPE_ALLOC);
   
   if (mr == NULL) {
-    Error("mmap failed memregion_create");
+    klog_error("mmap failed memregion_create");
     return MAP_FAILED;
   }
 
@@ -94,7 +94,7 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
     
     for (va = addr, pa = paddr; va < addr + len; va += PAGE_SIZE, pa += PAGE_SIZE) {
       if (pmap_enter(as, va, pa, flags) != 0) {
-        Warn("pmap_enter in mmapPhys failed");
+        klog_warn("pmap_enter in mmapPhys failed");
         goto cleanup;
       }
     }
@@ -114,7 +114,7 @@ void *sys_mmap(void *_addr, size_t len, int prot, int flags, int fd, off_t offse
 
   pmap_flush_tlbs();
   
-  Info("%08x = sys_mmap(len:%d, flags:%08x)", (uint32_t)addr, len, flags);
+  klog_info("%08x = sys_mmap(len:%d, flags:%08x)", (uint32_t)addr, len, flags);
 
   return (void *)addr;
 
@@ -156,7 +156,7 @@ int sys_munmap(void *_addr, size_t len)
   vm_addr addr;
   vm_addr va;
 
-  Info("sys_unmap(addr:%08x, len:%u)", (uint32_t)_addr, len);
+  klog_info("sys_unmap(addr:%08x, len:%u)", (uint32_t)_addr, len);
 
   current = get_current_process();
 
@@ -186,7 +186,7 @@ int sys_munmap(void *_addr, size_t len)
  */
 int sys_mprotect(void *_addr, size_t len, int prot)
 {
-  Info("sys_mprotect()");
+  klog_info("sys_mprotect()");
 
 #if 0
 
@@ -277,7 +277,7 @@ vm_addr sys_virtualtophysaddr(vm_addr addr)
   va = ALIGN_DOWN(addr, PAGE_SIZE);
  
   if (check_privileges(current, PRIV_VALLOCPHYS) != 0) {
-    Warn("VirtualToPhysAddr failed, privileges");
+    klog_warn("VirtualToPhysAddr failed, privileges");
     return (vm_addr)NULL;
   }
  

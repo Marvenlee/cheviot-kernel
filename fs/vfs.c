@@ -47,13 +47,13 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   size_t name_sz;
   int sc;
 
-  KASSERT(name != NULL);
+  kassert(name != NULL);
 
-  Info("vfs_lookup(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
+  klog_info("vfs_lookup(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
 
-  KASSERT(dvnode != NULL);
-  KASSERT(result != NULL);  
-  KASSERT(dvnode->superblock != NULL);
+  kassert(dvnode != NULL);
+  kassert(result != NULL);  
+  kassert(dvnode->superblock != NULL);
 
   sb = dvnode->superblock;
   name_sz = StrLen(name) + 1;
@@ -68,13 +68,13 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
 
   if (sc != 0) {
-    Error("vfs_lookup failed, sc:%d", sc);
+    klog_error("vfs_lookup failed, sc:%d", sc);
     *result = NULL;
     return sc;
   }
   
   if (reply.args.lookup.inode_nr == dvnode->inode_nr) {
-    Warn("lookup.inode_nr reply same as dvnode->inode_nr:%d", dvnode->inode_nr);
+    klog_warn("lookup.inode_nr reply same as dvnode->inode_nr:%d", dvnode->inode_nr);
      
     vnode_ref(dvnode);  // Will this happen?  Onlu if "." or if root ".."
     vnode = dvnode;
@@ -82,19 +82,19 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode = vnode_get(dvnode->superblock, reply.args.lookup.inode_nr);
     
     if (vnode != NULL) {
-      Info("vfs_lookup, vnode exists in mem, calling vnode_ref");
+      klog_info("vfs_lookup, vnode exists in mem, calling vnode_ref");
       vnode_ref(vnode);
     } else {
-      Info("vfs_lookup, vnode doesn't exist in mem");
+      klog_info("vfs_lookup, vnode doesn't exist in mem");
     }
   }
 
   if (vnode == NULL) {
-    Info("vfs_lookup, allocating new vnode");
+    klog_info("vfs_lookup, allocating new vnode");
     vnode = vnode_get_new(sb);
 
     if (vnode == NULL) {
-      Info("vfs_lookup, vnode_get_new -ENOMEM");
+      klog_info("vfs_lookup, vnode_get_new -ENOMEM");
       *result = NULL;
       return -ENOMEM;
     }
@@ -111,7 +111,7 @@ int vfs_lookup(struct VNode *dvnode, char *name, struct VNode **result)
     vnode_hash_enter(vnode);
   } 
 
-  Info("vfs_lookup success: vnode:%08x, ino_nr:%u, ref_cnt:%d", (uint32_t)vnode, (uint32_t)vnode->inode_nr, vnode->reference_cnt);
+  klog_info("vfs_lookup success: vnode:%08x, ino_nr:%u, ref_cnt:%d", (uint32_t)vnode, (uint32_t)vnode->inode_nr, vnode->reference_cnt);
 
   *result = vnode;
   return 0;
@@ -129,7 +129,7 @@ int vfs_close(struct VNode *vnode)
   iorequest_t req = {0};
   int sc;
 
-  Info("vfs_close(vnode:%08x)", (uint32_t)vnode);
+  klog_info("vfs_close(vnode:%08x)", (uint32_t)vnode);
   
   sb = vnode->superblock;
   
@@ -156,11 +156,11 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   size_t name_sz;
   int sc;
 
-  KASSERT(dvnode != NULL);
-  KASSERT(name != NULL);
-  KASSERT(result != NULL);  
+  kassert(dvnode != NULL);
+  kassert(name != NULL);
+  kassert(result != NULL);  
 
-  Info("vfs_create(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
+  klog_info("vfs_create(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
   
   sb = dvnode->superblock;
   name_sz = StrLen(name) + 1;
@@ -179,7 +179,7 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, NELEM(siov), siov, 0, NULL);
 
   if (sc != 0) {
-    Error("vfs_create failed, sc:%d", sc);
+    klog_error("vfs_create failed, sc:%d", sc);
     *result = NULL;
     return sc;
   }
@@ -187,7 +187,7 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
   vnode = vnode_get_new(sb);
 
   if (vnode == NULL) {
-    Error("vfs_create, vnode_get_new -ENOMEM");
+    klog_error("vfs_create, vnode_get_new -ENOMEM");
     *result = NULL;
     return -ENOMEM;
   }
@@ -203,7 +203,7 @@ int vfs_create(struct VNode *dvnode, char *name, int oflags,
 
   vnode_hash_enter(vnode);
   
-  Error("vfs_create success, vnode:%08x, ino_nr:%u", (uint32_t)vnode, (uint32_t)vnode->inode_nr);
+  klog_error("vfs_create success, vnode:%08x, ino_nr:%u", (uint32_t)vnode, (uint32_t)vnode->inode_nr);
     
   *result = vnode;
   return 0;
@@ -220,7 +220,7 @@ int vfs_sendmsg(struct VNode *vnode, int subclass, int siov_cnt, msgiov_t *siov,
   int nbytes_response;
   struct SuperBlock *sb;
   
-  Info("vfs_sendmsg(vnode:%08x)", (uint32_t)vnode);
+  klog_info("vfs_sendmsg(vnode:%08x)", (uint32_t)vnode);
   
   sb = vnode->superblock;
   
@@ -245,10 +245,10 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
   msgiov_t riov[1];
   int nbytes_read;
 
-  Info("vfs_read(vnode:%08x)", (uint32_t)vnode);
+  klog_info("vfs_read(vnode:%08x)", (uint32_t)vnode);
 
-  KASSERT(vnode != NULL);
-  KASSERT(dst != NULL);
+  kassert(vnode != NULL);
+  kassert(dst != NULL);
         
   sb = vnode->superblock;
 
@@ -266,14 +266,14 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
   riov[0].addr = dst;
   riov[0].size = nbytes;
 
-  Info("vfs_read, calling ksendmsg");
+  klog_info("vfs_read, calling ksendmsg");
 
   nbytes_read = ksendmsg(&sb->msgport, ipc, &req, NULL, 0, NULL, NELEM(riov), riov);
 
-  Info("vfs_read, ksendmsg replied");
+  klog_info("vfs_read, ksendmsg replied");
 
   if (nbytes_read < 0) {
-    Error("vfs_read failed :%d", nbytes_read);
+    klog_error("vfs_read failed :%d", nbytes_read);
     return nbytes_read;
   }
 
@@ -281,7 +281,7 @@ ssize_t vfs_read(struct VNode *vnode, int ipc, void *dst, size_t nbytes, off64_t
     *offset += nbytes_read;
   }
 
-  Info("vfs_read: nbytes_read:%d", nbytes_read);
+  klog_info("vfs_read: nbytes_read:%d", nbytes_read);
 
   return nbytes_read;
 }
@@ -296,7 +296,7 @@ ssize_t vfs_write(struct VNode *vnode, int ipc, void *src, size_t nbytes, off64_
   msgiov_t siov[1];
   int nbytes_written;
 
-  Info("vfs_write(vnode:%08x)", (uint32_t)vnode);
+  klog_info("vfs_write(vnode:%08x)", (uint32_t)vnode);
 
   sb = vnode->superblock;
 
@@ -375,7 +375,7 @@ int vfs_mknod(struct VNode *dvnode, char *name, uid_t uid, gid_t gid, mode_t mod
   msgiov_t siov[1];
   int sc;
 
-  Info("vfs_mknod(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
+  klog_info("vfs_mknod(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
 
   sb = dvnode->superblock;
 
@@ -408,7 +408,7 @@ int vfs_mkdir(struct VNode *dvnode, char *name, uid_t uid, gid_t gid, mode_t mod
   msgiov_t siov[1];
   int sc;
 
-  Info("vfs_mkdir(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
+  klog_info("vfs_mkdir(dvnode:%08x, name:%s)", (uint32_t)dvnode, name);
 
   sb = dvnode->superblock;
 
@@ -489,7 +489,7 @@ int vfs_truncate(struct VNode *vnode, size_t size)
   struct SuperBlock *sb;
   int sc;
 
-  Info("vfs_truncate, size:%u, ino_nr:%u", size, (uint32_t)vnode->inode_nr);
+  klog_info("vfs_truncate, size:%u, ino_nr:%u", size, (uint32_t)vnode->inode_nr);
 
   sb = vnode->superblock;
 
@@ -499,7 +499,7 @@ int vfs_truncate(struct VNode *vnode, size_t size)
 
   sc = ksendmsg(&sb->msgport, KUCOPY, &req,  NULL, 0, NULL, 0, NULL);
 
-  Info("vfs_truncate, sc:%d", sc);
+  klog_info("vfs_truncate, sc:%d", sc);
   return sc;
 }
 
@@ -686,8 +686,8 @@ int vfs_rdlink(struct VNode *vnode, char *buf, size_t sz)
   msgiov_t riov[1];
   int sc;
   
-  KASSERT(buf != NULL);
-  KASSERT(sz > 0);
+  kassert(buf != NULL);
+  kassert(sz > 0);
   
   sb = vnode->superblock;
 
@@ -733,7 +733,7 @@ ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, si
   iorequest_t req = {0};
   int nbytes_read;
 
-  KASSERT(vnode != NULL);
+  kassert(vnode != NULL);
         
   sb = vnode->superblock;
 
@@ -751,7 +751,7 @@ ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, si
   nbytes_read = ksendmsg(&sb->msgport, ipc, &req, NULL, 0, NULL, riov_cnt, riov);
 
   if (nbytes_read < 0) {
-    Error("vfs_read failed :%d", nbytes_read);
+    klog_error("vfs_read failed :%d", nbytes_read);
     return nbytes_read;
   }
 
@@ -771,7 +771,7 @@ ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, s
   iorequest_t req = {0};
   int nbytes_written;
 
-  KASSERT(vnode != NULL);
+  kassert(vnode != NULL);
 
   sb = vnode->superblock;
 

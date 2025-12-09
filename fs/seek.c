@@ -40,7 +40,7 @@ off_t sys_lseek(int fd, off_t pos, int whence)
   struct Process *current;
   int sc;
   
-  Info("sys_lseek(fd:%d, pos:%u, whence:%d", fd, (uint32_t)pos, whence);
+  klog_info("sys_lseek(fd:%d, pos:%u, whence:%d", fd, (uint32_t)pos, whence);
 
   
   current = get_current_process();
@@ -74,7 +74,7 @@ off_t sys_lseek(int fd, off_t pos, int whence)
     }
 
   } else {
-    Info("sys_lseek() -EBADF");
+    klog_info("sys_lseek() -EBADF");
     sc = -EBADF;
   }
 
@@ -132,7 +132,7 @@ int sys_lseek64(int fd, off64_t *_pos, int whence)
       sc = -EINVAL;
     }
   } else {
-    Info("sys_lseek64() -EBADF");
+    klog_info("sys_lseek64() -EBADF");
   
     sc = -EBADF;
   }

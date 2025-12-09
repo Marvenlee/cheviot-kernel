@@ -87,7 +87,7 @@ void init_vm(void)
 
   // Error checking, all pages should have 0 or 1 references.
   for (pa = 0; pa < mem_size; pa += PAGE_SIZE) {
-    KASSERT(pageframe_table[pa / PAGE_SIZE].reference_cnt <= 1);
+    kassert(pageframe_table[pa / PAGE_SIZE].reference_cnt <= 1);
   }
   
   coalesce_free_pageframes();
@@ -142,7 +142,7 @@ void coalesce_free_pageframes(void)
     slab_free_page_cnt = 0;
 
     for (pa2 = pa; pa2 < pa + 0x10000; pa2 += PAGE_SIZE) {
-      KASSERT(pageframe_table[pa2 / PAGE_SIZE].flags == 0 ||
+      kassert(pageframe_table[pa2 / PAGE_SIZE].flags == 0 ||
               pageframe_table[pa2 / PAGE_SIZE].flags & PGF_USER ||
               pageframe_table[pa2 / PAGE_SIZE].flags & PGF_KERNEL);
 

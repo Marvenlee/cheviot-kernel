@@ -118,7 +118,7 @@ void Main(void)
   Info ("kernel heap base : %08x", _heap_base);
   Info ("kernel heap top : %08x", _heap_current);
   
-  Info("Initializing kernel...");
+  klog_info("Initializing kernel...");
 
   InitDebug();
   init_arm();
@@ -128,7 +128,7 @@ void Main(void)
   init_vfs();
   init_processes();
   
-  Info("Calling start scheduler");
+  klog_info("Calling start scheduler");
   
   start_scheduler();
 

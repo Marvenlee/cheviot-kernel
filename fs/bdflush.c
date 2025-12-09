@@ -33,7 +33,7 @@
  */
 int init_superblock_bdflush(struct SuperBlock *sb)
 {
-  Info("init_superblock_bdflush");
+  klog_info("init_superblock_bdflush");
 
 #if 0
   sb->bdflush_thread = create_kernel_thread(bdflush_task, sb, 
@@ -41,7 +41,7 @@ int init_superblock_bdflush(struct SuperBlock *sb)
                                         THREADF_KERNEL, NULL, "bdflush-kt");
   
   if (sb->bdflush_thread == NULL) {
-    Info("bd_flush initialization failed");
+    klog_info("bd_flush initialization failed");
     return -ENOMEM;
   }
 #endif
@@ -59,7 +59,7 @@ int init_superblock_bdflush(struct SuperBlock *sb)
  */
 void fini_superblock_bdflush(struct SuperBlock *sb, int how)
 { 
-  Info("fini_superblock_bdflush()");
+  klog_info("fini_superblock_bdflush()");
   
   sb->flags |= SBF_ABORT;
 
@@ -93,7 +93,7 @@ void bdflush_task(void *arg)
 
     TaskSleepInterruptible(&sb->bdflush_rendez, &timeout, INTRF_NONE);
 
-    Info("bdflush_task() sb->lock SHARED");
+    klog_info("bdflush_task() sb->lock SHARED");
 
     vnode = LIST_HEAD(&sb->vnode_list);
     
@@ -105,7 +105,7 @@ void bdflush_task(void *arg)
       vnode = LIST_NEXT(vnode, vnode_link);
     }
 
-    Info("bdflush_task() sb->lock RELEASE");
+    klog_info("bdflush_task() sb->lock RELEASE");
   }
 }
 

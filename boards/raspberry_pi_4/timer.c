@@ -36,7 +36,7 @@ void init_timer_registers(void)
 {
   uint32_t clo;
 
-  Info("init_timer_registers");
+  klog_info("init_timer_registers");
 
   clo = hal_mmio_read(&timer_regs->clo);
   clo += MICROSECONDS_PER_JIFFY;

@@ -48,13 +48,13 @@ void *kmalloc_page(void)
   page = alloc_page();
   
   if (page == NULL) {
-    Error("kmalloc_page() failed");
+    klog_error("kmalloc_page() failed");
     return NULL;
   }
   
   vaddr = (void *)pmap_page_to_va(page);
 
-//  Info("kmalloc_page() vaddr:%08x", (uint32_t)vaddr);
+//  klog_info("kmalloc_page() vaddr:%08x", (uint32_t)vaddr);
 
   return vaddr;
 }
@@ -83,12 +83,12 @@ struct Page *alloc_page(void)
 {
   struct Page *page = NULL;
 
-  Info("alloc_page()");
+  klog_info("alloc_page()");
 
   page = getblk_anon();
   
   if (page == NULL) {
-    Info("alloc_page failed");
+    klog_info("alloc_page failed");
     return NULL;
   }
   
@@ -97,7 +97,7 @@ struct Page *alloc_page(void)
 
   pmap_page_init(&page->pmap_page);
 
-//  Info("alloc_page() done :%08x", (uint32_t) page);
+//  klog_info("alloc_page() done :%08x", (uint32_t) page);
 
   return page;
 }
@@ -118,8 +118,8 @@ int ref_page(struct Page *page)
  */
 void free_page(struct Page *page)
 {
-  KASSERT(page != NULL);
-  KASSERT((page - page_table) < max_page);
+  kassert(page != NULL);
+  kassert((page - page_table) < max_page);
 
   page->reference_cnt--;
 

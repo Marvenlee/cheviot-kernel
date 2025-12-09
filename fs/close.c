@@ -32,7 +32,7 @@ int sys_close(int fd)
 {
   struct Process *current;
   
-  Info("sys_close(fd:%d)", fd);
+  klog_info("sys_close(fd:%d)", fd);
   
   current = get_current_process();
   return do_close(current, fd);
@@ -49,10 +49,10 @@ int do_close(struct Process *proc, int fd)
   mode_t mode;
   int sc = 0;
   
-  Info("do_close(fd:%d)", fd);
+  klog_info("do_close(fd:%d)", fd);
 
   if (fd < 0 || fd >= FILEDESC_MAX) {   // TODO:  Add filedesc_find, if null return -einval
-    Error("do_close() fd out of range: %d, -EINVAL", fd);
+    klog_error("do_close() fd out of range: %d, -EINVAL", fd);
     return -EINVAL;
   }
 
@@ -72,7 +72,7 @@ int do_close(struct Process *proc, int fd)
         fd_free(proc, fd);
 
         if (filp_release(filp) == 0) {
-          KASSERT(vnode != NULL);
+          kassert(vnode != NULL);
           
           mode = vnode->mode;
            
@@ -104,7 +104,7 @@ int do_close(struct Process *proc, int fd)
         
         break;
       default:
-        KernelPanic();
+        kernelpanic();
     }    
   } else {
     sc = -EBADF;

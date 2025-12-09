@@ -401,7 +401,7 @@ int pmap_create(struct AddressSpace *as)
   struct Pageframe *pf;
 
   if ((pf = alloc_pageframe(PAGEDIR_SZ)) == NULL) {
-    Error("PmapCreate failed to alloc pageframe");
+    klog_error("PmapCreate failed to alloc pageframe");
     return -1;
   }
 

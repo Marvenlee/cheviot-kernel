@@ -82,7 +82,7 @@ void Reschedule(void)
     current->quanta_used ++;
   
     if (current->sched_policy == SCHED_RR) {
-      KASSERT(current->priority >= 16 && current->priority < 32);
+      kassert(current->priority >= 16 && current->priority < 32);
 
       if ((CIRCLEQ_HEAD(&sched_queue[current->priority])) != NULL) {
         CIRCLEQ_FORWARD(&sched_queue[current->priority], sched_entry);
@@ -167,8 +167,8 @@ void SchedReady(struct Thread *thread)
   } else if (thread->sched_policy == SCHED_IDLE) {
     // Ignore IDLE sched policy, it's never placed in a sched queue
   } else {
-    Error("Ready: Unknown sched policy %d", thread->sched_policy);
-    KernelPanic();
+    klog_error("Ready: Unknown sched policy %d", thread->sched_policy);
+    kernelpanic();
   }
 
   thread->quanta_used = 0;
@@ -202,8 +202,8 @@ void SchedUnready(struct Thread *thread)
   } else if (thread->sched_policy == SCHED_IDLE) {
     // Ignore IDLE sched policy, it's never placed in a sched queue
   } else {
-    Error("Unready: Unknown sched policy *****");
-    KernelPanic();
+    klog_error("Unready: Unknown sched policy *****");
+    kernelpanic();
   }
 }
 
@@ -255,7 +255,7 @@ void thread_stop(void)
   SchedUnready(current_thread);
   Reschedule();
   
-  KernelPanic();
+  kernelpanic();
   while(1);
 }
 
@@ -289,8 +289,8 @@ int init_schedparams(struct Thread *thread, int policy, int priority)
     thread->priority = 0;
     thread->desired_priority = 0;
   } else {
-    Error("Unsupported kernel task sched policy %d", thread->sched_policy);
-    KernelPanic();
+    klog_error("Unsupported kernel task sched policy %d", thread->sched_policy);
+    kernelpanic();
   }
   
   return 0;

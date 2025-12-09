@@ -8,22 +8,6 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-/*
- * At end of most debug statements semi-colons aren't needed or will
- * cause problems compiling.
- *
- * Multi-statement Debug macros have braces surrounding them in case
- * they're used like below...
- *
- * if (condition)
- *     KPANIC (str);
- *
- *
- * Use -DNDEBUG in the makefile CFLAGS to remove debugging.
- * Use -DDEBUG_LEVEL=x to set debugging level.
- * Or define DEBUG_LEVEL at top of source file.
- */
-
 //#define NDEBUG
 
 #ifdef NDEBUG
@@ -36,63 +20,49 @@
 #define DEBUG_LEVEL 2
 #endif
 
-#define Error(fmt, args...) DoLog(fmt, ##args)
+#define klog_error(fmt, args...) DoLog(fmt, ##args)
 
 #if DEBUG_LEVEL >= 1
-#define Warn(fmt, args...) DoLog(fmt, ##args)
+#define klog_warn(fmt, args...) DoLog(fmt, ##args)
 #else
-#define Warn(fmt, args...)
+#define klog_warn(fmt, args...)
 #endif
 
 #if DEBUG_LEVEL >= 2
-#define Info(fmt, args...) DoLog(fmt, ##args)
+#define klog_info(fmt, args...) DoLog(fmt, ##args)
 #else
-#define Info(fmt, args...)
+#define klog_info(fmt, args...)
 #endif
 
 #if DEBUG_LEVEL >= 3
-#define KDebug(fmt, args...) DoLog(fmt, ##args)
+#define klog_debug(fmt, args...) DoLog(fmt, ##args)
 #else
-#define KDebug(fmt, args...)
+#define klog_debug(fmt, args...)
 #endif
 
-#define KASSERT(expr)                                                          \
-  {                                                                            \
-    if (!(expr)) {                                                             \
-      PrintKernelPanic(#expr ", %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);\
-    }                                                                          \
-  }
-
-
-#define KernelPanic()                                                          \
-  {                                                                            \
-    DisableInterrupts();                                                       \
-    PrintKernelPanic("panic, %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);   \
-  }
 
 
 #else
 
-#define Error(fmt, args...)
-#define Warn(fmt, args...)
-#define Info(fmt, args...)
-#define KDebug(fmt, args...)
+#define klog_error(fmt, args...)
+#define klog_warn(fmt, args...)
+#define klog_info(fmt, args...)
+#define klog_debug(fmt, args...)
 
-#define KASSERT(expr)                                                          \
+#endif
+
+#define kassert(expr)                                                          \
   {                                                                            \
     if (!(expr)) {                                                             \
-      PrintKernelPanic(#expr ", %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);\
+      do_kernelpanic(#expr ", %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);  \
     }                                                                          \
   }
 
-#define KernelPanic()                                                          \
-  {                                                                            \
-    DisableInterrupts();                                                       \
-    PrintKernelPanic("panic, %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);   \
-    while(1);                                                                  \
-  }
 
-#endif
+#define kernelpanic()                                                             \
+  {                                                                               \
+    do_kernelpanic("kernelpanic: %s, %d, %s", __FILE__, __LINE__, __FUNCTION__);  \
+  }
 
 
 /*
@@ -103,7 +73,7 @@
 void SysDebug(char *s);
 void DoLog(const char *format, ...);
 void KLog2(const char *format, va_list ap);
-void PrintKernelPanic(char *format, ...);
+void do_kernelpanic(char *format, ...);
 void KLogToScreenDisable(void);
 void NotifyLoggerProcessesInitialized(void);
 void PrintUserContext(void *user_context);

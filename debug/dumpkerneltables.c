@@ -82,28 +82,28 @@ void dump_kernel_processes(int cmd, int arg1, int arg2)
     proc = &process_table[t];
     
     if (proc->state != PROC_STATE_FREE) {
-      Info("-----------------------------------------------");
-      Info("pid: %d, name: %s", proc->pid, proc->basename);
-      Info("sid: %d, pgid: %d", proc->pid, proc->pgid);
-      Info("flags:%08x, state:%d", proc->flags, proc->state);
-      Info("uid:%d, gid:%d, euid:%d, egid:%d", proc->uid, proc->gid, proc->euid, proc->egid);
-      Info("suid:%d, sgid:%d", proc->suid, proc->sgid);
-      Info("ngroups:%d", proc->ngroups);
-      Info("parent:%08x", (uint32_t)proc->parent);
-      Info("log_level:%d",proc->log_level);
-      Info("exit_status:%08x, exit_in_progress:%d", proc->exit_status, proc->exit_in_progress);
-      Info("privileges:%08x,%08x", (uint32_t)(proc->privileges >> 32), (uint32_t)proc->privileges);
-      Info("privileges_after_exec:%08x,%08x", (uint32_t)(proc->privileges_after_exec >> 32), (uint32_t)proc->privileges_after_exec);        
+      klog_info("-----------------------------------------------");
+      klog_info("pid: %d, name: %s", proc->pid, proc->basename);
+      klog_info("sid: %d, pgid: %d", proc->pid, proc->pgid);
+      klog_info("flags:%08x, state:%d", proc->flags, proc->state);
+      klog_info("uid:%d, gid:%d, euid:%d, egid:%d", proc->uid, proc->gid, proc->euid, proc->egid);
+      klog_info("suid:%d, sgid:%d", proc->suid, proc->sgid);
+      klog_info("ngroups:%d", proc->ngroups);
+      klog_info("parent:%08x", (uint32_t)proc->parent);
+      klog_info("log_level:%d",proc->log_level);
+      klog_info("exit_status:%08x, exit_in_progress:%d", proc->exit_status, proc->exit_in_progress);
+      klog_info("privileges:%08x,%08x", (uint32_t)(proc->privileges >> 32), (uint32_t)proc->privileges);
+      klog_info("privileges_after_exec:%08x,%08x", (uint32_t)(proc->privileges_after_exec >> 32), (uint32_t)proc->privileges_after_exec);        
 
       for (int s=0; s<FILEDESC_MAX; s++) {
         if ((proc->fproc.fd_table[s].flags & (FDF_VALID | FDF_ALLOCED)) != 0) {
-          Info("-> fd:%d, filp:%08x, flags:%08x", s, proc->fproc.fd_table[s].filp, proc->fproc.fd_table[s].flags);    
+          klog_info("-> fd:%d, filp:%08x, flags:%08x", s, proc->fproc.fd_table[s].filp, proc->fproc.fd_table[s].flags);    
         }
       }
     }
   }
 
-  Info("-----------------------------------------------");
+  klog_info("-----------------------------------------------");
 }
 
 
@@ -126,16 +126,16 @@ void dump_kernel_filps(int cmd, int arg1, int arg2)
     filp = &filp_table[t];
 
     if (filp->type != FILP_TYPE_UNDEF) {
-      Info("-----------------------------------------------");
-      Info("filp:%08x, type:%d", (uint32_t)filp, filp->type);
-      Info("reference_cnt:%d", filp->reference_cnt);
-      Info("object: %08x", (uint32_t)filp->u.vnode);
-      Info("offset: %08x, mode:%o", (uint32_t)filp->offset, filp->mode);
-      Info("flags: %08x", filp->flags);
+      klog_info("-----------------------------------------------");
+      klog_info("filp:%08x, type:%d", (uint32_t)filp, filp->type);
+      klog_info("reference_cnt:%d", filp->reference_cnt);
+      klog_info("object: %08x", (uint32_t)filp->u.vnode);
+      klog_info("offset: %08x, mode:%o", (uint32_t)filp->offset, filp->mode);
+      klog_info("flags: %08x", filp->flags);
     }
   }
   
-  Info("-----------------------------------------------");  
+  klog_info("-----------------------------------------------");  
 }
 
 
@@ -158,47 +158,47 @@ void dump_kernel_vnodes(int cmd, int arg1, int arg2)
     vnode = &vnode_table[t];
 
     if (vnode->flags & V_VALID) {
-      Info("-----------------------------------------------");
-      Info("vnode:%08x", (uint32_t)vnode);
-      Info("inode_nr:%d, superblock:%08x", vnode->inode_nr, (uint32_t)vnode->superblock);
-      Info("reference_cnt:%d", vnode->reference_cnt);
-      Info("flags:%08x", vnode->flags);
-      Info("char_read_busy:%d, char_write_busy:%d", vnode->char_read_busy, vnode->char_write_busy);
-      Info("vnode_mounted_here:%08x, vnode_covered:%08x", (uint32_t)vnode->vnode_mounted_here, (uint32_t)vnode->vnode_covered);
-      Info("pipe:%08x", (uint32_t)vnode->pipe);
-      Info("tty_sid:%d", vnode->tty_sid);
-      Info("mode:%0o oct", vnode->mode);
+      klog_info("-----------------------------------------------");
+      klog_info("vnode:%08x", (uint32_t)vnode);
+      klog_info("inode_nr:%d, superblock:%08x", vnode->inode_nr, (uint32_t)vnode->superblock);
+      klog_info("reference_cnt:%d", vnode->reference_cnt);
+      klog_info("flags:%08x", vnode->flags);
+      klog_info("char_read_busy:%d, char_write_busy:%d", vnode->char_read_busy, vnode->char_write_busy);
+      klog_info("vnode_mounted_here:%08x, vnode_covered:%08x", (uint32_t)vnode->vnode_mounted_here, (uint32_t)vnode->vnode_covered);
+      klog_info("pipe:%08x", (uint32_t)vnode->pipe);
+      klog_info("tty_sid:%d", vnode->tty_sid);
+      klog_info("mode:%0o oct", vnode->mode);
       
       if (S_ISCHR(vnode->mode)) {
-        Info("mode is ISCHR");
+        klog_info("mode is ISCHR");
       } else if (S_ISREG(vnode->mode)) {
-        Info("mode is ISREG");
+        klog_info("mode is ISREG");
       } else if (S_ISDIR(vnode->mode)) {
-        Info("mode is ISDIR");
+        klog_info("mode is ISDIR");
       } else if (S_ISFIFO(vnode->mode)) {
-        Info("mode is ISFIFO");
+        klog_info("mode is ISFIFO");
       } else if (S_ISBLK(vnode->mode)) {
-        Info("mode is ISBLK");
+        klog_info("mode is ISBLK");
       } else if (S_ISSOCK(vnode->mode)) {
-        Info("mode is ISSOCK");
+        klog_info("mode is ISSOCK");
       } else {
-        Info("mode file type unknown");
+        klog_info("mode file type unknown");
       }
 
       if (vnode == root_vnode) {
-        Info("vnode is root /");
+        klog_info("vnode is root /");
       }
       
-      Info("uid:%d, gid:%d", vnode->uid, vnode->gid);
-      Info("size:%u", (uint32_t)vnode->size);
+      klog_info("uid:%d, gid:%d", vnode->uid, vnode->gid);
+      klog_info("size:%u", (uint32_t)vnode->size);
 
       if (S_ISFIFO(vnode->mode)) {
-        Info("-> pipe reader: %d, writer: %d", vnode->pipe->reader_cnt, vnode->pipe->writer_cnt);
+        klog_info("-> pipe reader: %d, writer: %d", vnode->pipe->reader_cnt, vnode->pipe->writer_cnt);
       }
     }
   }
 
-  Info("-----------------------------------------------");
+  klog_info("-----------------------------------------------");
 }
 
 
@@ -221,16 +221,16 @@ void dump_kernel_superblocks(int cmd, int arg1, int arg2)
     sb = &superblock_table[t];
 
     if (sb->reference_cnt > 0) {
-      Info("-----------------------------------------------");
-      Info("sb:%08x", (uint32_t)sb);
-      Info("reference_cnt:%d", sb->reference_cnt);
-      Info("dev:%08x, flags:%08x", (uint32_t)sb->dev, (uint32_t)sb->flags);
-      Info("size:%u, block_size:%u", (uint32_t)sb->size, (uint32_t)sb->block_size);
-      Info("root:%08x, vnode_list_busy:%d", (uint32_t)sb->root, sb->vnode_list_busy);
+      klog_info("-----------------------------------------------");
+      klog_info("sb:%08x", (uint32_t)sb);
+      klog_info("reference_cnt:%d", sb->reference_cnt);
+      klog_info("dev:%08x, flags:%08x", (uint32_t)sb->dev, (uint32_t)sb->flags);
+      klog_info("size:%u, block_size:%u", (uint32_t)sb->size, (uint32_t)sb->block_size);
+      klog_info("root:%08x, vnode_list_busy:%d", (uint32_t)sb->root, sb->vnode_list_busy);
     }
   }
 
-  Info("-----------------------------------------------");
+  klog_info("-----------------------------------------------");
 
 }
 

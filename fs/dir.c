@@ -38,7 +38,7 @@ int sys_chdir(char *_path)
   struct lookupdata ld;
   int sc;
 
-  Info("sys_chdir()");
+  klog_info("sys_chdir()");
   
   current = get_current_process();
 
@@ -80,7 +80,7 @@ int sys_fchdir(int fd)
   struct VNode *vnode;
   int sc;
 
-  Info("sys_fchdir()");
+  klog_info("sys_fchdir()");
   
   current = get_current_process();
 
@@ -139,14 +139,14 @@ int sys_opendir(char *_path)
   int fd;
   int sc;
 
-  Info("sys_opendir()");
+  klog_info("sys_opendir()");
 
   current = get_current_process();
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     if (S_ISDIR(ld.vnode->mode)) {
       if (check_access(ld.vnode, NULL, R_OK) == 0) {
-        Info("sys_opendir calling fd_alloc()");
+        klog_info("sys_opendir calling fd_alloc()");
         fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
 
         if (fd >= 0) {
@@ -199,7 +199,7 @@ ssize_t sys_readdir(int fd, void *dst, size_t sz)
   off64_t cookie;
   struct Process *current;
 
-  Info("sys_readdir()");
+  klog_info("sys_readdir()");
 
 
   if (sz < MIN_READDIR_BUF_SZ) {     // TODO: Ensure size is big enough for name_max + 1 + sizeof struct dirent.
@@ -284,7 +284,7 @@ int sys_createdir(char *_path, mode_t mode)
   struct Process *current;
   int sc;
 
-  Info("sys_createdir()");
+  klog_info("sys_createdir()");
 
   current = get_current_process();
 
@@ -335,7 +335,7 @@ int sys_rmdir(char *_path)
   struct VNode *dvnode = NULL;
   int sc = 0;
   
-  Info("sys_rmdir()");
+  klog_info("sys_rmdir()");
 
   if ((sc = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
     return sc;

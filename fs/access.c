@@ -36,7 +36,7 @@ int sys_access(char *pathname, mode_t amode)
   struct VNode *vnode;
   int sc;
 
-  Info("sys_access()");
+  klog_info("sys_access()");
 
   if ((sc = lookup(pathname, 0, &ld)) != 0) {
     return sc;
@@ -80,7 +80,7 @@ int sys_chmod(char *_path, mode_t mode)
   struct VNode *vnode;
   int sc;
 
-  Info("sys_chmod()");
+  klog_info("sys_chmod()");
 
   current = get_current_process();
 
@@ -117,7 +117,7 @@ int sys_chown(char *_path, uid_t uid, gid_t gid)
   struct VNode *vnode;
   int sc;
   
-  Info("sys_chown()");
+  klog_info("sys_chown()");
 
   current = get_current_process();
 
@@ -155,7 +155,7 @@ int sys_fchmod(int fd, mode_t mode)
   struct Filp *filp;
   int sc;
 
-  Info("sys_fchmod(fd:%d, mod:%0o)", fd, mode);
+  klog_info("sys_fchmod(fd:%d, mod:%0o)", fd, mode);
 
   current = get_current_process();
 
@@ -174,7 +174,7 @@ int sys_fchmod(int fd, mode_t mode)
           vnode->mode = mode;
         }
       } else {
-        Warn("fchmod -EPERM");
+        klog_warn("fchmod -EPERM");
         sc = EPERM;
       }
 
@@ -184,7 +184,7 @@ int sys_fchmod(int fd, mode_t mode)
     return -EINVAL;
   }
   
-  Info("sys_fchmod() - EBADF, fd:%d", fd);
+  klog_info("sys_fchmod() - EBADF, fd:%d", fd);
   return -EBADF;
 }
 
@@ -200,7 +200,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
   struct Filp *filp;
   struct Process *current;
 
-  Info("sys_fchpwn(fd:%d)", fd);
+  klog_info("sys_fchpwn(fd:%d)", fd);
 
   current = get_current_process();
 
@@ -220,7 +220,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
           vnode->gid = gid;
         }
       } else {
-        Warn("fchown -EPERM");
+        klog_warn("fchown -EPERM");
         sc = -EPERM;
       }
 
@@ -230,7 +230,7 @@ int sys_fchown(int fd, uid_t uid, gid_t gid)
     return -EINVAL;
   }
 
-  Info("sys_fchown() - EBADF, fd:%d", fd);
+  klog_info("sys_fchown() - EBADF, fd:%d", fd);
 
   return -EBADF;
 }
@@ -252,22 +252,22 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
   int shift;
   struct Process *current;
   
-//  Info("check_access(vnode:%08x, filp:%08x, bits:%0o)",
+//  klog_info("check_access(vnode:%08x, filp:%08x, bits:%0o)",
 //                    (uint32_t)vnode, (uint32_t)filp, (uint32_t)desired_access);
   
   current = get_current_process();
   
-//  Info("current->euid = %d, superuser is %d", current->euid, SUPERUSER);
+//  klog_info("current->euid = %d, superuser is %d", current->euid, SUPERUSER);
   
   if (current->euid == SUPERUSER) {
-//    Info("euid is superuser");
+//    klog_info("euid is superuser");
     return 0;
   }
   
   desired_access &= (R_OK | W_OK | X_OK);
 
   if ((desired_access & W_OK) && (vnode->superblock->flags & SBF_READONLY)) {
-    Error("access -EPERM desired W_OK && SBF_READLONLY");
+    klog_error("access -EPERM desired W_OK && SBF_READLONLY");
     return -EPERM;
   }
 
@@ -277,7 +277,7 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
     if ((access_mode == O_RDONLY && (desired_access & W_OK)) ||
         (access_mode == O_WRONLY && (desired_access & R_OK))) {
 
-      Error("access -EPERM desired x_OK but access_mode is either rdonly or wronly");
+      klog_error("access -EPERM desired x_OK but access_mode is either rdonly or wronly");
       return -EPERM;
     }
   }

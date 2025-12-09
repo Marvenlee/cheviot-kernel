@@ -49,7 +49,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   ssize_t xfered = 0;
   int sc;
 
-  Info("read_from_char(vnode:%08x, dst:%08x, sz:%d) begin", (uint32_t)vnode, (uint32_t)dst, sz);
+  klog_info("read_from_char(vnode:%08x, dst:%08x, sz:%d) begin", (uint32_t)vnode, (uint32_t)dst, sz);
 
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
     return sc;
@@ -70,7 +70,7 @@ ssize_t read_from_char(struct VNode *vnode, void *dst, size_t sz)
   vnode->char_read_busy = false;
   TaskWakeupAll(&vnode->rendez);
 
-  Info("read_from_char(vnode:%08x, dst:%08x, sz:%d) xfered:%d", (uint32_t)vnode, (uint32_t)dst, sz, xfered);
+  klog_info("read_from_char(vnode:%08x, dst:%08x, sz:%d) xfered:%d", (uint32_t)vnode, (uint32_t)dst, sz, xfered);
 
   return xfered;
 }
@@ -88,7 +88,7 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   ssize_t total_xfered = 0;  
   int sc;
 
-  Info("write_to_char(vnode:%08x, src:%08x, sz:%d)", (uint32_t)vnode, (uint32_t)src, sz);
+  klog_info("write_to_char(vnode:%08x, src:%08x, sz:%d)", (uint32_t)vnode, (uint32_t)src, sz);
 
   
   if ((sc = tty_fg_pgrp_check(vnode)) != 0) {
@@ -119,7 +119,7 @@ ssize_t write_to_char(struct VNode *vnode, void *src, size_t sz)
   vnode->char_write_busy = false;
   TaskWakeupAll(&vnode->rendez);    
 
-  Info("write_to_char(vnode:%08x, src:%08x, sz:%d) xfered:%d", (uint32_t)vnode, (uint32_t)src, sz, xfered);
+  klog_info("write_to_char(vnode:%08x, src:%08x, sz:%d) xfered:%d", (uint32_t)vnode, (uint32_t)src, sz, xfered);
 
   if (total_xfered == 0) {
     return xfered;
@@ -144,12 +144,12 @@ int sys_isatty(int fd)
   
   current = get_current_process();
 
-  Info("sys_isatty(%d)", fd);
+  klog_info("sys_isatty(%d)", fd);
 
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
-    Info("sys_isatty() -EBADF");
+    klog_info("sys_isatty() -EBADF");
     return -EBADF;
   }
 
@@ -224,7 +224,7 @@ int ioctl_tiocsctty(int fd, int arg)
   filp = filp_get(current, fd);
   
   if (filp == NULL) {
-    Info("ioctl_tiocsctty() -EBADF");
+    klog_info("ioctl_tiocsctty() -EBADF");
     return -EBADF;
   }
 
@@ -248,7 +248,7 @@ int ioctl_tiocsctty(int fd, int arg)
     return -EPERM;
   }
 
-  KASSERT(session->sid != INVALID_PID);
+  kassert(session->sid != INVALID_PID);
 
   if (session->controlling_tty != NULL) {
     vnode_put(session->controlling_tty);
@@ -277,7 +277,7 @@ int ioctl_tiocnotty(int fd)
   struct Process *current;
   struct Session *session;
 
-  Info("ioctl_tiocnotty(%d)", fd);
+  klog_info("ioctl_tiocnotty(%d)", fd);
 
 
   current = get_current_process();
@@ -285,7 +285,7 @@ int ioctl_tiocnotty(int fd)
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
-    Info("ioctl_tiocnotty() -EBADF");
+    klog_info("ioctl_tiocnotty() -EBADF");
 
     return -EBADF;
   }
@@ -333,14 +333,14 @@ int ioctl_tiocgsid(int fd, pid_t *_sid)
   struct Session *session;
   pid_t sid;
 
-  Info("ioctl_tiocgsid(%d)", fd);
+  klog_info("ioctl_tiocgsid(%d)", fd);
   
   current = get_current_process();
 
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
-    Info("ioctl_tiocgsid() -EBADF");
+    klog_info("ioctl_tiocgsid() -EBADF");
     return -EBADF;
   }
 
@@ -386,14 +386,14 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
   struct Session *session;
   pid_t pgid;
 
-  Info("ioctl_tiocgpgrp:(%d)", fd);
+  klog_info("ioctl_tiocgpgrp:(%d)", fd);
   
   current = get_current_process();
 
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
-    Info("ioctl_tiocgpgrp() -EBADF");
+    klog_info("ioctl_tiocgpgrp() -EBADF");
 
     return -EBADF;
   }
@@ -440,14 +440,14 @@ int ioctl_tiocspgrp(int fd, pid_t *_pgid)
   struct Session *session;
   pid_t pgid;
 
-  Info("ioctl_tiocspgrp:(%d)", fd);
+  klog_info("ioctl_tiocspgrp:(%d)", fd);
   
   current = get_current_process();
 
   filp = filp_get(current, fd);
 
   if (filp == NULL) {
-    Info("ioctl_tiocspgrp() -EBADF");
+    klog_info("ioctl_tiocspgrp() -EBADF");
     return -EBADF;
   }
 

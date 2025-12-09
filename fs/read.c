@@ -49,7 +49,7 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
   struct VNode *vnode;
   ssize_t retval;
   
-  Info("sys_read(fd:%d, dst:%08x, sz:%d", fd, (uint32_t)dst, sz);
+  klog_info("sys_read(fd:%d, dst:%08x, sz:%d", fd, (uint32_t)dst, sz);
   
   if ((retval = bounds_check(dst, sz)) != 0) {
     return retval;
@@ -63,7 +63,7 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
       vnode = vnode_get_from_filp(filp);
 
     if (vnode) {
-      Info("sys_read - check access R_OK");
+      klog_info("sys_read - check access R_OK");
             
       if (check_access(vnode, filp, R_OK) == 0) {  
         rwlock_shared(&vnode->lock);
@@ -79,27 +79,27 @@ ssize_t sys_read(int fd, void *dst, size_t sz)
         } else if (S_ISSOCK(vnode->mode)) {
           retval = -ENOSYS; // TODO
         } else {
-          Info("sys_read() -EBADF a");
+          klog_info("sys_read() -EBADF a");
           retval = -EBADF;
         }
         
-//        Info("read: fd:%d, retval:%d", fd, (int)retval);
+//        klog_info("read: fd:%d, retval:%d", fd, (int)retval);
         rwlock_release(&vnode->lock);
                
         return retval;
       }
       
-      Warn("read: %d, -EACESS", fd);
+      klog_warn("read: %d, -EACESS", fd);
       retval = -EACCES;
     } else {
 
-      Warn("read: %d, vnode is NULL, -EINVAL", fd);
+      klog_warn("read: %d, vnode is NULL, -EINVAL", fd);
 
       retval = -EINVAL;
     }    
 
   } else {
-    Info("sys_read() -EBADF b");
+    klog_info("sys_read() -EBADF b");
     retval = -EBADF;
   }
   
@@ -118,7 +118,7 @@ ssize_t kread(int fd, void *dst, size_t sz)
   struct Process *current;
   ssize_t retval;
 
-  Info("kread(fd:%d, dst:%08x, sz:%d", fd, (uint32_t)dst, sz);
+  klog_info("kread(fd:%d, dst:%08x, sz:%d", fd, (uint32_t)dst, sz);
   
   if ((retval = bounds_check_kernel(dst, sz)) != 0) {
     return retval;
@@ -138,7 +138,7 @@ ssize_t kread(int fd, void *dst, size_t sz)
         if (S_ISREG(vnode->mode)) {
           retval = read_from_file(vnode, dst, sz, &filp->offset, true);
         } else {
-          Info("kread() -EBADF a");
+          klog_info("kread() -EBADF a");
 
           retval = -EBADF;
         }
@@ -154,7 +154,7 @@ ssize_t kread(int fd, void *dst, size_t sz)
     }
 
   } else {
-    Info("kread() -EBADF a");
+    klog_info("kread() -EBADF a");
 
     retval = -EBADF;
   }
@@ -206,7 +206,7 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
             retval = read_from_blockv(vnode, iov, iov_cnt, &offset);
           }   
         } else {
-          Info("preadv() -EBADF a");
+          klog_info("preadv() -EBADF a");
 
           retval = -EBADF;
         }          
@@ -219,7 +219,7 @@ ssize_t sys_preadv(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     }
 
   } else {
-    Info("preadv() -EBADF a");
+    klog_info("preadv() -EBADF a");
 
     retval = -EBADF;
   }

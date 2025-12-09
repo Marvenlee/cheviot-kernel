@@ -50,7 +50,7 @@ int rwlock_exclusive(struct RWLock *lock)
 {
 #if 0
   while (lock->is_draining == false  && (lock->exclusive_cnt != 0 || lock->share_cnt != 0)) {
-    Info("lock->exclusive_cnt = %d, share_cnt = %d, sleeping", lock->exclusive_cnt, lock->share_cnt);
+    klog_info("lock->exclusive_cnt = %d, share_cnt = %d, sleeping", lock->exclusive_cnt, lock->share_cnt);
     TaskSleep(&lock->rendez);
   }
 
@@ -91,8 +91,8 @@ int rwlock_shared(struct RWLock *lock)
 int rwlock_upgrade(struct RWLock *lock)
 {
 #if 0
-  KASSERT(lock->exclusive_cnt == 0);
-  KASSERT(lock->share_cnt != 0);
+  kassert(lock->exclusive_cnt == 0);
+  kassert(lock->share_cnt != 0);
 
   while(lock->is_draining == false && (lock->share_cnt != 1 || lock->exclusive_cnt != 0)) {
     TaskSleep(&lock->rendez);
@@ -102,8 +102,8 @@ int rwlock_upgrade(struct RWLock *lock)
     return -EINVAL;
   }
 
-  KASSERT(lock->share_cnt == 1);
-  KASSERT(lock->exclusive_cnt == 0);
+  kassert(lock->share_cnt == 1);
+  kassert(lock->exclusive_cnt == 0);
 
   lock->share_cnt = 0;
   lock->exclusive_cnt = 1;
@@ -118,8 +118,8 @@ int rwlock_upgrade(struct RWLock *lock)
 void rwlock_downgrade(struct RWLock *lock)
 {
 #if 0
-  KASSERT(lock->exclusive_cnt != 1);
-  KASSERT(lock->share_cnt == 0);
+  kassert(lock->exclusive_cnt != 1);
+  kassert(lock->share_cnt == 0);
   
   lock->exclusive_cnt = 0;
   lock->share_cnt = 1;
@@ -183,7 +183,7 @@ void rwlock_init(struct RWLock *lock)
  */
 void rwlock_reset(struct RWLock *lock)
 {
-  KASSERT(lock->is_draining = true);
+  kassert(lock->is_draining = true);
   
   lock->is_draining = false;
   lock->share_cnt = 0;

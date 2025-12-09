@@ -50,20 +50,20 @@ int sys_signalnotify(int fd, int ino_nr, int signal)
   struct SuperBlock *sb;  
   int sc = 0;
   
-  Info("sys_signalnotify(fd:%d, ino:%d, sig:%d)", fd, ino_nr, signal);
+  klog_info("sys_signalnotify(fd:%d, ino:%d, sig:%d)", fd, ino_nr, signal);
   
   current = get_current_process();  
   sb = get_superblock(current, fd);
 
   if (sb == NULL) {
-    Error("sys_signalnotify -EBADF fd not msgport sb");
+    klog_error("sys_signalnotify -EBADF fd not msgport sb");
     return -EBADF;
   }
   
   target_vnode = vnode_find(sb, ino_nr);
   
   if (target_vnode == NULL) {
-    Error("sys_signalnotify -EINVAL, ino_nr invalid");
+    klog_error("sys_signalnotify -EINVAL, ino_nr invalid");
     return -EINVAL;
   }
 
@@ -72,16 +72,16 @@ int sys_signalnotify(int fd, int ino_nr, int signal)
       if (session->foreground_pgrp != INVALID_PID) {
         sc = do_kill_process_group(session->foreground_pgrp, signal, 0, 0);
       } else {
-        Error("No foreground pgrp -EBADF");
+        klog_error("No foreground pgrp -EBADF");
         sc = -EBADF;      
       }
     } else {
-      Error("No session -EBADF");
+      klog_error("No session -EBADF");
       sc = -EBADF;
     }
     
   } else {
-    Error("sys_signalnotify -EBADF not char");
+    klog_error("sys_signalnotify -EBADF not char");
     sc = -EBADF;
   }
   

@@ -46,17 +46,17 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   struct VNode *current_root_vnode;
   int sc;
 	
-	Info("sys_pivotroot()");
+	klog_info("sys_pivotroot()");
 	
   if ((sc = lookup(_old_root, 0, &old_ld)) != 0) {
-    Error("PivotRoot lookup _old_root failed");
+    klog_error("PivotRoot lookup _old_root failed");
     return sc;
   }
 
   old_root_vnode = old_ld.vnode;
 
   if (old_root_vnode == NULL) {
-    Error("PivotRoot lookup _old_root -ENOENT");
+    klog_error("PivotRoot lookup _old_root -ENOENT");
     lookup_cleanup(&old_ld);
     return -ENOENT;
   }
@@ -64,7 +64,7 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   vnode_ref(old_root_vnode);
 
   if ((sc = lookup(_new_root, 0, &new_ld)) != 0) {
-    Error("PivotRoot lookup _new_root failed");
+    klog_error("PivotRoot lookup _new_root failed");
     vnode_put(old_root_vnode);
     lookup_cleanup(&old_ld);
     return sc;
@@ -73,7 +73,7 @@ int sys_pivotroot(char *_new_root, char *_old_root)
   new_root_vnode = new_ld.vnode;
 
   if (new_root_vnode == NULL) {
-    Error("PivotRoot failed new_root -ENOENT");
+    klog_error("PivotRoot failed new_root -ENOENT");
     vnode_put(old_root_vnode);
     lookup_cleanup(&old_ld);
     lookup_cleanup(&new_ld);
@@ -110,23 +110,23 @@ int sys_renamemount(char *_new_path, char *_old_path)
   struct VNode *covered_vnode;
   int sc;
 
-  Info("sys_renamemount()");
+  klog_info("sys_renamemount()");
   
   if ((sc = lookup(_new_path, 0, &new_ld)) != 0) {
-    Error("Failed to find new path");
+    klog_error("Failed to find new path");
     return sc;
   }
 
   new_vnode = new_ld.vnode;
   
   if (new_vnode->vnode_mounted_here != NULL) {
-    Error("new vnode already has mount\n");
+    klog_error("new vnode already has mount\n");
     lookup_cleanup(&new_ld);
     return -EEXIST;
   }
 
   if ((sc = lookup(_old_path, 0, &old_ld)) != 0) {
-    Error("Failed to find old path");
+    klog_error("Failed to find old path");
     lookup_cleanup(&new_ld);
     return sc;
   }
@@ -135,7 +135,7 @@ int sys_renamemount(char *_new_path, char *_old_path)
     
   if (old_vnode->vnode_mounted_here == NULL) {
     if (old_vnode->vnode_covered == NULL) {
-	    Error("old vnode not a mount point\n");
+	    klog_error("old vnode not a mount point\n");
       lookup_cleanup(&new_ld);
       lookup_cleanup(&old_ld);
       return -EINVAL;
@@ -174,12 +174,12 @@ int sys_ismount(char *_path)
   int sc;  
 
   if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
-    Error("sys_ismount lookup failed: %d", sc);
+    klog_error("sys_ismount lookup failed: %d", sc);
     return sc;
   }
 
   if (ld.vnode == NULL) {
-    Error("sys_ismount, inode not found, -ENOENT");
+    klog_error("sys_ismount, inode not found, -ENOENT");
     lookup_cleanup(&ld);
     return -ENOENT;
   }

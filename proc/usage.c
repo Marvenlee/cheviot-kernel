@@ -44,7 +44,7 @@ int sys_get_cpu_usage(void *buf, size_t sz)
   int max_cu;
   int cnt = 0;
   
-  Info("sys_get_cpu_usage(buf:%08x, sz:%u)", (uint32_t)buf, sz);
+  klog_info("sys_get_cpu_usage(buf:%08x, sz:%u)", (uint32_t)buf, sz);
   
   uint64_t now_usec;
   
@@ -56,7 +56,7 @@ int sys_get_cpu_usage(void *buf, size_t sz)
   for (int t=0; t<max_pid && cnt < max_cu; t++) {
     thread = get_thread(t);
     
-    Info("pid: %d, thread:%08x", t, (uint32_t)thread);
+    klog_info("pid: %d, thread:%08x", t, (uint32_t)thread);
     
     if (thread == NULL) {
       continue;
@@ -64,9 +64,9 @@ int sys_get_cpu_usage(void *buf, size_t sz)
     
     proc = thread->process;
 
-    Info("thread->process = %08x", (uint32_t)proc);
+    klog_info("thread->process = %08x", (uint32_t)proc);
     
-    KASSERT(proc != NULL);
+    kassert(proc != NULL);
     
     // Need to set usage_start_usec and creation_usec on thread creation.
     

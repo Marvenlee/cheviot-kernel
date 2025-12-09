@@ -56,7 +56,7 @@ int sys_mknod2(char *_path, mode_t mode)
   sc = vfs_mknod(ld.parent, ld.last_component, current->uid, current->gid, mode);
 
   if (sc != 0) {
-    Error("vfs_mknod() failed, sc:%d", sc);
+    klog_error("vfs_mknod() failed, sc:%d", sc);
     lookup_cleanup(&ld);
     return -ENOMEM;  
   }

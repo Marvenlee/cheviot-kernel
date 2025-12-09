@@ -38,26 +38,26 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
   struct Filp *filp;
   struct Process *current;
   
-  Info("sys_ioctl(fd:%d, cmd:%d", fd, cmd);
+  klog_info("sys_ioctl(fd:%d, cmd:%d", fd, cmd);
   
   current = get_current_process();
 
   filp = filp_get(current, fd);
   
   if (filp == NULL) {
-    Info("sys_ioctl() -EBADF");
+    klog_info("sys_ioctl() -EBADF");
     return -EBADF;
   }
   
   vnode = vnode_get_from_filp(filp);
 
   if (vnode == NULL) {
-    Error("iotctl - FD invalid, no vnode");
+    klog_error("iotctl - FD invalid, no vnode");
     return -EINVAL;
   }
     
   if (!S_ISCHR(vnode->mode)) {
-    Error("iotctl - FD invalid, not char");
+    klog_error("iotctl - FD invalid, not char");
     return -EINVAL;
   }
   
@@ -116,7 +116,7 @@ int sys_ioctl(int fd, int cmd, intptr_t arg)
       break;
   }
 
-  Error("iotctl - returned %d", sc);
+  klog_error("iotctl - returned %d", sc);
   return sc;
 }
 

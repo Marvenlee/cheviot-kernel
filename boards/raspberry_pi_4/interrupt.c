@@ -41,7 +41,7 @@
  */
 void init_interrupt_controller(void)
 {
-  Info("init_interrupt_controller()");
+  klog_info("init_interrupt_controller()");
   
   hal_mmio_write(&gic_dist_regs->enable, 0);
   hal_mmio_write(&gic_cpu_iface_regs->icontrol, 0);
@@ -77,13 +77,13 @@ void init_gicv2_distributor(void)
   nr_lines = 32 * ((type & GICD_TYPE_LINES) + 1);  
 //  gic_cpus = 1 + ((type & GICD_TYPE_CPUS) >> 5);
 
-  Info("GIC cpumask = %08x", cpumask);
-  Info("GIC type = 0x%08x, %d dec", type, type);   
-  Info("GIC cpu_if_ident = %08x", hal_mmio_read(&gic_cpu_iface_regs->cpu_if_ident));
-  Info("GIC nr_lines: %d, NIRQ: %d", nr_lines, NIRQ);
-//  Info("GIC cpus = %d", gic_cpus);  
+  klog_info("GIC cpumask = %08x", cpumask);
+  klog_info("GIC type = 0x%08x, %d dec", type, type);   
+  klog_info("GIC cpu_if_ident = %08x", hal_mmio_read(&gic_cpu_iface_regs->cpu_if_ident));
+  klog_info("GIC nr_lines: %d, NIRQ: %d", nr_lines, NIRQ);
+//  klog_info("GIC cpus = %d", gic_cpus);  
 
-  KASSERT(nr_lines >= NIRQ);
+  kassert(nr_lines >= NIRQ);
 
   /* Disable global interrupts */
   for (int i = 32; i < nr_lines; i += 32 ) {

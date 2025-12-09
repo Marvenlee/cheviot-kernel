@@ -35,7 +35,7 @@ int sys_unlink(char *_path)
   struct lookupdata ld;
   int sc;
 
-  Info("sys_unlink()");
+  klog_info("sys_unlink()");
 
   if ((sc = lookup(_path, LOOKUP_REMOVE, &ld)) != 0) {
     return sc;

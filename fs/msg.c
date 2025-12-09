@@ -60,7 +60,7 @@ int sys_getmsg(int fd, msgid_t *_msgid, iorequest_t *_req, size_t req_sz)
   msgid_t msgid;
   struct Process *current_proc;
 
-  Info("sys_getmsg(fd:%d,,,)", fd);
+  klog_info("sys_getmsg(fd:%d,,,)", fd);
 
   if (req_sz < sizeof(iorequest_t) || _msgid == NULL || _req == NULL) {
     return -EINVAL;
@@ -118,7 +118,7 @@ int sys_replymsg(int fd, msgid_t msgid, int status, ioreply_t *rep, size_t rep_s
   struct SuperBlock *sb;
   struct Msg *msg;
 
-  Info("sys_replymsg(fd:%d)", fd);
+  klog_info("sys_replymsg(fd:%d)", fd);
 
   if (rep != NULL && rep_sz != sizeof(ioreply_t)) {
     return -EINVAL;
@@ -145,7 +145,7 @@ int sys_replymsg(int fd, msgid_t msgid, int status, ioreply_t *rep, size_t rep_s
     msg->reply_status = -EFAULT;
   }
      
-  KASSERT(msg->reply_port != NULL);
+  kassert(msg->reply_port != NULL);
   
 	kreplymsg(msg);
  	 	
@@ -178,7 +178,7 @@ int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   int i;
   int sc;
 
-  Info("sys_readmsg(fd:%d)", fd);
+  klog_info("sys_readmsg(fd:%d)", fd);
           
   current_proc = get_current_process();  
   sb = get_superblock(current_proc, fd);
@@ -262,7 +262,7 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
   int i;
   int sc;
 
-  Info("sys_writemsg(fd:%d)", fd);
+  klog_info("sys_writemsg(fd:%d)", fd);
 
 
   current_proc = get_current_process();  
@@ -347,7 +347,7 @@ int sys_readmsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t off
   size_t xiov_remaining;
   off_t xiov_offset;
   
-  Info("sys_readmsgiov(fd:%d)", fd);
+  klog_info("sys_readmsgiov(fd:%d)", fd);
   
   if (iov_cnt < 1 || iov_cnt > IOV_MAX) {
     return -EINVAL;
@@ -448,7 +448,7 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
   size_t xiov_remaining;
   off_t xiov_offset;
     
-  Info("sys_writemsgiov(fd:%d)", fd);
+  klog_info("sys_writemsgiov(fd:%d)", fd);
   
   if (iov_cnt < 1 || iov_cnt > IOV_MAX) {
     return -EINVAL;
@@ -557,7 +557,7 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
   size_t rbuf_total_sz = 0;
   int sc;
     
-  Info("sys_sendio(fd:%d)", fd);
+  klog_info("sys_sendio(fd:%d)", fd);
     
   if (siov_cnt < 1 || siov_cnt > IOV_MAX || riov_cnt < 0 || riov_cnt > IOV_MAX) {
     return -EINVAL;
@@ -595,7 +595,7 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
   }
 
   if (check_access(vnode, filp, X_OK) != 0) {
-    Info("sys_sendio - check access X_OK failed");
+    klog_info("sys_sendio - check access X_OK failed");
     return -EACCES;
   }
 
@@ -623,9 +623,9 @@ int ksendmsg(struct MsgPort *msgport, int ipc, iorequest_t *req, ioreply_t *repl
   struct Msg msg;
 	int sc;
 	
-	Info("ksendmsg(msgport:%08x, ipc:%d, req:%08x)", (uint32_t)msgport, ipc, (uint32_t)req);
+	klog_info("ksendmsg(msgport:%08x, ipc:%d, req:%08x)", (uint32_t)msgport, ipc, (uint32_t)req);
 	
-	KASSERT(req != NULL);
+	kassert(req != NULL);
 	
   current_proc = get_current_process();
   current_thread = get_current_thread();
@@ -643,21 +643,21 @@ int ksendmsg(struct MsgPort *msgport, int ipc, iorequest_t *req, ioreply_t *repl
   msg.req = req;
   msg.reply = reply;
   
-  Info("calling kputmsg()");
+  klog_info("calling kputmsg()");
     
   sc = kputmsg(msgport, &msg);   
   
   if (sc != 0) {
-    Info("kputmsg failed, sc:%d", sc);
+    klog_info("kputmsg failed, sc:%d", sc);
     return sc;
   }
   
-  Info("calling kwaitport() on replyport");
+  klog_info("calling kwaitport() on replyport");
   
   while ((kwaitport(&current_thread->reply_port, NULL)) != 0) {   
     sc = kabortmsg(msgport, &msg);
     
-    Info("kabortmsg returned :%d", sc);
+    klog_info("kabortmsg returned :%d", sc);
     
     if (sc != 0) {
       return sc;
@@ -667,7 +667,7 @@ int ksendmsg(struct MsgPort *msgport, int ipc, iorequest_t *req, ioreply_t *repl
   kgetmsg(&current_thread->reply_port);
   current_thread->msg = NULL;
   
-  Info("ksendmsg() status:%d", msg.reply_status);
+  klog_info("ksendmsg() status:%d", msg.reply_status);
   
   return msg.reply_status;
 }
@@ -689,7 +689,7 @@ int kabortmsg(struct MsgPort *msgport, struct Msg *msg)
   iorequest_t *req;
   struct Thread *current_thread = get_current_thread();
 
-  Info("kabortmsg(msgport:%08x, msg:%08x", (uint32_t)msgport, (uint32_t)msg);      
+  klog_info("kabortmsg(msgport:%08x, msg:%08x", (uint32_t)msgport, (uint32_t)msg);      
       
   if (msg->msgid != INVALID_PID) {
     // message has been received and is assigned a msgid, send it again with CMD_ABORT
@@ -762,8 +762,8 @@ int kreplymsg(struct Msg *msg)
 {
   struct MsgPort *reply_port;
   
-  KASSERT (msg != NULL);  
-  KASSERT (msg->reply_port != NULL);
+  kassert (msg != NULL);  
+  kassert (msg->reply_port != NULL);
   
   msg->port = msg->reply_port;
   reply_port = msg->reply_port;
@@ -829,19 +829,19 @@ int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
 {
   int sc;
 
-  Info("kwaitport()");
+  klog_info("kwaitport()");
   
   if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
     if ((sc = TaskSleepInterruptible(&msgport->rendez, timeout, INTRF_NONE)) != 0) {
       if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
-        Info("kwaitport() - pending list is empty");
+        klog_info("kwaitport() - pending list is empty");
 
         return sc;
       }
     }
   }
 
-  Info("kwaitport() awakened");
+  klog_info("kwaitport() awakened");
 
   return 0;  
 }
@@ -859,7 +859,7 @@ struct Msg *msgid_to_msg(struct MsgPort *msgport, msgid_t msgid)
   struct Thread *thread;
   struct Msg *msg;
   
-  KASSERT(msgport != NULL);
+  kassert(msgport != NULL);
   
   thread = get_thread(msgid);
   
@@ -891,7 +891,7 @@ int seekiov(int iov_cnt, msgiov_t *iov, off_t offset, int *ret_i, size_t *ret_re
     return -EINVAL;
   }
   
-  KASSERT(iov_cnt > 0);
+  kassert(iov_cnt > 0);
 
   for (i = 0; i < iov_cnt; i++) {
     if (offset >= base_offset && offset < base_offset + iov[i].size) {

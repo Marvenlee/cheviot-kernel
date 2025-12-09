@@ -35,13 +35,13 @@
  */
 int init_fproc(struct Process *proc)
 {
-  Info("init_fproc(proc:%08x)", (uint32_t)proc);
-  Info("FILEDESC_MAX = %d", FILEDESC_MAX);
+  klog_info("init_fproc(proc:%08x)", (uint32_t)proc);
+  klog_info("FILEDESC_MAX = %d", FILEDESC_MAX);
 
   proc->fproc.fd_table = kmalloc_page();
 
   if (proc->fproc.fd_table == NULL) {
-    Info("init_fproc -enomem");
+    klog_info("init_fproc -enomem");
     return -ENOMEM;
   }
 
@@ -54,7 +54,7 @@ int init_fproc(struct Process *proc)
     proc->fproc.fd_table[t].flags = 0;    
   }
 
-  Info("fproc fd table initialized");
+  klog_info("fproc fd table initialized");
 
   return 0;
 }

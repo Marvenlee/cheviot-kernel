@@ -88,7 +88,7 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
   int_state_t int_state;
 
   if (_ts == NULL) {
-    Error("clock_gettime ts == NULL");
+    klog_error("clock_gettime ts == NULL");
     return -EINVAL;
   }
 
@@ -116,17 +116,17 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
 			break;
 		
 		default:
-		  Error("clock_gettime undefined clock_id: %d", clock_id);
+		  klog_error("clock_gettime undefined clock_id: %d", clock_id);
 			sc = -EINVAL;
 	}
 
   if (sc != 0) {
-    Error("clock_gettime failed, sc:%d", sc);
+    klog_error("clock_gettime failed, sc:%d", sc);
   	return sc;
   }
 
   if (copyout(_ts, (const void *)&ts, sizeof(struct timespec)) != 0) {
-  	Error("clock_gettime -efault");
+  	klog_error("clock_gettime -efault");
   	return -EFAULT;
   }
 	
@@ -380,7 +380,7 @@ uint64_t timespec_to_ticks(struct timespec *ts)
  */
 void TimerTopHalf(void)
 {
-  KASSERT(max_cpu == 1);
+  kassert(max_cpu == 1);
   
   for (int t = 0; t < max_cpu; t++) {
     if (cpu_table[t].current_thread != NULL) {
@@ -410,16 +410,16 @@ void timer_bottom_half_task(void *arg)
   struct Timer *timer, *next_timer;
 
   
-//  Info("timer_bottom_half_task");
+//  klog_info("timer_bottom_half_task");
 
   while (1) {
-    KASSERT(bkl_locked == true);
-    KASSERT(bkl_owner == timer_thread);
+    kassert(bkl_locked == true);
+    kassert(bkl_owner == timer_thread);
     
     timer_log_count++;
     
     if ((timer_log_count) % 30 == 0) {
-//      Info("timer tick %d", timer_log_count);
+//      klog_info("timer tick %d", timer_log_count);
     }
     
     TaskSleep(&timer_rendez);

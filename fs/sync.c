@@ -35,7 +35,7 @@ int sys_sync(void)
   int saved_sc = 0;
   int sc;
 
-  Info("sys_sync()");
+  klog_info("sys_sync()");
   
   while (sync_in_progress == true) {
     TaskSleep(&sync_rendez);
@@ -87,7 +87,7 @@ int sys_fsync(int fd)
   struct VNode *vnode;
   int sc;
   
-  Info("sys_fsync(%d)", fd);
+  klog_info("sys_fsync(%d)", fd);
   
   current = get_current_process();
   

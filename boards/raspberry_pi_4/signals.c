@@ -68,7 +68,7 @@ void check_signals(struct UserContext *uc)
     cthread->signal.sigreturn_sigframe = NULL;
 
 	  if (copyin (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
-      Error("Failed to copy in u_sigframe, sig_exit with -SIGSEGV");
+      klog_error("Failed to copy in u_sigframe, sig_exit with -SIGSEGV");
 		  sig_exit(SIGSEGV);
 	  }
 	  
@@ -110,10 +110,10 @@ void check_signals(struct UserContext *uc)
 	  return;
 	}		
 	
-//	Info("caught_signals: %08x", caught_signals);
+//	klog_info("caught_signals: %08x", caught_signals);
 		
   if (caught_signals & SIGBIT(SIGKILL)) {
-    Info("SIGKILL received");
+    klog_info("SIGKILL received");
     sig_exit(SIGKILL);
   }
     

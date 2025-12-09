@@ -75,22 +75,19 @@ void sys_debug(char *s)
 
 /* @brief   Debugging system call to test we can pass 6 arguments
  */
-void sys_debug_sixargs(int a, int b, int c, int d, int e, int f, int dummy1, int dummy2) {
-
-  Info("sys_debug_sixargs(%d %d %d %d %d %d : %08x, %08x)", a,b,c,d,e,f, dummy1, dummy2);
+void sys_debug_sixargs(int a, int b, int c, int d, int e, int f, int dummy1, int dummy2)
+{
+  klog_info("sys_debug_sixargs(%d %d %d %d %d %d : %08x, %08x)", a,b,c,d,e,f, dummy1, dummy2);
 }
 
 
 /* @brief backend of kernel logger.
  *
- * Used by the macros KPRINTF, KLOG, KASSERT and KPANIC to
- * print with printf formatting to the kernel's debug log buffer.
- * The buffer is a fixed size circular buffer, Once it is full
- * the oldest entry is overwritten with the newest entry.
+ * Used by the debug logging macros and kernelpanic to print
+ * to the kernel's debug log buffer.
  *
- * Cannot be used during interrupt handlers or with interrupts
- * disabled s the dbg_slock must be acquired.  Same applies
- * to KPRINTF, KLOG, KASSERT and KPANIC.
+ * At present this prints immediately to a buffer which is
+ * then written out via the debug UART.
  */
 
 void DoLog(const char *format, ...)
@@ -124,9 +121,10 @@ exit:
 
 
 /*
- * KernelPanic();
+ *
  */
-void PrintKernelPanic(char *format, ...) {
+void do_kernelpanic(char *format, ...)
+{
   va_list ap;
 
   DisableInterrupts();

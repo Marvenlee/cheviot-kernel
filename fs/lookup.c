@@ -44,21 +44,21 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
 {
   int rc;
   
-  Info("lookup()");
+  klog_info("lookup()");
   
   if ((rc = init_lookup(_path, flags, ld)) != 0) {
-    Error("Lookup init failed");
+    klog_error("Lookup init failed");
     return rc;
   }
 
   if (flags & LOOKUP_PARENT) {    
     if (ld->path[0] == '/' && ld->path[1] == '\0') {  // Replace with IsPathRoot()
-      Error("Lookup failed root");
+      klog_error("Lookup failed root");
       return -EINVAL;  
     }
 
     if ((rc = lookup_path(ld)) != 0) {
-      Error("Lookup failed");
+      klog_error("Lookup failed");
       return rc;
     }
 
@@ -73,7 +73,7 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
     return 0;
   
   } else if (flags & LOOKUP_REMOVE) {
-    Error("Lookup remove failed");
+    klog_error("Lookup remove failed");
     return -ENOTSUP;        
   } else {
     if (ld->path[0] == '/' && ld->path[1] == '\0') { // Replace with IsPathRoot()
@@ -86,20 +86,20 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
     }
 
     if ((rc = lookup_path(ld)) != 0) {
-      Error("lookup_path rc:%d", rc);
+      klog_error("lookup_path rc:%d", rc);
       return rc;
     }
           
     ld->parent = ld->vnode;
     ld->vnode = NULL;
     
-    KASSERT(ld->parent != NULL);
+    kassert(ld->parent != NULL);
                 
     rc = lookup_last_component(ld);
 
 //    if (ld->parent != ld->vnode)            
 //    {
-      Info("lookup() vnode_put of ld->parent before returning");
+      klog_info("lookup() vnode_put of ld->parent before returning");
       vnode_put(ld->parent);
 //    }
   
@@ -115,22 +115,22 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
  */
 void lookup_cleanup(struct lookupdata *ld)
 {
-  Info("lookup_cleanup()");
+  klog_info("lookup_cleanup()");
   
   if (ld->path != NULL) {
     kfree_page(ld->path);
     ld->path = NULL;
-    Info("..path freed");
+    klog_info("..path freed");
   }
   
   if (ld->vnode != NULL) {
-    Info("..lookup_cleanup vnode:%08x", (uint32_t)ld->vnode);
+    klog_info("..lookup_cleanup vnode:%08x", (uint32_t)ld->vnode);
     vnode_put(ld->vnode);
     ld->vnode = NULL;
   }
 
   if (ld->parent != NULL) {
-    Info("..lookup_cleanup parent:%08x", (uint32_t)ld->parent);
+    klog_info("..lookup_cleanup parent:%08x", (uint32_t)ld->parent);
     vnode_put(ld->parent);
     ld->parent = NULL;
   }
@@ -153,7 +153,7 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   struct Process *current;
   int path_len;
   
-  Info("init_lookup");
+  klog_info("init_lookup");
   
   current = get_current_process();
   
@@ -165,10 +165,10 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   
   ld->path = kmalloc_page();
   
-  Info("init_lookup ld->path buf:%08x", (uint32_t)ld->path);
+  klog_info("init_lookup ld->path buf:%08x", (uint32_t)ld->path);
   
   if (ld->path == NULL) {
-    Error("init_lookup() - Failed to alloc page for pathname");
+    klog_error("init_lookup() - Failed to alloc page for pathname");
     return -1;
   }
   
@@ -177,8 +177,8 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   if (flags & LOOKUP_KERNEL) {
     StrLCpy(ld->path, _path, sizeof ld->path);
   } else if (copyinstring(ld->path, _path, PAGE_SIZE) == -1) {
-    Error("init_lookup -EFAULT");
-    Error("ld->path:%08x, _path:%08x", (uint32_t)ld->path, (uint32_t)_path);
+    klog_error("init_lookup -EFAULT");
+    klog_error("ld->path:%08x, _path:%08x", (uint32_t)ld->path, (uint32_t)_path);
     kfree_page(ld->path);
     ld->path = NULL;   
     return -EFAULT; // FIXME:  Could be ENAMETOOLONG 
@@ -186,7 +186,7 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
 
   path_len = StrLen(ld->path);
 
-  Info("init_lookup, path:%s", ld->path);
+  klog_info("init_lookup, path:%s", ld->path);
 
   // Remove any trailing separators
   
@@ -201,10 +201,10 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   Info ("ld_start_vnode = %08x", (uint32_t)ld->start_vnode);
 
 
-  KASSERT(ld->start_vnode != NULL);
+  kassert(ld->start_vnode != NULL);
 
   if (ld->start_vnode == NULL) {
-    Error("Process has no root or current dir to search from");
+    klog_error("Process has no root or current dir to search from");
     kfree_page(ld->path);
     return -EIO;
   }
@@ -212,7 +212,7 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   vnode_ref(ld->start_vnode);
 
   if (!S_ISDIR(ld->start_vnode->mode)) {
-    Error("init_lookup start vnode -ENOTDIR");
+    klog_error("init_lookup start vnode -ENOTDIR");
     kfree_page(ld->path);
     return -ENOTDIR;
   }
@@ -233,7 +233,7 @@ int lookup_path(struct lookupdata *ld)
   
   Info ("lookup_path");
   
-  KASSERT(ld->start_vnode != NULL);
+  kassert(ld->start_vnode != NULL);
 
   ld->parent = NULL;
   ld->vnode = ld->start_vnode;
@@ -245,7 +245,7 @@ int lookup_path(struct lookupdata *ld)
 
 
     if (ld->last_component == NULL) {
-      Error("lookup_path last_component NULL");
+      klog_error("lookup_path last_component NULL");
       rc = -EINVAL;
       break;
     }
@@ -253,7 +253,7 @@ int lookup_path(struct lookupdata *ld)
     Info ("lookup_path last_component:%s", ld->last_component);
     
     if (ld->parent != NULL) {
-      Info("lookup_path A vnode_put ld->parent %08x", (uint32_t)ld->parent);
+      klog_info("lookup_path A vnode_put ld->parent %08x", (uint32_t)ld->parent);
     
       vnode_put(ld->parent);
       ld->parent = NULL;
@@ -270,7 +270,7 @@ int lookup_path(struct lookupdata *ld)
     rc = walk_component(ld);
 
     if (rc != 0) {
-      Info("lookup_path B vnode_put ld->parent %08x", (uint32_t)ld->parent);
+      klog_info("lookup_path B vnode_put ld->parent %08x", (uint32_t)ld->parent);
 
       vnode_put(ld->parent);
       ld->parent = NULL;
@@ -292,9 +292,9 @@ int lookup_last_component(struct lookupdata *ld)
 {
   int rc;
  
-  Info("lookup_last_component");
+  klog_info("lookup_last_component");
  
-  KASSERT(ld->parent != NULL);
+  kassert(ld->parent != NULL);
     
   if (ld->last_component == NULL) {
     return -ENOENT;
@@ -401,25 +401,25 @@ int walk_component(struct lookupdata *ld)
   struct VNode *vnode_tmp;
   int rc;
 
-  Info("walk_component()");
+  klog_info("walk_component()");
 
-  KASSERT(ld != NULL);
-  KASSERT(ld->parent != NULL);
-  KASSERT(ld->vnode == NULL);
-  KASSERT(ld->last_component != NULL);
+  kassert(ld != NULL);
+  kassert(ld->parent != NULL);
+  kassert(ld->vnode == NULL);
+  kassert(ld->last_component != NULL);
   
   if (!S_ISDIR(ld->parent->mode)) {
-    Error("ld->parent is not a directory");
+    klog_error("ld->parent is not a directory");
     return -ENOTDIR;
  
   } else if (StrCmp(ld->last_component, ".") == 0) {    
-    Info("walk_comp - last comp is .");    
+    klog_info("walk_comp - last comp is .");    
     ld->vnode = ld->parent;
     vnode_ref(ld->vnode);    
     return 0;
   
   } else if (StrCmp(ld->last_component, "..") == 0) {
-    Info("walk_comp - last comp is ..");    
+    klog_info("walk_comp - last comp is ..");    
 
     if (ld->parent == root_vnode) {
       ld->vnode = root_vnode;
@@ -430,19 +430,19 @@ int walk_component(struct lookupdata *ld)
       vnode_tmp = ld->parent->vnode_covered; 
       vnode_ref(vnode_tmp);
   
-      Info("walk_comp - vnode_put Z parent:%08x", (uint32_t)ld->parent);
+      klog_info("walk_comp - vnode_put Z parent:%08x", (uint32_t)ld->parent);
       vnode_put(ld->parent);
       ld->parent = vnode_tmp;
     }
   }
   
-  KASSERT(ld->parent != NULL);
+  kassert(ld->parent != NULL);
 
   // TODO: Do we need dvnode->lock (exclusive) when doing lookup of directory inode?
   // TODO: Dow we lock the new inode too?
 
   if ((rc = vfs_lookup(ld->parent, ld->last_component, &ld->vnode)) != 0) {
-    Info("last_component vfs_lookup rc:%d", rc);
+    klog_info("last_component vfs_lookup rc:%d", rc);
     return rc;
   }
 
@@ -451,19 +451,19 @@ int walk_component(struct lookupdata *ld)
   // TODO: Check permissions/access here
 
   if (vnode_mounted_here != NULL) {
-      Info("lookup vnode mounted here");
+      klog_info("lookup vnode mounted here");
     if (is_last_component(ld) == true && (ld->flags & LOOKUP_NOFOLLOW) == 0) {
       // Special-case handling of /dev/tty
       
       struct SuperBlock *sb = vnode_mounted_here->superblock;
 
-      Info("lookup is last component and follow");
-      Info("lookup sb->dev = %08x", sb->dev);
-      Info("lookup vnode here->mode = %o", vnode_mounted_here->mode);
-      Info("ld->vnode->mode = %o", ld->vnode->mode);
+      klog_info("lookup is last component and follow");
+      klog_info("lookup sb->dev = %08x", sb->dev);
+      klog_info("lookup vnode here->mode = %o", vnode_mounted_here->mode);
+      klog_info("ld->vnode->mode = %o", ld->vnode->mode);
 
       if (sb->dev == DEV_T_DEV_TTY && S_ISCHR(vnode_mounted_here->mode)) {        
-        Info("special case lookup for /dev/tty");
+        klog_info("special case lookup for /dev/tty");
         
         struct Process *current = get_current_process();
       	struct Session *current_session = get_session(current->sid);
@@ -475,21 +475,21 @@ int walk_component(struct lookupdata *ld)
         }
 
         if (vnode_mounted_here == NULL) {
-          Warn("vnode_mounted_here is null, vnode_put A vnode:%08x", (uint32_t)ld->vnode);
+          klog_warn("vnode_mounted_here is null, vnode_put A vnode:%08x", (uint32_t)ld->vnode);
           vnode_put(ld->vnode);
           ld->vnode = NULL;
           return -EPERM;
         }
       }
 
-      Info("walk_comp vnode_put B ld->vnode %08x", (uint32_t)ld->vnode);
+      klog_info("walk_comp vnode_put B ld->vnode %08x", (uint32_t)ld->vnode);
 
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            
       vnode_ref(ld->vnode);
       
     } else {
-      Info("walk_comp vnode_put C ld->vnode %08x", (uint32_t)ld->vnode);
+      klog_info("walk_comp vnode_put C ld->vnode %08x", (uint32_t)ld->vnode);
 
       vnode_put(ld->vnode);
       ld->vnode = vnode_mounted_here;            

@@ -33,7 +33,7 @@
  */
 void init_vfs(void)
 {  
-  Info("init_vfs() ...");
+  klog_info("init_vfs() ...");
 
   init_vfs_lists();
   init_vfs_pipes();
@@ -43,7 +43,7 @@ void init_vfs(void)
   
   root_vnode = NULL;
 
-  Info("... init_vfs() done");
+  klog_info("... init_vfs() done");
 }
 
 

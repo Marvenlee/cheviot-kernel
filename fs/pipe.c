@@ -42,7 +42,7 @@ int sys_pipe(int *_fd)
   struct Process *current;
   int sc;
   
-  Info("sys_pipe");
+  klog_info("sys_pipe");
   
   current = get_current_process();
 
@@ -52,14 +52,14 @@ int sys_pipe(int *_fd)
   pipe = alloc_pipe();
 
   if (pipe) {
-    Info("sys_pipe calling fd_alloc for fd[0]");
+    klog_info("sys_pipe calling fd_alloc for fd[0]");
     fd[0] = fd_alloc(current, 0, FILEDESC_MAX, &filedesc0);
 
     if (fd[0] >= 0) {      
       filp0 = filp_get_new();
       
       if (filp0) {
-      Info("sys_pipe calling fd_alloc for fd[1]");
+      klog_info("sys_pipe calling fd_alloc for fd[1]");
         fd[1] = fd_alloc(current, 0, FILEDESC_MAX, &filedesc1);
 
         if (fd[1] >= 0) {
@@ -96,10 +96,10 @@ int sys_pipe(int *_fd)
 
               vnode_ref(vnode);     // Add second reference for filp1.
 
-              Info("pipe vnode:%08x", (uint32_t)vnode);
-              Info("pipe:%08x", (uint32_t)pipe);
-              Info("fd[0] = %d, fd[1] = %d", fd[0], fd[1]);
-              Info("filedesc0:%08x, filedesc1:%08x", (uint32_t)filedesc0, (uint32_t)filedesc1);
+              klog_info("pipe vnode:%08x", (uint32_t)vnode);
+              klog_info("pipe:%08x", (uint32_t)pipe);
+              klog_info("fd[0] = %d, fd[1] = %d", fd[0], fd[1]);
+              klog_info("filedesc0:%08x, filedesc1:%08x", (uint32_t)filedesc0, (uint32_t)filedesc1);
               
               sc = copyout(_fd, fd, sizeof fd);
               
@@ -109,7 +109,7 @@ int sys_pipe(int *_fd)
                 return 0;
               }
               
-              Info("pipe() failed to copyout fds, discarding");
+              klog_info("pipe() failed to copyout fds, discarding");
               
               vnode_put_fifo_writer(vnode);
               vnode_put_fifo_reader(vnode);
@@ -142,7 +142,7 @@ int sys_pipe(int *_fd)
     sc = -ENOMEM;
   }
 
-  Error("***** sys_pipe() failed, sc:%d *********", sc);
+  klog_error("***** sys_pipe() failed, sc:%d *********", sc);
 
   return sc;
 }
@@ -171,12 +171,12 @@ struct Pipe *alloc_pipe(void)
 {
   struct Pipe *pipe;
   
-  Info("alloc_pipe()");
+  klog_info("alloc_pipe()");
     
   pipe = LIST_HEAD(&free_pipe_list);
   
   if (pipe == NULL) {
-    Error("alloc_pipe, failed, list empty");
+    klog_error("alloc_pipe, failed, list empty");
     return NULL;
   }
   
@@ -193,7 +193,7 @@ struct Pipe *alloc_pipe(void)
   pipe->data = kmalloc_page();
   
   if (pipe->data == NULL) {
-    Error("alloc_pipe() failed to allocate buffer page");
+    klog_error("alloc_pipe() failed to allocate buffer page");
     LIST_ADD_HEAD(&free_pipe_list, pipe, link);
     return NULL;
   }   
@@ -209,9 +209,9 @@ struct Pipe *alloc_pipe(void)
  */
 void free_pipe(struct Pipe *pipe)
 {
-  KASSERT(pipe != NULL);
+  kassert(pipe != NULL);
   
-  Info("free_pipe()");
+  klog_info("free_pipe()");
   
   kfree_page(pipe->data);
 
@@ -234,9 +234,9 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
   int status = 0;
   struct Pipe *pipe;
 
-  KASSERT(vnode != NULL);
+  kassert(vnode != NULL);
   
-  Info("read_from_pipe dst:%08x, sz:%d", (uint32_t)_dst, sz);
+  klog_info("read_from_pipe dst:%08x, sz:%d", (uint32_t)_dst, sz);
   
   pipe = vnode->pipe;
   
@@ -250,10 +250,10 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     }
     
     while (pipe->data_sz == 0 && pipe->writer_cnt > 0) {
-      Info("pipe->free_sz = %d", pipe->free_sz);
-      Info("pipe->data_sz = %d", pipe->data_sz);
-      Info("pipe->reader_cnt = %d", pipe->reader_cnt);
-      Info("pipe->writer_cnt = %d", pipe->writer_cnt);
+      klog_info("pipe->free_sz = %d", pipe->free_sz);
+      klog_info("pipe->data_sz = %d", pipe->data_sz);
+      klog_info("pipe->reader_cnt = %d", pipe->reader_cnt);
+      klog_info("pipe->writer_cnt = %d", pipe->writer_cnt);
       Info ("..Pipe read sleeping");
       TaskSleep (&pipe->rendez);
     }
@@ -274,7 +274,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
       sz1 = PIPE_BUF_SZ - pipe->r_pos;
 
       if (copyout(dst, pipe->data + pipe->r_pos, sz1) != 0) {
-        Info("pipe read, copyout -a- failed");
+        klog_info("pipe read, copyout -a- failed");
 
         status = -EIO;
         break;
@@ -289,7 +289,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     
     if (sz2) {
       if (copyout(dst, pipe->data, sz2) != 0) {
-        Info("pipe read, copyout -b- failed");
+        klog_info("pipe read, copyout -b- failed");
         status = -EIO;
         break;
       }
@@ -325,9 +325,9 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
   int status = 0;
   struct Pipe *pipe;
 
-  KASSERT(vnode != NULL);
+  kassert(vnode != NULL);
 
-  Info("write_to_pipe src:%08x, sz:%d", (uint32_t)_src, sz);
+  klog_info("write_to_pipe src:%08x, sz:%d", (uint32_t)_src, sz);
   
   pipe = vnode->pipe;
 
@@ -343,11 +343,11 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
 
     while (pipe->free_sz < PIPE_BUF && pipe->reader_cnt > 0) {
       Info ("..Pipe write sleeping");
-      Info("pipe->free_sz = %d", pipe->free_sz);
-      Info("pipe->data_sz = %d", pipe->data_sz);
+      klog_info("pipe->free_sz = %d", pipe->free_sz);
+      klog_info("pipe->data_sz = %d", pipe->data_sz);
       
-      Info("pipe->reader_cnt = %d", pipe->reader_cnt);
-      Info("pipe->writer_cnt = %d", pipe->writer_cnt);
+      klog_info("pipe->reader_cnt = %d", pipe->reader_cnt);
+      klog_info("pipe->writer_cnt = %d", pipe->writer_cnt);
 
       TaskSleep (&pipe->rendez);
     }
@@ -364,7 +364,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
       sz1 = PIPE_BUF_SZ - pipe->w_pos;   
 
       if (copyin(pipe->data + pipe->w_pos, src, sz1) != 0) {
-        Info("pipe write, copyin -a- failed");
+        klog_info("pipe write, copyin -a- failed");
         status = -EIO;
         break;
       }
@@ -378,7 +378,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
   
     if (sz2) {
       if (copyin(pipe->data, src2, sz2) != 0) {
-        Info("pipe write, copyin -b- failed");
+        klog_info("pipe write, copyin -b- failed");
 
         status = -EIO;
         break;

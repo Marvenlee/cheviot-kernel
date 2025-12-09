@@ -34,7 +34,7 @@
  */ 
 void Idle(void)
 {
-//  Info("***** IDLE PROCESS Started");
+//  klog_info("***** IDLE PROCESS Started");
 
 //  DisableInterrupts();
   KernelUnlock();

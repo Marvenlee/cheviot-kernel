@@ -43,20 +43,20 @@ struct Filp *filp_get(struct Process *proc, int fd)
 {
   struct Filp *filp;
   
-  Info("filp_get(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  klog_info("filp_get(proc:%08x, fd:%d)", (uint32_t)proc, fd);
   
   if (fd < 0 || fd >= FILEDESC_MAX) {
-    Info("filp_get, fd:%d error out of range", fd);
+    klog_info("filp_get, fd:%d error out of range", fd);
     return NULL;
   }
 
   if ((proc->fproc.fd_table[fd].flags & FDF_VALID) == 0) {
-    Info("get_filp() fd:%d, error not valid", fd);
+    klog_info("get_filp() fd:%d, error not valid", fd);
     return NULL;
   }
   
   if (proc->fproc.fd_table[fd].filp == NULL) {
-    Error("get_filp() fd:%d, error no filp", fd);
+    klog_error("get_filp() fd:%d, error no filp", fd);
     return NULL;
   }
   
@@ -64,7 +64,7 @@ struct Filp *filp_get(struct Process *proc, int fd)
   
   // TODO: filp->reference_cnt++;
   
-  Info(".. filp_get(fd:%d) => filp: %08x, ref_cnt:%d", fd, (uint32_t)filp, filp->reference_cnt);
+  klog_info(".. filp_get(fd:%d) => filp: %08x, ref_cnt:%d", fd, (uint32_t)filp, filp->reference_cnt);
   
   return filp;
 }
@@ -78,16 +78,16 @@ struct Filp *filp_get_new(void)
 {
   struct Filp *filp;
 
-  Info("filp_get_new()");
+  klog_info("filp_get_new()");
 
   filp = LIST_HEAD(&filp_free_list);
 
   if (filp == NULL) {
-    Info("filp_alloc() failed, out of filps");
+    klog_info("filp_alloc() failed, out of filps");
     return NULL;
   }
 
-  KASSERT(filp->type == FILP_TYPE_FREE);
+  kassert(filp->type == FILP_TYPE_FREE);
 
   LIST_REM_HEAD(&filp_free_list, filp_entry);
   filp->reference_cnt = 1;
@@ -96,7 +96,7 @@ struct Filp *filp_get_new(void)
   
   filp->flags = 0;
 
-  Info("filp_get_new() filp:%08x, ref_cnt = %d", (uint32_t)filp, filp->reference_cnt);  
+  klog_info("filp_get_new() filp:%08x, ref_cnt = %d", (uint32_t)filp, filp->reference_cnt);  
   
   return filp;
 }
@@ -107,11 +107,11 @@ struct Filp *filp_get_new(void)
  */
 void filp_ref(struct Filp *filp)
 {
-  KASSERT(filp != NULL);
+  kassert(filp != NULL);
   
   filp->reference_cnt++;
 
-  Info("filp_ref(%08x) ref_cnt now:%d", (uint32_t)filp, filp->reference_cnt);
+  klog_info("filp_ref(%08x) ref_cnt now:%d", (uint32_t)filp, filp->reference_cnt);
 }
 
 
@@ -122,19 +122,19 @@ int filp_release(struct Filp *filp)
 {
   int retval;
   
-  KASSERT (filp != NULL);
+  kassert (filp != NULL);
 
   filp->reference_cnt--;
 
-  Info("filp_release(%08x) ref_cnt now:%d", (uint32_t)filp, filp->reference_cnt);
+  klog_info("filp_release(%08x) ref_cnt now:%d", (uint32_t)filp, filp->reference_cnt);
 
   retval = filp->reference_cnt;
 
   if (filp->reference_cnt == 0) {
-    Info("filp:%08x ref_cnt is 0, setting type to FILP_TYPE_FREE");
+    klog_info("filp:%08x ref_cnt is 0, setting type to FILP_TYPE_FREE");
     filp->type = FILP_TYPE_FREE;
 
-    Info("setting filp->u to NULL, adding to free list");
+    klog_info("setting filp->u to NULL, adding to free list");
     memset(&filp->u, 0, sizeof filp->u);
     LIST_ADD_HEAD(&filp_free_list, filp, filp_entry);
   }

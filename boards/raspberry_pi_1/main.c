@@ -89,7 +89,7 @@ void Main(void)
   init_buffer_cache_pagetables();
   InitDebug();
   
-  Info("Hello from kernel!\n");
+  klog_info("Hello from kernel!\n");
   
   init_arm();
   init_timer_registers();
@@ -97,7 +97,7 @@ void Main(void)
   init_vfs();
   init_processes();
 
-  Error("InitProcesses failed");
+  klog_error("InitProcesses failed");
   while (1) {
   }
 }

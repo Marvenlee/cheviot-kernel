@@ -89,7 +89,7 @@ int arch_init_fork_thread(struct Process *new_proc, struct Process *current_proc
   struct UserContext *uc_new;
   uint32_t *context;
 
-  Info("arch_forked_thread(new_thread:%08x)", new_thread);
+  klog_info("arch_forked_thread(new_thread:%08x)", new_thread);
 
   uc_current = (struct UserContext *)((vm_addr)current_thread->stack + KERNEL_STACK_SZ -
                                       sizeof(struct UserContext));
@@ -122,7 +122,7 @@ int arch_init_fork_thread(struct Process *new_proc, struct Process *current_proc
 
   context = ((uint32_t *)uc_new) - N_CONTEXT_WORD;
 
-  KASSERT(uc_new->pc != 0);
+  kassert(uc_new->pc != 0);
 
   for (int t = 0; t < 13; t++) {
     context[t] = 0xf005ba10 + t;
@@ -153,17 +153,17 @@ void arch_init_exec_thread(struct Process *proc, struct Thread *thread, void *en
   uint32_t *context;
   uint32_t cpsr;
 
-  Info("arch_init_exec_thread");
-  Info("sp:%08x", (uint32_t)stack_pointer);
-  Info("pc:%08x", (uint32_t)entry_point);
-  Info("args:%08x", (uint32_t)args);
+  klog_info("arch_init_exec_thread");
+  klog_info("sp:%08x", (uint32_t)stack_pointer);
+  klog_info("pc:%08x", (uint32_t)entry_point);
+  klog_info("args:%08x", (uint32_t)args);
 
   cpsr = USR_MODE | CPSR_DEFAULT_BITS; 
 
   uc = (struct UserContext *)((vm_addr)thread->stack + KERNEL_STACK_SZ -
                               sizeof(struct UserContext));
 
-  Info("k uc:%08x", (uint32_t)uc);
+  klog_info("k uc:%08x", (uint32_t)uc);
 
   memset(uc, 0, sizeof(*uc));
 
@@ -246,7 +246,7 @@ void arch_init_user_thread(struct Thread *thread, void *entry, void *user_entry,
     context[t] = 0;
   }
 
-  Info("Setting FPU state, addr:%08x", (uint32_t)context); 
+  klog_info("Setting FPU state, addr:%08x", (uint32_t)context); 
 
   context[13] = (uint32_t)uc;
   
@@ -263,7 +263,7 @@ void arch_init_user_thread(struct Thread *thread, void *entry, void *user_entry,
     context[16 + t + 1] = 0x7FF00000;  // SNaN
   }
   
-  Info("Set FPU state, addr:%08x", (uint32_t)context); 
+  klog_info("Set FPU state, addr:%08x", (uint32_t)context); 
 
   thread->context = context;
   thread->cpu = arch_pick_cpu();  

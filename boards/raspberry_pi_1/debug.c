@@ -75,7 +75,7 @@ void sys_debug(char *s)
   copyinstring (buf, s, sizeof buf);
   buf[sizeof buf - 1] = '\0';
 
-  Info("PID %4d: %s:", get_current_pid(), &buf[0]);
+  klog_info("PID %4d: %s:", get_current_pid(), &buf[0]);
 }
 
 
@@ -83,20 +83,12 @@ void sys_debug(char *s)
  */
 void sys_debug_sixargs(int a, int b, int c, int d, int e, int f, int dummy1, int dummy2) {
 
-  Info("sys_debug_sixargs(%d %d %d %d %d %d : %08x, %08x)", a,b,c,d,e,f, dummy1, dummy2);
+  klog_info("sys_debug_sixargs(%d %d %d %d %d %d : %08x, %08x)", a,b,c,d,e,f, dummy1, dummy2);
 }
 
 
-/* @brief backend of kernel logger.
+/* @brief   Backend of kernel logger.
  *
- * Used by the macros KPRINTF, KLOG, KASSERT and KPANIC to
- * print with printf formatting to the kernel's debug log buffer.
- * The buffer is a fixed size circular buffer, Once it is full
- * the oldest entry is overwritten with the newest entry.
- *
- * Cannot be used during interrupt handlers or with interrupts
- * disabled s the dbg_slock must be acquired.  Same applies
- * to KPRINTF, KLOG, KASSERT and KPANIC.
  */
 
 void DoLog(const char *format, ...)
@@ -118,9 +110,9 @@ void DoLog(const char *format, ...)
 
 
 /*
- * KernelPanic();
+ *
  */
-void PrintKernelPanic(char *format, ...) {
+void do_kernelpanic(char *format, ...) {
   va_list ap;
 
   DisableInterrupts();

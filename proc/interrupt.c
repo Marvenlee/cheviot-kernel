@@ -54,27 +54,27 @@ int sys_addinterruptserver(int irq, int event)
   struct ISRHandler *isrhandler;
   int_state_t int_state;
     
-  Info("sys_addinterruptserver(irq:%d, event:%d", irq, event);
+  klog_info("sys_addinterruptserver(irq:%d, event:%d", irq, event);
   
   current_proc = get_current_process();
   current_thread = get_current_thread();
     
   if (check_privileges(current_proc, PRIV_INTERRUPT) != 0) {
-    Error("* cannot add interrupt, IO not allowed");
+    klog_error("* cannot add interrupt, IO not allowed");
     return -EPERM;
   }
 
   irq += BASE_USER_IRQ;
 
   if (irq < 0 || irq > NIRQ) {
-    Error("* cannot add interrupt, irq range");
+    klog_error("* cannot add interrupt, irq range");
     return -EINVAL;
   }
   
   isrhandler = alloc_isrhandler();
   
   if (isrhandler == NULL) {
-    Error("* cannot add interrupt, non free");
+    klog_error("* cannot add interrupt, non free");
     return -ENOMEM;
   }
   

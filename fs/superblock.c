@@ -34,19 +34,19 @@ struct SuperBlock *get_superblock(struct Process *proc, int fd)
 {
   struct Filp *filp;
 
-  KASSERT(proc != NULL);
+  kassert(proc != NULL);
   
-  Info("get_superblock(proc:%08x, fd:%d)", (uint32_t)proc, fd);
+  klog_info("get_superblock(proc:%08x, fd:%d)", (uint32_t)proc, fd);
   
   filp = filp_get(proc, fd);
     
   if (filp == NULL) {
-    Error("get_superblock, filp is NULL");
+    klog_error("get_superblock, filp is NULL");
     return NULL;
   }
   
   if (filp->type != FILP_TYPE_SUPERBLOCK) {
-    Error("get_superblock, filp type is not SUPERBLOCK");
+    klog_error("get_superblock, filp type is not SUPERBLOCK");
     return NULL;
   }
     
@@ -62,12 +62,12 @@ struct SuperBlock *alloc_superblock(void)
 {
   struct SuperBlock *sb;
 
-  Info("alloc_superblock()");
+  klog_info("alloc_superblock()");
   
   sb = LIST_HEAD(&free_superblock_list);
 
   if (sb == NULL) {
-    Error("no free superblocks");
+    klog_error("no free superblocks");
     return NULL;
   }
 
@@ -99,11 +99,11 @@ struct SuperBlock *alloc_superblock(void)
  */
 void free_superblock(struct SuperBlock *sb)
 {
-  KASSERT (sb != NULL);
+  kassert (sb != NULL);
 
-  Info("free_superblock()");
+  klog_info("free_superblock()");
 
-//  KASSERT(sb->reference_cnt == 0);
+//  kassert(sb->reference_cnt == 0);
   
 //  LIST_REM_ENTRY(&mounted_superblock_list, sb, link);  
 //  LIST_ADD_TAIL(&free_superblock_list, sb, link);
@@ -153,7 +153,7 @@ void ref_superblock(struct SuperBlock *sb)
  */
 int deref_superblock(struct SuperBlock *sb)
 {
-  Info("deref_superblock()");
+  klog_info("deref_superblock()");
 //  sb->reference_cnt--;
     
 //  if (sb->reference_cnt == 0) {

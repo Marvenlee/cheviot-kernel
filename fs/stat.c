@@ -34,7 +34,7 @@ int sys_stat(char *_path, struct stat *_stat) {
   struct lookupdata ld;
   int sc;
 
-  Info("sys_stat()");
+  klog_info("sys_stat()");
 
   if ((sc = lookup(_path, 0, &ld)) == 0) {
     rwlock_shared(&ld.vnode->lock);
@@ -48,7 +48,7 @@ int sys_stat(char *_path, struct stat *_stat) {
     sc = copyout(_stat, &stat, sizeof stat);    
   }
 
-  Info("sys_stat sc=%d", sc);      
+  klog_info("sys_stat sc=%d", sc);      
   return sc;
 }
 
@@ -67,7 +67,7 @@ int sys_fstat(int fd, struct stat *_stat)
   struct Process *current;
   int sc;
   
-  Info("sys_fstat(fd:%d)", fd);
+  klog_info("sys_fstat(fd:%d)", fd);
 
   current = get_current_process();
 
@@ -95,7 +95,7 @@ int sys_fstat(int fd, struct stat *_stat)
     sc = -EBADF;
   }
 
-  Info("sys_fstat sc=%d", sc);    
+  klog_info("sys_fstat sc=%d", sc);    
   return sc;
 }
 

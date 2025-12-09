@@ -76,7 +76,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
 
   if (root_vnode != NULL) {
     if ((sc = lookup(_path, LOOKUP_NOFOLLOW, &ld)) != 0) {
-      Error("createmsgport failed: sc: %d", sc);
+      klog_error("createmsgport failed: sc: %d", sc);
       return sc;
     }
 
@@ -86,18 +86,18 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
 
     if (vnode_covered == NULL) {
       lookup_cleanup(&ld);
-      Error("createmsgport failed: vnode_covered = null -ENOENT");
+      klog_error("createmsgport failed: vnode_covered = null -ENOENT");
       return  -ENOENT;
     }
 
-    Info("createmsgport: vnode covered mode : %0o", vnode_covered->mode);
-    Info("createmsgport: stat.st_mode : %0o", stat.st_mode);
+    klog_info("createmsgport: vnode covered mode : %0o", vnode_covered->mode);
+    klog_info("createmsgport: stat.st_mode : %0o", stat.st_mode);
     
     if (! ((S_ISDIR(stat.st_mode) && S_ISDIR(vnode_covered->mode))
         || (S_ISCHR(stat.st_mode) && S_ISCHR(vnode_covered->mode))
         || (S_ISBLK(stat.st_mode) && S_ISBLK(vnode_covered->mode)))) {
       lookup_cleanup(&ld);
-      Error("createmsgport failed: not dir, chr or blk, -EINVAL ******************");
+      klog_error("createmsgport failed: not dir, chr or blk, -EINVAL ******************");
       return -EINVAL;
     }
     
@@ -105,7 +105,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
 
     if (vnode_covered->vnode_covered != NULL) {
       lookup_cleanup(&ld);
-      Error("createmsgport failed: vnode_covered != NULL, -EEXIST");
+      klog_error("createmsgport failed: vnode_covered != NULL, -EEXIST");
       return -EEXIST;
     }
   } else { 
@@ -117,7 +117,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
   fd = fd_alloc(current, 0, FILEDESC_MAX, &filedesc);
   
   if (fd < 0) {
-    Error("createmsgport failed: no free FDs -EMFILE");
+    klog_error("createmsgport failed: no free FDs -EMFILE");
     return -EMFILE;
   }
   
@@ -125,7 +125,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
   
   if (filp == NULL) {
     fd_free(current, fd);
-    Error("createmsgport failed: no free filps -EMFILE");
+    klog_error("createmsgport failed: no free filps -EMFILE");
     return -EMFILE;
   }
     
@@ -134,12 +134,12 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
   if (sb == NULL) {
     fd_free(current, fd);
     filp_release(filp);
-    Error("createmsgport failed: no free superblocks -EMFILE");
+    klog_error("createmsgport failed: no free superblocks -EMFILE");
     return -EMFILE;
   }
      
   if (fd < 0) {
-    Error("createmsgport failed to alloc file descriptor, -ENOMEM");
+    klog_error("createmsgport failed to alloc file descriptor, -ENOMEM");
     if (do_lookup_cleanup) {
       lookup_cleanup(&ld);
     }
@@ -151,7 +151,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
   mount_root_vnode = vnode_get_new(sb);
 
   if (mount_root_vnode == NULL) {
-    Error("createmsgport failed to alloc vnode, -ENOMEM");
+    klog_error("createmsgport failed to alloc vnode, -ENOMEM");
 // FIXME:   fd_free(current, fd);
 // FIXME:   filp_release(fd);
     
@@ -211,7 +211,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
     lookup_cleanup(&ld);
   }
 
-  Info("createmsgport : FILP_TYPE_SUPERBLOCK, fd:%d", fd);
+  klog_info("createmsgport : FILP_TYPE_SUPERBLOCK, fd:%d", fd);
   
   filp->type = FILP_TYPE_SUPERBLOCK;
   filp->u.superblock = sb;
@@ -221,7 +221,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
   filedesc->filp = filp;
   filedesc->flags |= FDF_VALID;
 
-  Info("createmsgport returning fd:%d", fd);
+  klog_info("createmsgport returning fd:%d", fd);
   return fd;
 }
 

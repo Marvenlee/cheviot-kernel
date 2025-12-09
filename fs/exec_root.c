@@ -66,8 +66,8 @@ void exec_root(void *arg)
   current_thread = get_current_thread();
 
   if ((pool = alloc_arg_pool()) == NULL) {
-    Info("Root alloc arg pool failed");
-    KernelPanic();
+    klog_info("Root alloc arg pool failed");
+    kernelpanic();
   }
 
   Info ("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
@@ -76,11 +76,11 @@ void exec_root(void *arg)
 
   ifs_exe_base = (void *)pmap_pa_to_va((vm_addr)bootinfo->ifs_exe_base);
   
-  Info("ifs_exe_base kernel va:%08x", (uint32_t)ifs_exe_base); 
+  klog_info("ifs_exe_base kernel va:%08x", (uint32_t)ifs_exe_base); 
   
   if (load_root_elf(ifs_exe_base, &entry_point) != 0) {
-    Info("LoadProcess failed");
-    KernelPanic();
+    klog_info("LoadProcess failed");
+    kernelpanic();
   }
 
   Info ("entry_point: %08x", (vm_addr)entry_point);
@@ -88,8 +88,8 @@ void exec_root(void *arg)
   Info ("allocating root stack");
   
   if ((stack_base = sys_mmap((void *)0x02000000, USER_STACK_SZ, PROT_READ | PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
-    Info("Root stack alloc failed");
-    KernelPanic();
+    klog_info("Root stack alloc failed");
+    kernelpanic();
   }
 
   init_root_argv(pool, &args, "/sbin/ifs", (void *)bootinfo->ifs_image, bootinfo->ifs_image_size);
@@ -144,14 +144,14 @@ int load_root_elf(void *file_base, void **entry_point)
       ehdr.e_ident[EI_DATA] == ELFDATA2LSB && ehdr.e_type == ET_EXEC &&
       ehdr.e_phnum > 0) {
   } else {
-    Info("FILE IS NOT EXECUTABLE");
+    klog_info("FILE IS NOT EXECUTABLE");
     Info ("Magic: %02x %02x %02x %02x", 
             ehdr.e_ident[EI_MAG0],
             ehdr.e_ident[EI_MAG1],
             ehdr.e_ident[EI_MAG2],
             ehdr.e_ident[EI_MAG3]);
 
-    KernelPanic();
+    kernelpanic();
   }
 
   *entry_point = (void *)ehdr.e_entry;
@@ -191,10 +191,10 @@ int load_root_elf(void *file_base, void **entry_point)
     // segment_ceiling = (void *)phdr.p_vaddr + phdr.p_memsz;
     // sec_mem_sz = segment_ceiling - segment_base;  // FIXME: why not just use phdr.p_memsz ? ALIGN_UP ??
 
-    Info("root sec_addr    :%08x", (uint32_t) sec_addr);
-    Info("root sec_file_sz :%08x", (uint32_t) sec_file_sz);
-    Info("root sec_mem_sz  :%08x", (uint32_t) sec_mem_sz);
-    Info("--");
+    klog_info("root sec_addr    :%08x", (uint32_t) sec_addr);
+    klog_info("root sec_file_sz :%08x", (uint32_t) sec_file_sz);
+    klog_info("root sec_mem_sz  :%08x", (uint32_t) sec_mem_sz);
+    klog_info("--");
     
     if (sec_mem_sz != 0) {
       ret_addr = sys_mmap(sec_addr, sec_mem_sz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_FIXED, -1, 0);

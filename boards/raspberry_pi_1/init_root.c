@@ -63,8 +63,8 @@ void BootstrapRootProcess(void) {
   current = get_current_process();
 
   if ((pool = alloc_arg_pool()) == NULL) {
-    Info("Root alloc arg pool failed");
-    KernelPanic();
+    klog_info("Root alloc arg pool failed");
+    kernelpanic();
   }
   
 //  CleanupAddressSpace(&current->as);
@@ -72,8 +72,8 @@ void BootstrapRootProcess(void) {
   Info ("Map IFS image to 0x70000000");
 
   if ((ifs_base = MapIFS((void *)0x70000000, bootinfo->ifs_image_size, (void *)bootinfo->ifs_image, PROT_READWRITE)) == NULL) {
-    Info("Root map IFS image failed");
-    KernelPanic();
+    klog_info("Root map IFS image failed");
+    kernelpanic();
   }
 
   Info ("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
@@ -86,8 +86,8 @@ void BootstrapRootProcess(void) {
   Info ("ifs_exe_base = %08x", ifs_exe_base);
   
   if (LoadRootElf(ifs_exe_base, &entry_point) != 0) {
-    Info("LoadProcess failed");
-    KernelPanic();
+    klog_info("LoadProcess failed");
+    kernelpanic();
   }
 
   Info ("entry_point: %08x", (vm_addr)entry_point);
@@ -95,8 +95,8 @@ void BootstrapRootProcess(void) {
   Info ("allocating root stack");
   
   if ((stack_base = sys_mmap((void *)0x30000000, USER_STACK_SZ, PROT_READ PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
-    Info("Root stack alloc failed");
-    KernelPanic();
+    klog_info("Root stack alloc failed");
+    kernelpanic();
   }
 
   
@@ -162,7 +162,7 @@ int LoadRootElf(void *file_base, void **entry_point)
 
     Info ("root File is ELF");
   } else {
-    Info("FILE IS NOT EXECUTABLE");
+    klog_info("FILE IS NOT EXECUTABLE");
 
     Info ("Magic: %02x %02x %02x %02x", 
             ehdr.e_ident[EI_MAG0],
@@ -170,7 +170,7 @@ int LoadRootElf(void *file_base, void **entry_point)
             ehdr.e_ident[EI_MAG2],
             ehdr.e_ident[EI_MAG3]);
 
-    KernelPanic();
+    kernelpanic();
   }
 
   Info ("ehdr.e_entry = %08x", ehdr.e_entry);
@@ -250,13 +250,13 @@ static void *MapIFS(void *vaddr, vm_size sz, void *paddr, bits32_t flags)
   sz = ALIGN_UP(sz, PAGE_SIZE);
   flags = (flags & ~VM_SYSTEM_MASK) | MEM_ALLOC;
 
-  Info("MapIFS (a:%08x, p:%08x s:%08x, f:%08x", vaddr, paddr, sz, flags);
+  klog_info("MapIFS (a:%08x, p:%08x s:%08x, f:%08x", vaddr, paddr, sz, flags);
 
   vaddr = (void *)segment_create(as, (vm_addr)vaddr, sz, SEG_TYPE_ALLOC, flags);
 
   if (vaddr == NULL) {
     Info ("vaddr == null");
-    KernelPanic();
+    kernelpanic();
   }
 
   for (va = (vm_addr)vaddr, pa = (vm_addr)paddr; va < (vm_addr)vaddr + sz; va += PAGE_SIZE, pa += PAGE_SIZE) {
@@ -265,12 +265,12 @@ static void *MapIFS(void *vaddr, vm_size sz, void *paddr, bits32_t flags)
     
     if (pf == NULL) {
       Info ("Cannot find PF pa:%08x", pa);
-      KernelPanic();
+      kernelpanic();
     }
     
     if (pmap_enter(as, va, pa, flags) != 0) {
       Info ("Cannot PmapEnter pa:%08x", pa);
-      KernelPanic();
+      kernelpanic();
     }
     
     pf->reference_cnt = 1;

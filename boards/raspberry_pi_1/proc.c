@@ -72,7 +72,7 @@ int arch_fork_process(struct Process *proc, struct Process *current)
 
   context = ((uint32_t *)uc_proc) - 15;
 
-  KASSERT(uc_proc->pc != 0);
+  kassert(uc_proc->pc != 0);
 
   for (int t = 0; t < 13; t++) {
     context[t] = 0xdeadbee0 + t;

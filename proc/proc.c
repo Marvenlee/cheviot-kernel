@@ -46,7 +46,7 @@ int sys_fork(void)
   struct Thread *current_thread;
   struct Thread *new_thread;
   
-	Info("sys_fork()");
+	klog_info("sys_fork()");
 
   current_proc = get_current_process();
   current_thread = get_current_thread();
@@ -95,13 +95,13 @@ void sys_exit(int status)
   struct Process *parent;
   struct Thread *current_thread;
   
-  Info("sys_exit(%d) ************************************", status);
+  klog_info("sys_exit(%d) ************************************", status);
   
   current_thread = get_current_thread();
   current = get_current_process();
   parent = current->parent;
 
-  KASSERT (parent != NULL);
+  kassert (parent != NULL);
 
   if (current->exit_in_progress == false) {
     current->exit_status = status;
@@ -147,7 +147,7 @@ int sys_waitpid(int pid, int *status, int options)
   int found_in_pgrp = 0;
   int err = 0;
   
-//  Info("sys_waitpid(pid:%d, opt:%08x", pid, options);
+//  klog_info("sys_waitpid(pid:%d, opt:%08x", pid, options);
   
   current = get_current_process();
 
@@ -372,7 +372,7 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
   struct Process *proc = NULL;
   pid_t pid;
     
-  Info("alloc_process");
+  klog_info("alloc_process");
 
   proc = alloc_process_struct();
   

@@ -71,9 +71,9 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
 {
   struct VNode *vnode;
 
-  KASSERT(sb != NULL);
+  kassert(sb != NULL);
 
-  Info("vnode_get_new(sb:%08x)", (uint32_t)sb);
+  klog_info("vnode_get_new(sb:%08x)", (uint32_t)sb);
 
   if (sb->flags & SBF_ABORT) {
     return NULL;
@@ -82,7 +82,7 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   vnode = LIST_HEAD(&vnode_free_list);
 
   if (vnode == NULL) {
-    Error("vnode_get_new() failed, no memory");
+    klog_error("vnode_get_new() failed, no memory");
     return NULL;
   }
 
@@ -91,9 +91,9 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   sb->reference_cnt++;
   
   if (vnode->flags & V_VALID) {
-    Info("vnode valid, recycling");
+    klog_info("vnode valid, recycling");
     
-    KASSERT(vnode->reference_cnt == 0);    
+    kassert(vnode->reference_cnt == 0);    
     
 //    do_vnode_recycle(vnode);
   }
@@ -122,7 +122,7 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   LIST_INIT(&vnode->dname_list);
   LIST_INIT(&vnode->directory_dname_list);
 
-  Info("vnode_get_new(sb:%08x) vnode:%08x, ref_cnt:%d", (uint32_t)sb, (uint32_t)vnode, vnode->reference_cnt);
+  klog_info("vnode_get_new(sb:%08x) vnode:%08x, ref_cnt:%d", (uint32_t)sb, (uint32_t)vnode, vnode->reference_cnt);
 
   return vnode;
 }
@@ -139,16 +139,16 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 {
   struct VNode *vnode;
   
-  Info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
+  klog_info("vnode_get(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
   
-  KASSERT(sb != NULL);
+  kassert(sb != NULL);
 
   if (sb->flags & SBF_ABORT) {
     return NULL;
   }
 
   if ((vnode = vnode_find(sb, inode_nr)) == NULL) {
-    Info("vnode_find() failed");
+    klog_info("vnode_find() failed");
     return NULL;
   }
   
@@ -158,7 +158,7 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
     // TODO: Recycle vnode in here ? 
   }
 
-  Info("vnode_get(sb:%08x, inode_nr:%d), vnode:%08x, cur ref_cnt:%d", (uint32_t)sb, inode_nr,
+  klog_info("vnode_get(sb:%08x, inode_nr:%d), vnode:%08x, cur ref_cnt:%d", (uint32_t)sb, inode_nr,
                                           (uint32_t)vnode, vnode->reference_cnt);
   return vnode;
 }
@@ -171,16 +171,16 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
 struct VNode *vnode_get_from_filp(struct Filp *filp)
 {
   if (filp == NULL) {
-    Error("vnode_get_from_filp, filp is NULL");
+    klog_error("vnode_get_from_filp, filp is NULL");
     return NULL;
   }
   
   if (filp->type != FILP_TYPE_VNODE) {
-    Info("vnode_get_from_filp, filp->type is not vnode: %d", filp->type);
+    klog_info("vnode_get_from_filp, filp->type is not vnode: %d", filp->type);
     return NULL;
   }
   
-  Info("vnode_get_from_filp(filp:%08x) vnode:%08x, cur ref_cnt:%d", (uint32_t)filp,
+  klog_info("vnode_get_from_filp(filp:%08x) vnode:%08x, cur ref_cnt:%d", (uint32_t)filp,
                                     (uint32_t)filp->u.vnode, filp->u.vnode->reference_cnt);
   
   return filp->u.vnode;
@@ -198,7 +198,7 @@ void vnode_put(struct VNode *vnode)
 {
   int sc;
   
-  Info("vnode_put(vnode:%08x) prior ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
+  klog_info("vnode_put(vnode:%08x) prior ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
 
   return;
   
@@ -207,9 +207,9 @@ void vnode_put(struct VNode *vnode)
 ////////////////////////////////////////////////////
   
 
-  KASSERT(vnode != NULL);
-  KASSERT(vnode->superblock != NULL);
-  KASSERT(vnode->reference_cnt > 0);
+  kassert(vnode != NULL);
+  kassert(vnode->superblock != NULL);
+  kassert(vnode->reference_cnt > 0);
 
 /*
   vnode->reference_cnt--;
@@ -242,21 +242,21 @@ void vnode_put_fifo_reader(struct VNode *vnode)
 {
   struct Pipe *pipe;
 
-  KASSERT(S_ISFIFO(vnode->mode));
+  kassert(S_ISFIFO(vnode->mode));
   
 //  vnode->reference_cnt--;
     
   pipe = vnode->pipe;
   pipe->reader_cnt--;
   
-  Info("vnode_put_fifo_reader reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+  klog_info("vnode_put_fifo_reader reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
   
   if (pipe->reader_cnt == 0) {
     TaskWakeupAll(&pipe->rendez);
   }
   
   if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
-    KASSERT(vnode->reference_cnt == 0);    
+    kassert(vnode->reference_cnt == 0);    
   //  do_vnode_discard(vnode);
   }
 }
@@ -269,7 +269,7 @@ void vnode_put_fifo_writer(struct VNode *vnode)
 {
   struct Pipe *pipe;
   
-  KASSERT(S_ISFIFO(vnode->mode));
+  kassert(S_ISFIFO(vnode->mode));
   
 
   // vnode->reference_cnt--;
@@ -277,14 +277,14 @@ void vnode_put_fifo_writer(struct VNode *vnode)
   pipe = vnode->pipe;
   pipe->writer_cnt--;
 
-  Info("vnode_put_fifo_writer reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
+  klog_info("vnode_put_fifo_writer reader_cnt:%d, writer_cnt:%d", pipe->reader_cnt, pipe->writer_cnt);
 
   if (pipe->writer_cnt == 0) {
     TaskWakeupAll(&pipe->rendez);
   }
   
   if (pipe->reader_cnt == 0 && pipe->writer_cnt == 0) {
-    KASSERT(vnode->reference_cnt == 0);    
+    kassert(vnode->reference_cnt == 0);    
     do_vnode_discard(vnode);
   }
 }
@@ -295,7 +295,7 @@ void vnode_put_fifo_writer(struct VNode *vnode)
  */
 void vnode_ref(struct VNode *vnode)
 {
-  Info("vnode_ref(vnode:%08x) ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
+  klog_info("vnode_ref(vnode:%08x) ref_cnt: %d", (uint32_t)vnode, vnode->reference_cnt);
   vnode->reference_cnt++;
 }
 
@@ -308,7 +308,7 @@ void do_vnode_discard(struct VNode *vnode)
 {
 //  struct Pipe *pipe; FIXME: Do we need to clean up pipe?
 
-  Info("do_vnode_discard(vnode:%08x)", (uint32_t)vnode);
+  klog_info("do_vnode_discard(vnode:%08x)", (uint32_t)vnode);
 
 
   return;
@@ -319,7 +319,7 @@ void do_vnode_discard(struct VNode *vnode)
 
 
 
-  KASSERT(vnode->reference_cnt == 0);
+  kassert(vnode->reference_cnt == 0);
 
 //  rwlock_drain(&vnode->lock);
   
@@ -358,7 +358,7 @@ void do_vnode_inactive(struct VNode *vnode)
 {
 //  struct Pipe *pipe;    FIXME: Do we need to handle pipe
 
-  Info("do_vnode_inactive(vnode:%08x)", (uint32_t)vnode);
+  klog_info("do_vnode_inactive(vnode:%08x)", (uint32_t)vnode);
 
   return;
   
@@ -366,9 +366,9 @@ void do_vnode_inactive(struct VNode *vnode)
 ////////////////////////////////////////////////////
 ////////////////////////////////////////////////////
 
-  KASSERT(vnode->reference_cnt == 0);
+  kassert(vnode->reference_cnt == 0);
 
-  Info("do_vnode_inactive(vnode:%08x)", (uint32_t)vnode);
+  klog_info("do_vnode_inactive(vnode:%08x)", (uint32_t)vnode);
 
 //  rwlock_drain(&vnode->lock);
   
@@ -400,7 +400,7 @@ void do_vnode_recycle(struct VNode *vnode)
 {
   struct SuperBlock *sb;
 
-  Info("do_vnode_recycle(vnode:%08x)", (uint32_t)vnode);
+  klog_info("do_vnode_recycle(vnode:%08x)", (uint32_t)vnode);
   
   return;
 
@@ -452,22 +452,22 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
   struct VNode *vnode;
   int h;
   
-  Info("vnode_find(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
+  klog_info("vnode_find(sb:%08x, inode_nr:%d)", (uint32_t)sb, inode_nr);
   
-  KASSERT(sb != NULL);
+  kassert(sb != NULL);
 
   h = calc_vnode_hash(sb, inode_nr);
   vnode = LIST_HEAD(&vnode_hash[h]);
   
   while(vnode != NULL) {
     if ((vnode->flags & V_VALID) && vnode->superblock == sb && vnode->inode_nr == inode_nr) {
-      Info("vnode found: %08x", (uint32_t)vnode);
+      klog_info("vnode found: %08x", (uint32_t)vnode);
       return vnode;
     }
     vnode = LIST_NEXT(vnode, hash_link);
   }
 
-  Info("vnode not found");
+  klog_info("vnode not found");
   return NULL;
 }
 
@@ -493,9 +493,9 @@ int calc_vnode_hash(struct SuperBlock *sb, ino_t inode_nr)
  */
 void vnode_hash_enter(struct VNode *vnode)
 {
-  KASSERT(vnode != NULL);
-  KASSERT(vnode->superblock != NULL);
-  KASSERT((vnode->flags & V_HASHED) == 0);
+  kassert(vnode != NULL);
+  kassert(vnode->superblock != NULL);
+  kassert((vnode->flags & V_HASHED) == 0);
   
   int h = calc_vnode_hash(vnode->superblock, vnode->inode_nr);
   LIST_ADD_HEAD(&vnode_hash[h], vnode, hash_link);
@@ -509,9 +509,9 @@ void vnode_hash_enter(struct VNode *vnode)
  */
 void vnode_hash_remove(struct VNode *vnode)
 {
-  KASSERT(vnode != NULL);
-  KASSERT(vnode->superblock != NULL);
-  KASSERT(vnode->flags & V_HASHED);
+  kassert(vnode != NULL);
+  kassert(vnode->superblock != NULL);
+  kassert(vnode->flags & V_HASHED);
 
   vnode->flags &= ~V_HASHED;
 

@@ -104,22 +104,22 @@ int sys_setsid(void)
   struct Session *current_session;
   struct Session *new_session;
   
-  Info("sys_setsid()");
+  klog_info("sys_setsid()");
 
   if (current->sid == current->pid) {
-    Error("sys_setsid() -EPERM sid = pid");
+    klog_error("sys_setsid() -EPERM sid = pid");
     return -EPERM;
   }
 
 	if (current->pgid == current->pid) {
-    Error("sys_setsid() -EPERM pgid = pid");
+    klog_error("sys_setsid() -EPERM pgid = pid");
 	  return -EPERM;
   }	  
 	
 	current_session = get_session(current->sid);
 	
 	if (current_session != NULL) {
-	  Info("current session exists, removing from pgrp and session");
+	  klog_info("current session exists, removing from pgrp and session");
 	  remove_from_pgrp(current);
 	  remove_from_session(current);
   }
@@ -128,7 +128,7 @@ int sys_setsid(void)
 	
 	if (new_session == NULL) {
 	  // This shouldn't be possible
-    Error("sys_setsid() -ENOMEM");
+    klog_error("sys_setsid() -ENOMEM");
 	  return -ENOMEM;
 	}
 	
@@ -188,7 +188,7 @@ int sys_setpgid(pid_t pid, pid_t pgid)
   struct Process *proc;
   struct Pgrp *pgrp;
   
-  Info("sys_setpgid(pid:%d, pgid:%d)", pid, pgid);
+  klog_info("sys_setpgid(pid:%d, pgid:%d)", pid, pgid);
   
   if (pid == 0) {
     proc = current;
@@ -197,24 +197,24 @@ int sys_setpgid(pid_t pid, pid_t pgid)
   }
     
   if (proc == NULL) {
-    Info("pgid not found");
+    klog_info("pgid not found");
     return -ESRCH;
   }
   
   if (current->sid != proc->sid) {
-    Info("current sid != proc sid");
+    klog_info("current sid != proc sid");
     return -EPERM;
   }
 
   pgrp = get_pgrp(pgid);
 
   if (pgrp == NULL) {
-    Info("pgrp not set");
+    klog_info("pgrp not set");
     return -EPERM;
   }
   
   if (pgrp->sid != current->sid) {
-    Info("current sid != proc sid");
+    klog_info("current sid != proc sid");
     return -EPERM;
   }
   
@@ -243,17 +243,17 @@ int sys_setpgrp(void)
   struct PidDesc *pd;
   struct Pgrp *new_pgrp;
   
-  Info("sys_setpgrp()");
+  klog_info("sys_setpgrp()");
   
   if (current->pgid == current->pid) {
-    Error("sys_setpgrp() -EPERM pgid = pid");
+    klog_error("sys_setpgrp() -EPERM pgid = pid");
     return -EINVAL;
   }
 
   pd = get_piddesc(current);
   
   if (current->pgid != INVALID_PID) {
-    Info("remove from existing pgrp");
+    klog_info("remove from existing pgrp");
     remove_from_pgrp(current);    // this will set current_pgrp_pd->pgrp to NULL
   }
   
@@ -263,7 +263,7 @@ int sys_setpgrp(void)
   
   if (new_pgrp == NULL) {
     // shouldn't happen
-    Error("sys_setpgrp() -ENOMEM");
+    klog_error("sys_setpgrp() -ENOMEM");
     return -ENOMEM;
   }
   
@@ -440,7 +440,7 @@ void free_pid(pid_t pid)
   struct Pgrp *pgrp;
 
   if (pd == NULL) {
-    KernelPanic();
+    kernelpanic();
   }
 
   pd->proc = NULL;

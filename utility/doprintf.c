@@ -42,7 +42,7 @@ void PrintFormattedInteger(char *buf, int32_t base, uint32_t flags,
 
 /* @brief   Printf implementation within the kernel
  *
- * Used by logging macros KLog(), Error(), Warn(), Info() and by kernel
+ * Used by logging macros KLog(), klog_error(), klog_warn(), klog_info() and by kernel
  * string buffer functions Vsnprintf() and Snprintf().
  * 
  * FORMAT SPECIFICATION

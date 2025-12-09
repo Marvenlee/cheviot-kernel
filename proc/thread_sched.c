@@ -40,7 +40,7 @@ int sys_thread_setschedparams(int policy, int priority)
   struct Thread *current;
   int_state_t int_state;
   
-  Info("sys_setschedparams(policy:%d, priority:%d", policy, priority);
+  klog_info("sys_setschedparams(policy:%d, priority:%d", policy, priority);
   
   current_proc = get_current_process();
   current = get_current_thread();

@@ -59,7 +59,7 @@ void init_vm(void)
 {
   vm_addr pa;
 
-  Info("init_vm()...");
+  klog_info("init_vm()...");
   
   root_pagedir = bootinfo->root_pagedir;
 
@@ -141,10 +141,10 @@ void init_vm(void)
 
   // Error checking, all pages should have 0 or 1 references.
   for (pa = 0; pa < (vm_addr)mem_size; pa += PAGE_SIZE) {
-    KASSERT(page_table[pa / PAGE_SIZE].reference_cnt <= 1);
+    kassert(page_table[pa / PAGE_SIZE].reference_cnt <= 1);
   }
 
-  Info("... init_vm() done");
+  klog_info("... init_vm() done");
 }
 
 

@@ -69,7 +69,7 @@ ssize_t read_from_file(struct VNode *vnode, void *dst, size_t sz, off64_t *offse
     page = bread(vnode, cluster_base);
 
     if (page == NULL) {
-      Warn("bread page is NULL");
+      klog_warn("bread page is NULL");
       
       if (nbytes_total > 0) {
         return nbytes_total;

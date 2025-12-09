@@ -50,7 +50,7 @@ struct Page *getblk(struct VNode *vnode, uint64_t file_offset)
 {
   struct Page *page;
 
-  Info("getblk(vnode:%08x, offs:%08x)", (uint32_t)vnode, (uint32_t)file_offset);
+  klog_info("getblk(vnode:%08x, offs:%08x)", (uint32_t)vnode, (uint32_t)file_offset);
 
   while (1) {
     if (vnode->superblock->flags & SBF_ABORT) {
@@ -75,12 +75,12 @@ struct Page *getblk(struct VNode *vnode, uint64_t file_offset)
 
     } else {
       if ((page = find_available_blk()) == NULL) {
-        Info("find_available_blk, none found, sleeping");
+        klog_info("find_available_blk, none found, sleeping");
         TaskSleep(&page_list_rendez);
         continue;
       }
 
-      KASSERT((page->bflags & B_BUSY) == 0);
+      kassert((page->bflags & B_BUSY) == 0);
 
       page->bflags |= B_BUSY;
 
@@ -101,7 +101,7 @@ struct Page *getblk(struct VNode *vnode, uint64_t file_offset)
 
       memset(page->vaddr, 0, PAGE_SIZE);
 
-      Info("getblk() recycled/alloced page:%08x, paddr:%08x", (uint32_t)page, (uint32_t)page->physical_addr);
+      klog_info("getblk() recycled/alloced page:%08x, paddr:%08x", (uint32_t)page, (uint32_t)page->physical_addr);
     
       return page;
     }
@@ -118,12 +118,12 @@ struct Page *getblk_anon(void)
     
   while(1) {
     if ((page = find_available_blk()) == NULL) {
-      Info("getblk_anon() - sleeping");
+      klog_info("getblk_anon() - sleeping");
       TaskSleep(&page_list_rendez);
       continue;
     }
 
-    KASSERT((page->bflags & B_BUSY) == 0);
+    kassert((page->bflags & B_BUSY) == 0);
 
     page->bflags |= B_BUSY;
 
@@ -143,7 +143,7 @@ struct Page *getblk_anon(void)
         
     memset(page->vaddr, 0, PAGE_SIZE);
 
-    Info("getblk_anon() page:%08x, paddr:%08x", (uint32_t)page, (uint32_t) page->physical_addr);
+    klog_info("getblk_anon() page:%08x, paddr:%08x", (uint32_t)page, (uint32_t) page->physical_addr);
 
 
     return page;
@@ -268,7 +268,7 @@ void remove_from_lookup_page_hash(struct Page *page)
  */ 
 void add_to_vnode_page_list(struct Page *page)
 {
-  KASSERT(page->vnode != NULL);
+  kassert(page->vnode != NULL);
   
   LIST_ADD_HEAD(&page->vnode->page_list, page, vnode_link);
 }
@@ -279,8 +279,8 @@ void add_to_vnode_page_list(struct Page *page)
  */ 
 void remove_from_vnode_page_list(struct Page *page)
 {
-  KASSERT(page->vnode != NULL);
-  KASSERT(page->vnode->superblock != NULL);
+  kassert(page->vnode != NULL);
+  kassert(page->vnode->superblock != NULL);
 
   LIST_REM_ENTRY(&page->vnode->page_list, page, vnode_link);
 }
@@ -321,12 +321,12 @@ struct Page *bread(struct VNode *vnode, off64_t file_offset)
   struct Page *page;
   ssize_t xfered;
 
-  Info("bread(vnode:%08x, offs:%08x", (uint32_t)vnode, (uint32_t)file_offset);
+  klog_info("bread(vnode:%08x, offs:%08x", (uint32_t)vnode, (uint32_t)file_offset);
 
   page = getblk(vnode, file_offset);
 
   if (page == NULL) {
-    Info("bread failed, getblk failed");
+    klog_info("bread failed, getblk failed");
     return NULL;
   }
 
@@ -336,10 +336,10 @@ struct Page *bread(struct VNode *vnode, off64_t file_offset)
     
   xfered = vfs_read(vnode, KUCOPY, page->vaddr, PAGE_SIZE, &file_offset);
 
-  KASSERT(xfered <= PAGE_SIZE);
+  kassert(xfered <= PAGE_SIZE);
   
 	if (xfered <= 0) {
-	  Error("bread failed, xfered = %d", (int)xfered);
+	  klog_error("bread failed, xfered = %d", (int)xfered);
 		page->bflags |= B_ERROR;
     brelse(page);
     return NULL;
@@ -431,11 +431,11 @@ int bdiscard(struct Page *page)
  */
 void brelse(struct Page *page)
 {
-  Info("brelse() page:%08x", (uint32_t)page);
+  klog_info("brelse() page:%08x", (uint32_t)page);
   
   if (page->bflags & (B_ERROR | B_DISCARD)) {
     if (page->bflags & B_ERROR) {
-      Error("File Block Error");
+      klog_error("File Block Error");
     }
     
     remove_from_lookup_page_hash(page);    
@@ -485,7 +485,7 @@ void mark_all_vnode_pages_as_busy(struct VNode *vnode)
  */
 int bsyncv(struct VNode *vnode)
 {
-  Info("bsyncv()");
+  klog_info("bsyncv()");
 
   vfs_fsync(vnode);
 

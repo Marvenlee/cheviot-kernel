@@ -98,7 +98,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
   struct MemRegion *mr, *mrbase, *mrtail;
   vm_offset aligned_base_addr;
   
-  Info("memregion_create(addr:%08x, size:%08x, flags:%08x, type:%d)", (uint32_t)addr, (uint32_t)size, flags, type);
+  klog_info("memregion_create(addr:%08x, size:%08x, flags:%08x, type:%d)", (uint32_t)addr, (uint32_t)size, flags, type);
     
   if (flags & MAP_FIXED) {
     if ((mr = memregion_find_free(as, addr)) != NULL) {
@@ -123,7 +123,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
   }
   
   if (mr == NULL) {
-    Error("memregion_create failed mr==null");
+    klog_error("memregion_create failed mr==null");
     return NULL;
   }
   
@@ -131,7 +131,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
   if ((mrbase = LIST_HEAD (&unused_memregion_list)) != NULL) {
     LIST_REM_HEAD (&unused_memregion_list, unused_link);
   } else {
-    Error("memregion_create failed mrbase");
+    klog_error("memregion_create failed mrbase");
     return NULL;
   }
   
@@ -139,7 +139,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
     LIST_REM_HEAD (&unused_memregion_list, unused_link);
   } else {
     LIST_ADD_HEAD(&unused_memregion_list, mrbase, unused_link);
-    Error("memregion_create failed mrtail");
+    klog_error("memregion_create failed mrtail");
     return NULL;
   }
                     
@@ -184,7 +184,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
   mr->type = type;
   mr->flags = flags;
 
-  Error("memregion_create success");
+  klog_error("memregion_create success");
       
   return mr;
 }
@@ -198,7 +198,7 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
   struct MemRegion *mr, *mr_prev, *mr_next;
   int sc1, sc2;
 
-  Info("memregion_free");
+  klog_info("memregion_free");
   
   // TODO: Check addr and addr + size are <= USER_CEILING
   
@@ -267,7 +267,7 @@ int memregion_split(struct AddressSpace *as, vm_offset addr)
 {
   struct MemRegion *mr, *new_mr;
 
-  Info("memregion_split");
+  klog_info("memregion_split");
 
   mr = memregion_find_sorted(as, addr);
 
@@ -349,7 +349,7 @@ int init_memregions(struct AddressSpace *as)
 {
   struct MemRegion *mr;
 
-  Info("init_memregions");
+  klog_info("init_memregions");
   
   LIST_INIT(&as->sorted_memregion_list);
   LIST_INIT(&as->free_memregion_list);
@@ -357,7 +357,7 @@ int init_memregions(struct AddressSpace *as)
   as->hint = NULL;
   
   if ((mr = LIST_HEAD(&unused_memregion_list)) == NULL) {
-    Error("init_memregions -ENOMEM");
+    klog_error("init_memregions -ENOMEM");
     return -ENOMEM;
   }
   
@@ -382,7 +382,7 @@ int fork_memregions(struct AddressSpace *new_as, struct AddressSpace *old_as)
 {
   struct MemRegion *old_mr, *new_mr;
 
-  Info("fork_memregions");
+  klog_info("fork_memregions");
 
   LIST_INIT(&new_as->sorted_memregion_list);
   LIST_INIT(&new_as->free_memregion_list);  
@@ -416,7 +416,7 @@ int fork_memregions(struct AddressSpace *new_as, struct AddressSpace *old_as)
   
 cleanup:
   memregion_free_all(new_as);
-  Error("fork_memregions -ENOMEM");
+  klog_error("fork_memregions -ENOMEM");
   return -ENOMEM;
 }
 
