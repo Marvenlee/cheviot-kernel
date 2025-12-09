@@ -94,7 +94,7 @@ uint32_t sys_thread_event_timedwait(uint32_t event_mask, struct timespec *_timeo
 
   
   if (_timeout != NULL) {
-    if (CopyIn(&timeout, _timeout, sizeof timeout) != 0) {
+    if (copyin(&timeout, _timeout, sizeof timeout) != 0) {
       return -EFAULT;
     }
     

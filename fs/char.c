@@ -366,7 +366,7 @@ int ioctl_tiocgsid(int fd, pid_t *_sid)
 
   sid = session->sid;
   
-  if (CopyOut(_sid, &sid, sizeof _sid) != 0) {
+  if (copyout(_sid, &sid, sizeof _sid) != 0) {
     return -EFAULT;
   }
   
@@ -420,7 +420,7 @@ int ioctl_tiocgpgrp(int fd, pid_t *_pgid)
 
   pgid = session->foreground_pgrp;
 
-  if (CopyOut(_pgid, &pgid, sizeof *_pgid) != 0) {
+  if (copyout(_pgid, &pgid, sizeof *_pgid) != 0) {
     return -EFAULT;
   }
   
@@ -461,7 +461,7 @@ int ioctl_tiocspgrp(int fd, pid_t *_pgid)
     return -EINVAL;
   }
 
-  if (CopyIn(&pgid, _pgid, sizeof pgid) != 0) {
+  if (copyin(&pgid, _pgid, sizeof pgid) != 0) {
     return -EFAULT;
   }
 

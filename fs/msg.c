@@ -93,8 +93,8 @@ int sys_getmsg(int fd, msgid_t *_msgid, iorequest_t *_req, size_t req_sz)
 
   msgid = msg->msgid;
 
-  CopyOut (_msgid, &msgid, sizeof (msgid_t));
-  CopyOut (_req, msg->req, sizeof (iorequest_t));
+  copyout (_msgid, &msgid, sizeof (msgid_t));
+  copyout (_req, msg->req, sizeof (iorequest_t));
 
   return sizeof(iorequest_t);
 }
@@ -138,7 +138,7 @@ int sys_replymsg(int fd, msgid_t msgid, int status, ioreply_t *rep, size_t rep_s
   msg->reply_status = status;
 
   if (msg->reply != NULL && rep != NULL) {
-    if(CopyIn (msg->reply, rep, sizeof (ioreply_t)) != 0) {
+    if(copyin (msg->reply, rep, sizeof (ioreply_t)) != 0) {
       msg->reply_status = -EFAULT;
     }    
   } else if (msg->reply != NULL && rep == NULL) {
@@ -211,7 +211,7 @@ int sys_readmsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
                   msg->siov[i].addr + iov_offset,
                   nbytes_to_read);
     } else {
-      sc = CopyOut(addr + nbytes_read,
+      sc = copyout(addr + nbytes_read,
                    msg->siov[i].addr + iov_offset,
                    nbytes_to_read);
     }
@@ -296,7 +296,7 @@ int sys_writemsg(int fd, msgid_t msgid, void *addr, size_t buf_sz, off_t offset)
                   addr + nbytes_written,
                   nbytes_to_write);
     } else {      
-      sc = CopyIn(msg->riov[i].addr + iov_offset,
+      sc = copyin(msg->riov[i].addr + iov_offset,
                   addr + nbytes_written,
                   nbytes_to_write);
     }
@@ -353,7 +353,7 @@ int sys_readmsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t off
     return -EINVAL;
   }
   
-  if (CopyIn(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
+  if (copyin(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
     return -EFAULT;
   } 
       
@@ -390,7 +390,7 @@ int sys_readmsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t off
                   msg->siov[si].addr + siov_offset,
                   nbytes_to_read);
     } else {
-      sc = CopyOut(iov[xi].addr + xiov_offset,
+      sc = copyout(iov[xi].addr + xiov_offset,
                    msg->siov[si].addr + siov_offset,
                    nbytes_to_read);
     }
@@ -454,7 +454,7 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
     return -EINVAL;
   }
   
-  if (CopyIn(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
+  if (copyin(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
     return -EFAULT;
   } 
       
@@ -491,7 +491,7 @@ int sys_writemsgiov(int fd, msgid_t msgid, int iov_cnt, msgiov_t *_iov, off_t of
                   iov[xi].addr + xiov_offset,
                   nbytes_to_write);
     } else {      
-      sc = CopyIn(msg->riov[ri].addr + riov_offset,
+      sc = copyin(msg->riov[ri].addr + riov_offset,
                   iov[xi].addr + xiov_offset,
                   nbytes_to_write);
     }
@@ -563,12 +563,12 @@ int sys_sendio(int fd, int subclass, int siov_cnt, msgiov_t *_siov, int riov_cnt
     return -EINVAL;
   }
 
-  if (CopyIn(&siov[0], _siov, sizeof(msgiov_t) * siov_cnt) != 0) {
+  if (copyin(&siov[0], _siov, sizeof(msgiov_t) * siov_cnt) != 0) {
     return -EFAULT;
   }
 
   if (riov_cnt > 0) {
-    if (CopyIn(riov, _riov, sizeof(msgiov_t) * riov_cnt) != 0) {
+    if (copyin(riov, _riov, sizeof(msgiov_t) * riov_cnt) != 0) {
       return -EFAULT;
     }
   }

@@ -45,7 +45,7 @@ int sys_stat(char *_path, struct stat *_stat) {
 
     lookup_cleanup(&ld);
 
-    sc = CopyOut(_stat, &stat, sizeof stat);    
+    sc = copyout(_stat, &stat, sizeof stat);    
   }
 
   Info("sys_stat sc=%d", sc);      
@@ -86,7 +86,7 @@ int sys_fstat(int fd, struct stat *_stat)
     
       rwlock_release(&vnode->lock);
 	    
-      sc = CopyOut(_stat, &stat, sizeof stat);
+      sc = copyout(_stat, &stat, sizeof stat);
     } else {
       sc = -EINVAL;
     }    

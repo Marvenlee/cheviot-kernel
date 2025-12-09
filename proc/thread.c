@@ -67,7 +67,7 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
     return -EINVAL;
   }
   
-  if (CopyIn(&attr, _attr, sizeof attr) != 0) {
+  if (copyin(&attr, _attr, sizeof attr) != 0) {
     Error("failed to copyin pthreadattrs");
     return -EFAULT;
   }
@@ -154,7 +154,7 @@ int sys_thread_join(pid_t tid, intptr_t *_status)
   sc = do_join_thread(thread, &status);
   
   if (sc == 0 && _status != NULL) {
-    CopyOut(_status, &status, sizeof status);
+    copyout(_status, &status, sizeof status);
   }
   
   return sc;

@@ -72,7 +72,7 @@ int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, in
   
   lock_futex_table();
   
-  if (CopyIn(&cval, uaddr, sizeof cval) != 0) {
+  if (copyin(&cval, uaddr, sizeof cval) != 0) {
     Error("-- failed to copyin uaddr");
     unlock_futex_table();
     return -EFAULT;
@@ -85,7 +85,7 @@ int sys_futex_wait(void *uaddr, uint32_t val, const struct timespec *timeout, in
   }
   
   if (timeout != NULL) {
-    if (CopyIn(&ts, timeout, sizeof ts) == 0) {
+    if (copyin(&ts, timeout, sizeof ts) == 0) {
       Error("-- timeout copyin failed");
       unlock_futex_table();
   		return -EFAULT;

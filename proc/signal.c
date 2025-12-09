@@ -172,14 +172,14 @@ int sys_sigaction(int signal, const struct sigaction *act_in, struct sigaction *
 		oact._signal_handlers._handler = (void *) cproc->signal.handler[signal-1];
 		oact.sa_mask = cproc->signal.handler_mask[signal-1];
 
-		if (CopyOut (oact_out, &oact, sizeof (struct sigaction)) != 0) {
+		if (copyout (oact_out, &oact, sizeof (struct sigaction)) != 0) {
     	Info("sys_sigaction -EFAULT act_out");
 		  return -EFAULT;
 		}
 	}
 	
 	if (act_in != NULL) {
-		if (CopyIn(&act, act_in, sizeof (struct sigaction)) != 0) {
+		if (copyin(&act, act_in, sizeof (struct sigaction)) != 0) {
     	Info("sys_sigaction -EFAULT act_in");
 			return -EFAULT;
     }
@@ -385,7 +385,7 @@ int sys_sigsuspend(const sigset_t *mask_in)
 	
 	cthread = get_current_thread();
 	
-	if (CopyIn(&mask, mask_in, sizeof (sigset_t)) != 0) {
+	if (copyin(&mask, mask_in, sizeof (sigset_t)) != 0) {
 	  return -EFAULT;
 	}
 	
@@ -416,7 +416,7 @@ int sys_sigprocmask(int how, const sigset_t *set_in, sigset_t *oset_out)
 	cthread = get_current_thread();
 	
 	if (oset_out != NULL) {
-		if (CopyOut (oset_out, &cthread->signal.sig_mask, sizeof (sigset_t)) != 0) {
+		if (copyout (oset_out, &cthread->signal.sig_mask, sizeof (sigset_t)) != 0) {
 		  return -EFAULT;
 		}
   }
@@ -425,7 +425,7 @@ int sys_sigprocmask(int how, const sigset_t *set_in, sigset_t *oset_out)
 	  return 0;
 	}
 	
-	if (CopyIn (&set, set_in, sizeof (sigset_t)) == 0) {
+	if (copyin (&set, set_in, sizeof (sigset_t)) == 0) {
     return -EFAULT;
 	}
 	
@@ -459,7 +459,7 @@ int sys_sigpending(sigset_t *set_out)
 	
 	set = cthread->signal.sig_pending & ~cthread->signal.sig_mask;	
 
-	if (CopyOut(set_out, &set, sizeof (sigset_t)) != 0) {
+	if (copyout(set_out, &set, sizeof (sigset_t)) != 0) {
 	  return -EFAULT;
 	}
 	

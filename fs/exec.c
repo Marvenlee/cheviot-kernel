@@ -150,7 +150,7 @@ int do_exec(int fd, char *name, struct execargs *_args)
   }
   
   if (copy_in_argv(pool, &args, _args) != 0) {
-    Error("CopyInArgv failed");
+    Error("copyinArgv failed");
     free_arg_pool(pool);
     return -EFAULT;
   }
@@ -262,7 +262,7 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
     return 0;
   }
 
-  if (CopyIn(args, _args, sizeof *args) != 0) {
+  if (copyin(args, _args, sizeof *args) != 0) {
     goto cleanup;
   }
 
@@ -271,13 +271,13 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   envv = (char **)((uint8_t *)argv + (args->argc + 1) * sizeof(char *));
   string_table = (char *)((uint8_t *)envv + (args->envc + 1) * sizeof(char *));
 
-  if (CopyIn(argv, args->argv, args->argc * sizeof(char *)) != 0) {
-    Info ("Copyin failed, argc=%d, argv=%08x", args->argc, (vm_addr)args->argv);
+  if (copyin(argv, args->argv, args->argc * sizeof(char *)) != 0) {
+    Info ("copyin failed, argc=%d, argv=%08x", args->argc, (vm_addr)args->argv);
     goto cleanup;
   }
 
-  if (CopyIn(envv, args->envv, args->envc * sizeof(char *)) != 0) {
-    Info ("Copyin failed, envc=%d, envv=%08x", args->envc, (vm_addr)args->envv);
+  if (copyin(envv, args->envv, args->envc * sizeof(char *)) != 0) {
+    Info ("copyin failed, envc=%d, envv=%08x", args->envc, (vm_addr)args->envv);
     goto cleanup;
   }
   
@@ -288,8 +288,8 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   for (int t = 0; t < args->argc; t++) {
     src = argv[t];
 
-    if (CopyInString(dst, src, remaining) != 0) {
-      Info ("CopyinString argv failed");
+    if (copyinstring(dst, src, remaining) != 0) {
+      Info ("copyinString argv failed");
       goto cleanup;
     }
 
@@ -306,8 +306,8 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   for (int t = 0; t < args->envc; t++) {
     src = envv[t];
 
-    if (CopyInString(dst, src, remaining) != 0) {
-      Info ("CopyinString envv failed");
+    if (copyinstring(dst, src, remaining) != 0) {
+      Info ("copyinString envv failed");
       goto cleanup;
     }
 
@@ -327,7 +327,7 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   return 0;
 
 cleanup:
-  Info("CopyInArgv failed");
+  Info("copyinArgv failed");
   return -EFAULT;
 }
 
@@ -355,7 +355,7 @@ int copy_out_argv(void *stack_base, int stack_size, struct execargs *args) {
     args->envv[t] = (char *)((vm_addr)args->envv[t] - difference);
   }
 
-  CopyOut((void *)args_base, execargs_buf, args->total_size);
+  copyout((void *)args_base, execargs_buf, args->total_size);
 
   args->argv = (char **)((vm_addr)args->argv - difference);
   args->envv = (char **)((vm_addr)args->envv - difference);

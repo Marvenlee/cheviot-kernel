@@ -45,7 +45,7 @@ void SigReturn (struct sigframe *u_sigframe)
 	
 	uc = (struct UserContext *)((vm_addr)current + PROCESS_SZ - sizeof(struct UserContext));
 
-	if (CopyIn (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
+	if (copyin (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
 		SigExit (SIGSEGV);
 	}
 	
@@ -174,7 +174,7 @@ void CheckSignals(struct UserContext *uc)
 					current->signal.handler[sig-1] = SIG_DFL;
         }
         
-				if (CopyOut (u_sigframe, &sigframe, sizeof (struct sigframe)) == 0) {		
+				if (copyout(u_sigframe, &sigframe, sizeof (struct sigframe)) == 0) {		
 //					state->return_esp = (uint32_t) u_sigframe;
 //					state->return_eip = (uint32_t) current->signal.restorer;
 				}	else {

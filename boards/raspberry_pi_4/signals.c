@@ -67,7 +67,7 @@ void check_signals(struct UserContext *uc)
     u_sigframe = cthread->signal.sigreturn_sigframe;
     cthread->signal.sigreturn_sigframe = NULL;
 
-	  if (CopyIn (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
+	  if (copyin (&sigframe, u_sigframe, sizeof (struct sigframe)) != 0) {	
       Error("Failed to copy in u_sigframe, sig_exit with -SIGSEGV");
 		  sig_exit(SIGSEGV);
 	  }
@@ -198,7 +198,7 @@ void check_signals(struct UserContext *uc)
   sigframe.sf_ucontext = &u_sigframe->sf_uc;
   sigframe.sf_ahu.sf_action = (void (*)(int, siginfo_t *, void *)) cproc->signal.handler[sig-1];
 							        
-  if (CopyOut (u_sigframe, &sigframe, sizeof (struct sigframe)) != 0) {		
+  if (copyout (u_sigframe, &sigframe, sizeof (struct sigframe)) != 0) {		
     sig_exit(SIGSEGV);
   }
   

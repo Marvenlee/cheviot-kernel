@@ -66,7 +66,7 @@ void NotifyLoggerProcessesInitialized(void)
  */
 void sys_debug(char *s)
 {
-  CopyInString(debug_buf, s, sizeof debug_buf - 1);
+  copyinstring(debug_buf, s, sizeof debug_buf - 1);
   debug_buf[sizeof debug_buf - 1] = '\0';
 
   DoLog("%s", &debug_buf[0]);

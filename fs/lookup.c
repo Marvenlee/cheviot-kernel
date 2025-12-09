@@ -176,7 +176,7 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
 
   if (flags & LOOKUP_KERNEL) {
     StrLCpy(ld->path, _path, sizeof ld->path);
-  } else if (CopyInString(ld->path, _path, PAGE_SIZE) == -1) {
+  } else if (copyinstring(ld->path, _path, PAGE_SIZE) == -1) {
     Error("init_lookup -EFAULT");
     Error("ld->path:%08x, _path:%08x", (uint32_t)ld->path, (uint32_t)_path);
     kfree_page(ld->path);

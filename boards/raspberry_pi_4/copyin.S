@@ -21,10 +21,10 @@
 
 
 // Exports
-.global CopyIn
-.global CopyInString
-.global CopyOut
-.global CopyUserString
+.global copyin
+.global copyinstring
+.global copyout
+.global copyoutstring
 .global StrLenUser
 
 
@@ -40,26 +40,26 @@
  * TODO: Currently doing byte-at-a-time copy, do word-at-a-time and multiple registers
  * for larger transfers
  */ 
-CopyIn:
+copyin:
     push {r0-r1}
     Mget_current_thread r0
-    ldr r1, =CopyInCatch
+    ldr r1, =copyinCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyInLoop:
+copyinLoop:
     cmp r2, #0
-    beq CopyInDone
+    beq copyinDone
     ldrbT r3, [r1], #1
     strb r3, [r0], #1
     sub r2, #1
-    b CopyInLoop
-CopyInDone:
+    b copyinLoop
+copyinDone:
     Mget_current_thread r0
     ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyInCatch:
+copyinCatch:
     mov r0, #-1
     bx lr
 
@@ -71,34 +71,34 @@ CopyInCatch:
  * @param   sz, size of destination buffer
  * @return  0 on success, -1 on error
  */
-CopyInString:
+copyinstring:
     push {r0-r1}
     Mget_current_thread r0
-    ldr r1, =CopyInStringCatch
+    ldr r1, =copyinstringCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyInStringLoop:
+copyinstringLoop:
     cmp r2, #0
-    beq CopyInStringNoTermDone
+    beq copyinstringNoTermDone
     ldrbT r3, [r1], #1
     strb r3, [r0], #1
     cmp r3, #0
-    beq CopyInStringDone
+    beq copyinstringDone
     sub r2, #1
-    b CopyInStringLoop
-CopyInStringDone:
+    b copyinstringLoop
+copyinstringDone:
     Mget_current_thread r0
     ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyInStringNoTermDone:
+copyinstringNoTermDone:
     Mget_current_thread r0
     ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
-CopyInStringCatch:
+copyinstringCatch:
     mov r0, #-1
     bx lr
 
@@ -113,26 +113,26 @@ CopyInStringCatch:
  * TODO: Currently doing byte-at-a-time copy, do word-at-a-time and multiple registers
  * for larger transfers
  */ 
-CopyOut:
+copyout:
     push {r0-r1}
     Mget_current_thread r0
-    ldr r1, =CopyOutCatch
+    ldr r1, =copyoutCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyOutLoop:
+copyoutLoop:
     cmp r2, #0
-    beq CopyOutDone
+    beq copyoutDone
     ldrb r3, [r1], #1
     strbT r3, [r0], #1
     sub r2, #1    
-    b CopyOutLoop
-CopyOutDone:
+    b copyoutLoop
+copyoutDone:
     Mget_current_thread r0
     ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyOutCatch:
+copyoutCatch:
     mov r0, #-1
     bx lr
 
@@ -140,34 +140,34 @@ CopyOutCatch:
 /* @brief   Copy a string from kernel to user-space
  *
  */
-CopyUserString:
+copyoutstring:
     push {r0-r1}
     Mget_current_thread r0
-    ldr r1, =CopyUserStringCatch
+    ldr r1, =copyoutstringCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyUserStringLoop:
+copyoutstringLoop:
     cmp r2, #0
-    beq CopyUserStringNoTermDone
+    beq copyoutstringNoTermDone
     ldrbT r3, [r1], #1
     strbT r3, [r0], #1
     cmp r3, #0
-    beq CopyUserStringDone
+    beq copyoutstringDone
     sub r2, #1
-    b CopyUserStringLoop
-CopyUserStringDone:
+    b copyoutstringLoop
+copyoutstringDone:
     Mget_current_thread r0
     ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyUserStringNoTermDone:
+copyoutstringNoTermDone:
     Mget_current_thread r0
     ldr r1, =#0xfee15bad
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
-CopyUserStringCatch:
+copyoutstringCatch:
     mov r0, #-1
     bx lr
 

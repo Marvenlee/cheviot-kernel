@@ -120,12 +120,12 @@ ssize_t sys_pwritev(int fd, msgiov_t *_iov, int iov_cnt, off64_t *_offset)
     return -EINVAL;
   }
   
-  if (CopyIn(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
+  if (copyin(iov, _iov, sizeof(msgiov_t) * iov_cnt) != 0) {
     return -EFAULT;
   } 
 
   if (_offset != NULL) {
-    if (CopyIn(&offset, _offset, sizeof(off64_t)) != 0) {
+    if (copyin(&offset, _offset, sizeof(off64_t)) != 0) {
       return -EFAULT;
     } 
   }

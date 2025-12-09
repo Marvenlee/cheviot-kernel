@@ -70,7 +70,7 @@ int sys_createmsgport(char *_path, uint32_t flags, struct stat *_stat, pid_t tid
 
   current = get_current_process();
 
-  if (CopyIn(&stat, _stat, sizeof stat) != 0) {
+  if (copyin(&stat, _stat, sizeof stat) != 0) {
     return -EFAULT;
   }
 

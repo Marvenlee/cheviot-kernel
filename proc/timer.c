@@ -73,7 +73,7 @@ int sys_gettimeofday(struct timeval *tv_user)
   tv.tv_usec = (hardclock_time % JIFFIES_PER_SECOND); // TODO: FIXME  * MICROSECONDS_PER_JIFFY;
   RestoreInterrupts(int_state);
 
-  CopyOut(tv_user, &tv, sizeof(struct timeval));
+  copyout(tv_user, &tv, sizeof(struct timeval));
   return 0;
 }
 
@@ -125,7 +125,7 @@ int sys_clock_gettime(int clock_id, struct timespec *_ts)
   	return sc;
   }
 
-  if (CopyOut(_ts, (const void *)&ts, sizeof(struct timespec)) != 0) {
+  if (copyout(_ts, (const void *)&ts, sizeof(struct timespec)) != 0) {
   	Error("clock_gettime -efault");
   	return -EFAULT;
   }
@@ -219,7 +219,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   current_proc = get_current_process();
   current = get_current_thread();
   
-  if (CopyIn(&req, _req, sizeof(req)) != 0) {
+  if (copyin(&req, _req, sizeof(req)) != 0) {
 	  Info ("sys_nanosleep: EFAULT");
     return -EFAULT;
   }

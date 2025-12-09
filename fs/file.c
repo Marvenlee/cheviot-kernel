@@ -81,7 +81,7 @@ ssize_t read_from_file(struct VNode *vnode, void *dst, size_t sz, off64_t *offse
     if (inkernel == true) {
       memcpy(dst, page->vaddr + cluster_offset, nbytes_xfer);
     } else {    
-      if (CopyOut(dst, page->vaddr + cluster_offset, nbytes_xfer) != 0) {
+      if (copyout(dst, page->vaddr + cluster_offset, nbytes_xfer) != 0) {
       	return -EFAULT;
       }
     }
@@ -147,7 +147,7 @@ ssize_t write_to_file(struct VNode *vnode, void *src, size_t sz, off64_t *offset
       }
     }
 
-    if (CopyIn(page->vaddr + cluster_offset, src, nbytes_xfer) != 0) {
+    if (copyin(page->vaddr + cluster_offset, src, nbytes_xfer) != 0) {
       return -EFAULT;  
     }
 		 

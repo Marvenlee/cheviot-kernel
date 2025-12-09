@@ -46,7 +46,7 @@ int sys_set_privileges(int when, uint64_t *_set, uint64_t *_result)
     return -EINVAL;
   }
   
-  if (CopyIn(&set, _set, sizeof set) != 0) {
+  if (copyin(&set, _set, sizeof set) != 0) {
     return -EFAULT;
   }
 
@@ -67,7 +67,7 @@ int sys_set_privileges(int when, uint64_t *_set, uint64_t *_result)
   }
   
   if (sc == 0 && _result != NULL) {
-    CopyOut(_result, &result, sizeof result);
+    copyout(_result, &result, sizeof result);
   }
   
   return sc;

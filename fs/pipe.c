@@ -101,7 +101,7 @@ int sys_pipe(int *_fd)
               Info("fd[0] = %d, fd[1] = %d", fd[0], fd[1]);
               Info("filedesc0:%08x, filedesc1:%08x", (uint32_t)filedesc0, (uint32_t)filedesc1);
               
-              sc = CopyOut(_fd, fd, sizeof fd);
+              sc = copyout(_fd, fd, sizeof fd);
               
               if (sc == 0) {
                 filedesc0->flags |= FDF_VALID;
@@ -273,7 +273,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     if ((pipe->r_pos + nbytes_to_copy) > PIPE_BUF_SZ) {
       sz1 = PIPE_BUF_SZ - pipe->r_pos;
 
-      if (CopyOut(dst, pipe->data + pipe->r_pos, sz1) != 0) {
+      if (copyout(dst, pipe->data + pipe->r_pos, sz1) != 0) {
         Info("pipe read, copyout -a- failed");
 
         status = -EIO;
@@ -288,7 +288,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     }
     
     if (sz2) {
-      if (CopyOut(dst, pipe->data, sz2) != 0) {
+      if (copyout(dst, pipe->data, sz2) != 0) {
         Info("pipe read, copyout -b- failed");
         status = -EIO;
         break;
@@ -363,7 +363,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
     if ((pipe->w_pos + nbytes_to_copy) > PIPE_BUF_SZ) {
       sz1 = PIPE_BUF_SZ - pipe->w_pos;   
 
-      if (CopyIn(pipe->data + pipe->w_pos, src, sz1) != 0) {
+      if (copyin(pipe->data + pipe->w_pos, src, sz1) != 0) {
         Info("pipe write, copyin -a- failed");
         status = -EIO;
         break;
@@ -377,7 +377,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
     }
   
     if (sz2) {
-      if (CopyIn(pipe->data, src2, sz2) != 0) {
+      if (copyin(pipe->data, src2, sz2) != 0) {
         Info("pipe write, copyin -b- failed");
 
         status = -EIO;

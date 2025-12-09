@@ -289,15 +289,15 @@ int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
   struct Process *current = get_current_process();
 
   if (ruid != NULL) {
-    CopyOut(ruid, &current->uid, sizeof *ruid);
+    copyout(ruid, &current->uid, sizeof *ruid);
   }
 
   if (euid != NULL) {
-    CopyOut(euid, &current->euid, sizeof *euid);
+    copyout(euid, &current->euid, sizeof *euid);
   }
 
   if (suid != NULL) {
-    CopyOut(suid, &current->suid, sizeof *suid);
+    copyout(suid, &current->suid, sizeof *suid);
   }
 
   return 0;
@@ -312,15 +312,15 @@ int getresgid(uid_t *rgid, uid_t *egid, uid_t *sgid)
   struct Process *current = get_current_process();
 
   if (rgid != NULL) {
-    CopyOut(rgid, &current->gid, sizeof *rgid);
+    copyout(rgid, &current->gid, sizeof *rgid);
   }
 
   if (egid != NULL) {
-    CopyOut(egid, &current->egid, sizeof *egid);
+    copyout(egid, &current->egid, sizeof *egid);
   }
 
   if (sgid != NULL) {
-    CopyOut(sgid, &current->sgid, sizeof *sgid);
+    copyout(sgid, &current->sgid, sizeof *sgid);
   }
 
   return 0;
@@ -346,7 +346,7 @@ int sys_setgroups(int ngroups, const gid_t *grouplist)
   current->ngroups = 0;
 
   if (ngroups > 0) {
-    sc = CopyIn(current->groups, grouplist, ngroups * sizeof(gid_t));
+    sc = copyin(current->groups, grouplist, ngroups * sizeof(gid_t));
 
     if (sc != 0) {
       return -EFAULT;
@@ -389,7 +389,7 @@ int sys_getgroups(int gidsetsize, gid_t *grouplist)
     return -EINVAL;
   }
 
-  sc = CopyOut(grouplist, current->groups, gidsetsize * sizeof(gid_t));  
+  sc = copyout(grouplist, current->groups, gidsetsize * sizeof(gid_t));  
 
   if (sc != 0) {
     return -EFAULT;

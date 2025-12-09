@@ -72,7 +72,7 @@ void sys_debug(char *s)
 {
   char buf[128];
 
-  CopyInString (buf, s, sizeof buf);
+  copyinstring (buf, s, sizeof buf);
   buf[sizeof buf - 1] = '\0';
 
   Info("PID %4d: %s:", get_current_pid(), &buf[0]);

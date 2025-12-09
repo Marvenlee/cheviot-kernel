@@ -273,7 +273,7 @@ int sys_waitpid(int pid, int *status, int options)
   if (status != NULL) {
     current = get_current_process();
 
-    if (CopyOut(status, &child->exit_status, sizeof *status) != 0) {
+    if (copyout(status, &child->exit_status, sizeof *status) != 0) {
         err = -EFAULT;
         goto exit;
     }

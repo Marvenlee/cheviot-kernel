@@ -181,9 +181,9 @@ int sys_munmap(void *addr, size_t size);
 int sys_mprotect(void *addr, size_t size, int flags);
 
 // boards/.../arch.S
-int CopyIn(void *dst, const void *src, size_t sz);
-int CopyOut(void *dst, const void *src, size_t sz);
-int CopyInString(void *dst, const void *src, size_t max_sz);
+int copyin(void *dst, const void *src, size_t sz);
+int copyout(void *dst, const void *src, size_t sz);
+int copyinstring(void *dst, const void *src, size_t max_sz);
 
 // boards/.../pmap.c
 int pmap_create(struct AddressSpace *as);

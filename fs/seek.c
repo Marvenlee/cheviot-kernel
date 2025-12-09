@@ -96,7 +96,7 @@ int sys_lseek64(int fd, off64_t *_pos, int whence)
   off64_t pos;
   int sc;
 
-  sc = CopyIn(&pos, _pos, sizeof pos);
+  sc = copyin(&pos, _pos, sizeof pos);
 
   if(sc != 0) {
     return -EFAULT;
@@ -124,7 +124,7 @@ int sys_lseek64(int fd, off64_t *_pos, int whence)
 
       if (sc == 0) {
         pos = filp->offset;  
-        CopyOut(_pos, &pos, sizeof pos);
+        copyout(_pos, &pos, sizeof pos);
         return (off_t)filp->offset;    
       }
       

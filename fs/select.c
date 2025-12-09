@@ -51,7 +51,7 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   current = get_current_process();
 
   if (_rdfds != NULL) {
-    sc = CopyIn(&rdfds, _rdfds, sizeof rdfds);
+    sc = copyin(&rdfds, _rdfds, sizeof rdfds);
     if (sc != 0) {
       return sc;
     }    
@@ -60,7 +60,7 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   }
   
   if (_wrfds != NULL) {
-    sc = CopyIn(&wrfds, _wrfds, sizeof wrfds);
+    sc = copyin(&wrfds, _wrfds, sizeof wrfds);
     if (sc != 0) {
       return sc;
     }    
@@ -69,7 +69,7 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   }
 
   if (_exfds != NULL) {
-    sc = CopyIn(&exfds, _exfds, sizeof exfds);
+    sc = copyin(&exfds, _exfds, sizeof exfds);
     if (sc != 0) {
       return sc;
     }    
@@ -78,7 +78,7 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   }
 
   if (_timeout != NULL) {
-    sc = CopyIn(&timeout, _timeout, sizeof timeout);
+    sc = copyin(&timeout, _timeout, sizeof timeout);
     if (sc != 0) {
       return sc;
     }
@@ -158,21 +158,21 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   }  
     
   if (_rdfds != NULL) {
-    sc = CopyOut(_rdfds, &rdfds, sizeof rdfds);
+    sc = copyout(_rdfds, &rdfds, sizeof rdfds);
     if (sc != 0) {
       return sc;
     }
   }
 
   if (_wrfds != NULL) {
-    sc = CopyOut(_wrfds, &wrfds, sizeof wrfds);
+    sc = copyout(_wrfds, &wrfds, sizeof wrfds);
     if (sc != 0) {
       return sc;
     }
   }
 
   if (_exfds != NULL) {
-    sc = CopyOut(_exfds, &exfds, sizeof exfds);
+    sc = copyout(_exfds, &exfds, sizeof exfds);
     if (sc != 0) {
       return sc;
     }

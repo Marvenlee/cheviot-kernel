@@ -98,7 +98,7 @@ int sys_get_cpu_usage(void *buf, size_t sz)
     // Reset counters
     thread->usage_usec = 0;
     
-    CopyOut(rcu, &cu, sizeof cu);
+    copyout(rcu, &cu, sizeof cu);
 
     rcu++;
     cnt++;

@@ -336,7 +336,7 @@ static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void 
   return 0;
 
 exit:
-  Info ("CopyInArgv failed");
+  Info ("copyinArgv failed");
   return -EFAULT;
 }
 

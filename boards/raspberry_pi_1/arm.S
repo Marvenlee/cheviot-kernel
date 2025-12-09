@@ -43,10 +43,10 @@
 .global SpinUnlock
 .global SpinLockIRQSave
 .global SpinUnlockIRQRestore
-.global CopyIn
-.global CopyInString
-.global CopyOut
-.global CopyUserString
+.global copyin
+.global copyinstring
+.global copyout
+.global copyoutstring
 .global StrLenUser
 .global SetContext
 .global GetContext
@@ -221,26 +221,26 @@ SpinUnlockIRQRestore:
 // @param   sz, size of buffer to copy
 // @return  0 on success, -1 on error
 // 
-CopyIn:
+copyin:
     push {r0-r1}
     MGetCurrentProcess r0
-    ldr r1, =CopyInCatch
+    ldr r1, =copyinCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyInLoop:
+copyinLoop:
     cmp r2, #0
-    beq CopyInDone
+    beq copyinDone
     ldrbT r3, [r1], #1
     strb r3, [r0], #1
     sub r2, #1
-    b CopyInLoop
-CopyInDone:
+    b copyinLoop
+copyinDone:
     MGetCurrentProcess r0
     ldr r1, =#0xdeadbeef
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyInCatch:
+copyinCatch:
     mov r0, #-1
     bx lr
 
@@ -252,34 +252,34 @@ CopyInCatch:
 // @param   sz, size of destination buffer
 // @return  0 on success, -1 on error
 //
-CopyInString:
+copyinstring:
     push {r0-r1}
     MGetCurrentProcess r0
-    ldr r1, =CopyInStringCatch
+    ldr r1, =copyinstringCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyInStringLoop:
+copyinstringLoop:
     cmp r2, #0
-    beq CopyInStringNoTermDone
+    beq copyinstringNoTermDone
     ldrbT r3, [r1], #1
     strb r3, [r0], #1
     cmp r3, #0
-    beq CopyInStringDone
+    beq copyinstringDone
     sub r2, #1
-    b CopyInStringLoop
-CopyInStringDone:
+    b copyinstringLoop
+copyinstringDone:
     MGetCurrentProcess r0
     ldr r1, =#0xdeadbeef
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyInStringNoTermDone:
+copyinstringNoTermDone:
     MGetCurrentProcess r0
     ldr r1, =#0xdeadbeef
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
-CopyInStringCatch:
+copyinstringCatch:
     mov r0, #-1
     bx lr
 
@@ -291,61 +291,61 @@ CopyInStringCatch:
 // @param   sz, size of buffer to copy
 // @return  0 on success, -1 on error
 // 
-CopyOut:
+copyout:
     push {r0-r1}
     MGetCurrentProcess r0
-    ldr r1, =CopyOutCatch
+    ldr r1, =copyoutCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyOutLoop:
+copyoutLoop:
     cmp r2, #0
-    beq CopyOutDone
+    beq copyoutDone
     ldrb r3, [r1], #1
     strbT r3, [r0], #1
     sub r2, #1    
-    b CopyOutLoop
-CopyOutDone:
+    b copyoutLoop
+copyoutDone:
     MGetCurrentProcess r0
     ldr r1, =#0xdeadbeef
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyOutCatch:
+copyoutCatch:
     mov r0, #-1
     bx lr
 
 
 # ****************************************************************************
-# CopyUserString
+# copyoutstring
 
-CopyUserString:
+copyoutstring:
     push {r0-r1}
     MGetCurrentProcess r0
-    ldr r1, =CopyUserStringCatch
+    ldr r1, =copyoutstringCatch
     str r1, [r0, #TASK_CATCH_PC]
     pop {r0-r1}
-CopyUserStringLoop:
+copyoutstringLoop:
     cmp r2, #0
-    beq CopyUserStringNoTermDone
+    beq copyoutstringNoTermDone
     ldrbT r3, [r1], #1
     strbT r3, [r0], #1
     cmp r3, #0
-    beq CopyUserStringDone
+    beq copyoutstringDone
     sub r2, #1
-    b CopyUserStringLoop
-CopyUserStringDone:
+    b copyoutstringLoop
+copyoutstringDone:
     MGetCurrentProcess r0
     ldr r1, =#0xdeadbeef
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
-CopyUserStringNoTermDone:
+copyoutstringNoTermDone:
     MGetCurrentProcess r0
     ldr r1, =#0xdeadbeef
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
-CopyUserStringCatch:
+copyoutstringCatch:
     mov r0, #-1
     bx lr
 
