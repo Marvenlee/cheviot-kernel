@@ -24,7 +24,7 @@
 #include <kernel/types.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_FS_PIPE)
+KLOG_REGISTER(LOG_FS_PIPE)
 
 
 /*
@@ -243,10 +243,10 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
   while (nbytes_read == 0 && status == 0) {
     remaining = sz - nbytes_read;
 
-    Info ("..Pipe read remaining = %d, data_sz = %d, vref = %d", remaining, pipe->data_sz, vnode->reference_cnt);
+    klog_info("..Pipe read remaining = %d, data_sz = %d, vref = %d", remaining, pipe->data_sz, vnode->reference_cnt);
     
     if (pipe->writer_cnt <= 0) {
-      Info ("pipe writer_cnt = %d", pipe->writer_cnt);
+      klog_info("pipe writer_cnt = %d", pipe->writer_cnt);
     }
     
     while (pipe->data_sz == 0 && pipe->writer_cnt > 0) {
@@ -254,17 +254,17 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
       klog_info("pipe->data_sz = %d", pipe->data_sz);
       klog_info("pipe->reader_cnt = %d", pipe->reader_cnt);
       klog_info("pipe->writer_cnt = %d", pipe->writer_cnt);
-      Info ("..Pipe read sleeping");
+      klog_info("..Pipe read sleeping");
       TaskSleep (&pipe->rendez);
     }
 
     if ( pipe->writer_cnt == 0 && pipe->data_sz == 0) {
-      Info ("..Pipe read, ref_cnt = %d, data_sz=%d", vnode->reference_cnt, pipe->data_sz);
+      klog_info("..Pipe read, ref_cnt = %d, data_sz=%d", vnode->reference_cnt, pipe->data_sz);
       break;
     }  
     
     if (pipe->data_sz == 0 && nbytes_read > 0) {
-      Info ("pipe data empty, read %d", nbytes_read);
+      klog_info("pipe data empty, read %d", nbytes_read);
       break;
     }
     
@@ -304,7 +304,7 @@ ssize_t read_from_pipe(struct VNode *vnode, void *_dst, size_t sz)
     TaskWakeupAll(&pipe->rendez);
   }
 
-  Info ("..Pipe read, read:%d, st:%d", nbytes_read, status);    
+  klog_info("..Pipe read, read:%d, st:%d", nbytes_read, status);    
 
   return (status == 0) ? nbytes_read : status;
 }
@@ -334,15 +334,15 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
   while (nbytes_written == 0 && status == 0) {
     remaining = sz - nbytes_written;
 
-    Info ("..Pipe write remaining=%d, free_sz=%d, vref=%d", remaining, pipe->free_sz, vnode->reference_cnt);
+    klog_info("..Pipe write remaining=%d, free_sz=%d, vref=%d", remaining, pipe->free_sz, vnode->reference_cnt);
 
     if (pipe->reader_cnt <= 0) {
-      Info ("pipe reader_cnt = %d", pipe->reader_cnt);
+      klog_info("pipe reader_cnt = %d", pipe->reader_cnt);
     }
 
 
     while (pipe->free_sz < PIPE_BUF && pipe->reader_cnt > 0) {
-      Info ("..Pipe write sleeping");
+      klog_info("..Pipe write sleeping");
       klog_info("pipe->free_sz = %d", pipe->free_sz);
       klog_info("pipe->data_sz = %d", pipe->data_sz);
       
@@ -353,7 +353,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
     }
 
     if ( pipe->reader_cnt == 0) {
-      Info ("Pipe write, ref_cnt = %d, ending xfer", pipe->reader_cnt);
+      klog_info("Pipe write, ref_cnt = %d, ending xfer", pipe->reader_cnt);
       // FIXME: pipe reference count ends up being -5
       break;
     }  
@@ -394,7 +394,7 @@ ssize_t write_to_pipe(struct VNode *vnode, void *_src, size_t sz)
     TaskWakeupAll (&pipe->rendez);    
   }
 
-  Info ("..pipe write, wrote:%d, st:%d", nbytes_written, status);
+  klog_info("..pipe write, wrote:%d, st:%d", nbytes_written, status);
   return (status == 0) ? nbytes_written : status; 
 }
 

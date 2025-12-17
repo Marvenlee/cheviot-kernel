@@ -27,7 +27,7 @@
 #include <kernel/types.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_PROC_INTERRUPT)
+KLOG_REGISTER(LOG_PROC_INTERRUPT)
 
 
 /* @brief   Registers an interrupt notification server

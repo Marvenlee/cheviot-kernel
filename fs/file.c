@@ -25,7 +25,7 @@
 #include <time.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_FILE)
+KLOG_REGISTER(LOG_FS_FILE)
 
 
 /* @brief   Read from a file through the VFS file cache

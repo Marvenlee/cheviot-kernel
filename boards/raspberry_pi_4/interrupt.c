@@ -13,13 +13,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
+ *
+ * --
  * Raspberry Pi interrupt handling functions.
  */
-
-#define KLOG_GROUP(LOG_BOARD_INTERRUPT)
 
 #include <kernel/board/arm.h>
 #include <kernel/board/interrupt.h>
@@ -34,6 +31,7 @@
 #include <kernel/utility.h>
 #include <kernel/interrupt.h>
 
+KLOG_REGISTER(LOG_BOARD_INTERRUPT)
 
 /* @brief   Initialize interrupt controller hardware on the Pi 4
  *
@@ -276,7 +274,7 @@ void print_pending_interrupts(void)
   for (uint32_t irq=0; irq < 128; irq+=32) {
     uint32_t n = irq / 32;
     uint32_t reg = hal_mmio_read(&gic_dist_regs->spi[n]);
-    Info ("*** Pending interrupts irq:%d-%d : %08x", irq, irq+31, reg);
+    klog_info("*** Pending interrupts irq:%d-%d : %08x", irq, irq+31, reg);
   }  
 }
 #endif

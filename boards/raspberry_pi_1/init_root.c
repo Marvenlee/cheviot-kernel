@@ -58,7 +58,7 @@ void BootstrapRootProcess(void) {
   void *ifs_base;
   void *ifs_exe_base;
 
-  Info ("BootstrapRootProcess ...");
+  klog_info("BootstrapRootProcess ...");
 
   current = get_current_process();
 
@@ -69,30 +69,30 @@ void BootstrapRootProcess(void) {
   
 //  CleanupAddressSpace(&current->as);
 
-  Info ("Map IFS image to 0x70000000");
+  klog_info("Map IFS image to 0x70000000");
 
   if ((ifs_base = MapIFS((void *)0x70000000, bootinfo->ifs_image_size, (void *)bootinfo->ifs_image, PROT_READWRITE)) == NULL) {
     klog_info("Root map IFS image failed");
     kernelpanic();
   }
 
-  Info ("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
-  Info ("ifs_exe_base phys = %08x", (vm_addr)bootinfo->ifs_exe_base);  
-  Info ("ifs_image_size    = %08x", (vm_addr)bootinfo->ifs_image_size);  
+  klog_info("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
+  klog_info("ifs_exe_base phys = %08x", (vm_addr)bootinfo->ifs_exe_base);  
+  klog_info("ifs_image_size    = %08x", (vm_addr)bootinfo->ifs_image_size);  
 
   ifs_exe_base = ifs_base + (bootinfo->ifs_exe_base - bootinfo->ifs_image);
 
-  Info ("ifs_base = %08x", ifs_base);  
-  Info ("ifs_exe_base = %08x", ifs_exe_base);
+  klog_info("ifs_base = %08x", ifs_base);  
+  klog_info("ifs_exe_base = %08x", ifs_exe_base);
   
   if (LoadRootElf(ifs_exe_base, &entry_point) != 0) {
     klog_info("LoadProcess failed");
     kernelpanic();
   }
 
-  Info ("entry_point: %08x", (vm_addr)entry_point);
+  klog_info("entry_point: %08x", (vm_addr)entry_point);
 
-  Info ("allocating root stack");
+  klog_info("allocating root stack");
   
   if ((stack_base = sys_mmap((void *)0x30000000, USER_STACK_SZ, PROT_READ PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
     klog_info("Root stack alloc failed");
@@ -108,10 +108,10 @@ void BootstrapRootProcess(void) {
    
   stack_pointer = stack_base + USER_STACK_SZ - ALIGN_UP(args.total_size, 16) - 16;
   
-  Info ("Stack base   : %08x", stack_base);
-  Info ("Stack Pointer: %08x", stack_pointer);
-  Info ("Args");
-  Info ("Entry Point  : %08x", (vm_addr) entry_point);
+  klog_info("Stack base   : %08x", stack_base);
+  klog_info("Stack Pointer: %08x", stack_pointer);
+  klog_info("Args");
+  klog_info("Entry Point  : %08x", (vm_addr) entry_point);
   
   arch_init_exec(current, entry_point, stack_pointer, &args);
 }
@@ -146,13 +146,13 @@ int LoadRootElf(void *file_base, void **entry_point)
   rc = ReadIFS(file_base, 0, &ehdr, sizeof(Elf32_EHdr));
 
   if (rc != sizeof(Elf32_EHdr)) {
-    Info ("ELF header could not read");
+    klog_info("ELF header could not read");
     return -EIO;
   }
 
   // Validate ELF header here
 
-  Info ("CheckELFHeaders");
+  klog_info("CheckELFHeaders");
 
   if (ehdr.e_ident[EI_MAG0] == ELFMAG0 && ehdr.e_ident[EI_MAG1] == 'E' &&
       ehdr.e_ident[EI_MAG2] == 'L' && ehdr.e_ident[EI_MAG3] == 'F' &&
@@ -160,11 +160,11 @@ int LoadRootElf(void *file_base, void **entry_point)
       ehdr.e_ident[EI_DATA] == ELFDATA2LSB && ehdr.e_type == ET_EXEC &&
       ehdr.e_phnum > 0) {
 
-    Info ("root File is ELF");
+    klog_info("root File is ELF");
   } else {
     klog_info("FILE IS NOT EXECUTABLE");
 
-    Info ("Magic: %02x %02x %02x %02x", 
+    klog_info("Magic: %02x %02x %02x %02x", 
             ehdr.e_ident[EI_MAG0],
             ehdr.e_ident[EI_MAG1],
             ehdr.e_ident[EI_MAG2],
@@ -173,7 +173,7 @@ int LoadRootElf(void *file_base, void **entry_point)
     kernelpanic();
   }
 
-  Info ("ehdr.e_entry = %08x", ehdr.e_entry);
+  klog_info("ehdr.e_entry = %08x", ehdr.e_entry);
 
   *entry_point = (void *)ehdr.e_entry;
 
@@ -255,7 +255,7 @@ static void *MapIFS(void *vaddr, vm_size sz, void *paddr, bits32_t flags)
   vaddr = (void *)segment_create(as, (vm_addr)vaddr, sz, SEG_TYPE_ALLOC, flags);
 
   if (vaddr == NULL) {
-    Info ("vaddr == null");
+    klog_info("vaddr == null");
     kernelpanic();
   }
 
@@ -264,12 +264,12 @@ static void *MapIFS(void *vaddr, vm_size sz, void *paddr, bits32_t flags)
     pf = pmap_pa_to_pf(pa);
     
     if (pf == NULL) {
-      Info ("Cannot find PF pa:%08x", pa);
+      klog_info("Cannot find PF pa:%08x", pa);
       kernelpanic();
     }
     
     if (pmap_enter(as, va, pa, flags) != 0) {
-      Info ("Cannot PmapEnter pa:%08x", pa);
+      klog_info("Cannot PmapEnter pa:%08x", pa);
       kernelpanic();
     }
     
@@ -297,21 +297,21 @@ static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void 
   envv = (char **)((uint8_t *)argv + (3 + 1) * sizeof(char *));
   string_table = (char *)((uint8_t *)envv + (0 + 1) * sizeof(char *));
   
-  Info ("argv : %08x", (vm_addr)argv);  
-  Info ("envv : %08x", (vm_addr)envv);
-  Info ("string_table : %08x", (vm_addr)string_table);
+  klog_info("argv : %08x", (vm_addr)argv);  
+  klog_info("envv : %08x", (vm_addr)envv);
+  klog_info("string_table : %08x", (vm_addr)string_table);
 
   remaining = &pool[MAX_ARGS_SZ] - string_table;
   dst = string_table;
   
   
-  Info ("... argv[0] = %s", exe_name);
+  klog_info("... argv[0] = %s", exe_name);
   argv[0] = dst;
   StrLCpy(dst, exe_name, remaining);
   sz = StrLen(dst) + 1;
   dst += sz;
   remaining -= sz;
-  Info ("... argv[1] = %08x", ifs_base);  
+  klog_info("... argv[1] = %08x", ifs_base);  
   argv[1] = dst;
   Snprintf(tmp, sizeof tmp, "0x%08x", ifs_base);
   StrLCpy(dst, tmp, remaining);
@@ -319,7 +319,7 @@ static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void 
   dst += sz;
   remaining -= sz;
 
-  Info ("... argv[2] = %08x", ifs_size);  
+  klog_info("... argv[2] = %08x", ifs_size);  
   argv[2] = dst;
   Snprintf(tmp, sizeof tmp, "%u", ifs_size);
   StrLCpy(dst, tmp, remaining);
@@ -336,7 +336,7 @@ static int InitRootArgv(char *pool, struct execargs *args, char *exe_name, void 
   return 0;
 
 exit:
-  Info ("copyinArgv failed");
+  klog_info("copyinArgv failed");
   return -EFAULT;
 }
 

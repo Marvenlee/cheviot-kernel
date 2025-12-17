@@ -24,7 +24,7 @@
 #include <sys/mount.h>
 #include <limits.h>
 
-#define KLOG_GROUP(LOG_FS_BLOCK)
+KLOG_REGISTER(LOG_FS_BLOCK)
 
 /* @brief   Read from a block device
  * 

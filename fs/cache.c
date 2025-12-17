@@ -26,7 +26,7 @@
 #include <time.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_CACHE)
+KLOG_REGISTER(LOG_FS_CACHE)
 
 /* @Brief   Get a cached block
  *

@@ -29,7 +29,7 @@
 #include <sys/mman.h>
 #include <ucontext.h>
 
-#define KLOG_GROUP(LOG_BOARD_EXCEPTION)
+KLOG_REGISTER(LOG_BOARD_EXCEPTION)
 
 
 

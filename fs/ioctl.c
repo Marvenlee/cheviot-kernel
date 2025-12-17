@@ -25,7 +25,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-#define KLOG_GROUP(LOG_FS_IOCTL)
+KLOG_REGISTER(LOG_FS_IOCTL)
 
 /*
  *

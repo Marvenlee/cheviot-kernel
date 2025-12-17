@@ -27,7 +27,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 
-#define KLOG_GROUP(LOG_BOARD_TIMER)
+KLOG_REGISTER(LOG_BOARD_TIMER)
 
 
 /* @brief Initialize the timer peripheral

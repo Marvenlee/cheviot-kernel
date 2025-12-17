@@ -517,8 +517,8 @@ ssize_t write_to_pipe(struct VNode *vnode, void *src, size_t nbytes);
 int do_close_pipe(struct VNode *vnode, bool is_writer);
 
 /* fs/poll.c */
-int sys_poll(struct pollfd *pfds, nfds_t nfds, int timeout);
-int sys_pollnotify(int fd, int ino, short mask, short events);
+int sys_poll(struct pollfd *_fds, nfds_t nfds, int timeout);
+int sys_pollnotify(int portfd, int ino, short events);
 
 /* fs/truncate.c */
 int sys_truncate(int fd, size_t sz);
@@ -572,7 +572,7 @@ int vfs_chown(struct VNode *vnode, uid_t uid, gid_t gid);
 int vfs_isatty(struct VNode *vnode);
 int vfs_syncfs(struct SuperBlock *sb);
 int vfs_fsync(struct VNode *vnode);
-int vfs_poll(struct VNode *vnode, uint32_t *revents);
+int vfs_poll(struct VNode *vnode, short events, short *revents);
 
 ssize_t vfs_readv(struct VNode *vnode, int ipc, msgiov_t *riov, int riov_cnt, size_t nbytes, off64_t *offset);
 ssize_t vfs_writev(struct VNode *vnode, int ipc, msgiov_t *siov, int siov_cnt, size_t nbytes, off64_t *offset);

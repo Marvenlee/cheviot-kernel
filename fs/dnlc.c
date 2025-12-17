@@ -12,14 +12,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * --
+ * Directory Name Lookup Cache
+ * Improves performance of lookups by caching recently found lookups, thereby
+ * avoiding sending CMD_LOOKUP messages to the appropriate filesystem handler.
  */
-
-/* @brief   Functions for using the Directory Name Lookup Cache
- *          FIXME: These have been removed until vnodes and their reference counting
- *          have been debugged.
- */
-
-//#define KDEBUG
 
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
@@ -28,6 +26,8 @@
 #include <kernel/types.h>
 #include <kernel/utility.h>
 #include <sys/mount.h>
+
+KLOG_REGISTER(LOG_FS_DNLC)
 
 
 /* @brief   Lookup a file in the Directory Name Lookup Cache

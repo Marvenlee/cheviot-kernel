@@ -28,7 +28,7 @@
 #include <string.h>
 #include <kernel/board/peripheral_base.h>
 
-#define KLOG_GROUP(LOG_BOARD_INIT)
+KLOG_REGISTER(LOG_BOARD_INIT)
 
 
 /* @brief Entry point into the kernel
@@ -109,15 +109,15 @@ void Main(void)
   futex_table       = bootstrap_alloc(max_futex * sizeof(struct Futex));
 	
 	
-  Info ("bootloader_base     : %08x", bootinfo->bootloader_base);
-  Info ("bootloader_ceiliing : %08x", bootinfo->bootloader_ceiling);
-  Info ("kernel_base         : %08x", bootinfo->kernel_base);
-  Info ("kernel_ceiliing     : %08x", bootinfo->kernel_ceiling);
-  Info ("For bootstrap pagedir and kernel pagetables....");  
-  Info ("pagetable_base      : %08x", bootinfo->pagetable_base);
-  Info ("pagetable_ceiliing  : %08x", bootinfo->pagetable_ceiling);
-  Info ("kernel heap base : %08x", _heap_base);
-  Info ("kernel heap top : %08x", _heap_current);
+  klog_info("bootloader_base     : %08x", bootinfo->bootloader_base);
+  klog_info("bootloader_ceiliing : %08x", bootinfo->bootloader_ceiling);
+  klog_info("kernel_base         : %08x", bootinfo->kernel_base);
+  klog_info("kernel_ceiliing     : %08x", bootinfo->kernel_ceiling);
+  klog_info("For bootstrap pagedir and kernel pagetables....");  
+  klog_info("pagetable_base      : %08x", bootinfo->pagetable_base);
+  klog_info("pagetable_ceiliing  : %08x", bootinfo->pagetable_ceiling);
+  klog_info("kernel heap base : %08x", _heap_base);
+  klog_info("kernel heap top : %08x", _heap_current);
   
   klog_info("Initializing kernel...");
 

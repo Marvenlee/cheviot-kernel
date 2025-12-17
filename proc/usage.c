@@ -29,7 +29,7 @@
 #include <sys/resource.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_PROC_USAGE)
+KLOG_REGISTER(LOG_PROC_USAGE)
 
 
 /*

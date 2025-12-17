@@ -25,7 +25,7 @@
 #include <sys/termios.h>
 #include <unistd.h>
 
-#define KLOG_GROUP(LOG_FS_CHAR)
+KLOG_REGISTER(LOG_FS_CHAR)
 
 /* @brief   Read data from a character device
  *

@@ -27,7 +27,7 @@
 #include <kernel/dbg.h>
 #include <poll.h>
 
-#define KLOG_GROUP(LOG_FS_SIGNAL)
+KLOG_REGISTER(LOG_FS_SIGNAL)
 
 
 /* @brief   Send a signal to processes with a particular open file

@@ -26,7 +26,7 @@
 #include <kernel/arch.h>
 #include <unistd.h>
 
-#define KLOG_GROUP(LOG_PROC_SYSCONF)
+KLOG_REGISTER(LOG_PROC_SYSCONF)
 
 
 /* @brief   Get system configuration information

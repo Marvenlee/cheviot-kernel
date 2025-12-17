@@ -17,8 +17,6 @@
  * Thread scheduling related functions
  */
 
-//#define KDEBUG
-
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
@@ -27,7 +25,7 @@
 #include <kernel/types.h>
 #include <kernel/arch.h>
 
-#define KLOG_GROUP(LOG_PROC_SCHED)
+KLOG_REGISTER(LOG_PROC_SCHED)
 
 
 /* @brief   Perform a task switch

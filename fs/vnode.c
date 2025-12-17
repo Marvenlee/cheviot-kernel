@@ -54,7 +54,7 @@
 #include <kernel/types.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_VNODE)
+KLOG_REGISTER(LOG_FS_VNODE)
 
 
 /* @brief   Allocate a new vnode

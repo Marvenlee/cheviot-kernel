@@ -19,7 +19,7 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 
-#define KLOG_GROUP(LOG_FS_SYMLINK)
+KLOG_REGISTER(LOG_FS_SYMLINK)
 
 
 /* @brief   Create a symbolic link in the file system

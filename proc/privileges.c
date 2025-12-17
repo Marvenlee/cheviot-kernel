@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_PROC_PRIVILEGES)
+KLOG_REGISTER(LOG_PROC_PRIVILEGES)
 
 
 /* @brief   Restrict process permissions to perform certain system calls.

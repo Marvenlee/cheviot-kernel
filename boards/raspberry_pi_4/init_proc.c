@@ -33,7 +33,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-#define KLOG_GROUP(LOG_BOARD_INIT)
+KLOG_REGISTER(LOG_BOARD_INIT)
 
 
 /* @brief Initialize process management data structures

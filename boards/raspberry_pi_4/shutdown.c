@@ -28,7 +28,7 @@
 #include <string.h>
 #include <kernel/board/peripheral_base.h>
 
-#define KLOG_GROUP(LOG_BOARD_SHUTDOWN)
+KLOG_REGISTER(LOG_BOARD_SHUTDOWN)
 
 
 /* @brief   Shutdown of the OS

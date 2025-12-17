@@ -17,8 +17,6 @@
  * Exec the first process, the IFS driver into existence.
  */
 
-//#define KDEBUG
-
 #include <string.h>
 #include <kernel/arch.h>
 #include <kernel/board/boot.h>
@@ -33,6 +31,8 @@
 #include <kernel/vm.h>
 #include <sys/execargs.h>
 #include <sys/mman.h>
+
+KLOG_REGISTER(LOG_FS_EXEC)
 
 
 /* @Brief Kernel entry point of root process
@@ -54,11 +54,11 @@ void exec_root(void *arg)
   char *pool;
   void *ifs_exe_base;
 
-  Info ("exec_root() ...");
+  klog_info("exec_root() ...");
 
 #if 1
   // FIXME: Why is this here, shouldn't interrupts be enabled on task switch?
-  Info ("** Enabling interrupts **");
+  klog_info("** Enabling interrupts **");
   EnableInterrupts();
 #endif  
 
@@ -70,9 +70,9 @@ void exec_root(void *arg)
     kernelpanic();
   }
 
-  Info ("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
-  Info ("ifs_exe_base phys = %08x", (vm_addr)bootinfo->ifs_exe_base);  
-  Info ("ifs_image_size    = %08x", (vm_addr)bootinfo->ifs_image_size);  
+  klog_info("ifs_base phys     = %08x", (vm_addr)bootinfo->ifs_image);  
+  klog_info("ifs_exe_base phys = %08x", (vm_addr)bootinfo->ifs_exe_base);  
+  klog_info("ifs_image_size    = %08x", (vm_addr)bootinfo->ifs_image_size);  
 
   ifs_exe_base = (void *)pmap_pa_to_va((vm_addr)bootinfo->ifs_exe_base);
   
@@ -83,9 +83,9 @@ void exec_root(void *arg)
     kernelpanic();
   }
 
-  Info ("entry_point: %08x", (vm_addr)entry_point);
+  klog_info("entry_point: %08x", (vm_addr)entry_point);
 
-  Info ("allocating root stack");
+  klog_info("allocating root stack");
   
   if ((stack_base = sys_mmap((void *)0x02000000, USER_STACK_SZ, PROT_READ | PROT_WRITE, 0, -1, 0)) == MAP_FAILED) {
     klog_info("Root stack alloc failed");
@@ -100,10 +100,10 @@ void exec_root(void *arg)
    
   stack_pointer = stack_base + USER_STACK_SZ - ALIGN_UP(args.total_size, 32) - 32;
   
-  Info ("Stack base   : %08x", stack_base);
-  Info ("Stack Pointer: %08x", stack_pointer);
-  Info ("Args");
-  Info ("Entry Point  : %08x", (vm_addr) entry_point);
+  klog_info("Stack base   : %08x", stack_base);
+  klog_info("Stack Pointer: %08x", stack_pointer);
+  klog_info("Args");
+  klog_info("Entry Point  : %08x", (vm_addr) entry_point);
   
   set_user_stack_tcb(current_thread, stack_base, USER_STACK_SZ, NULL);  
   arch_init_exec_thread(current, current_thread, entry_point, stack_pointer, &args);
@@ -133,7 +133,7 @@ int load_root_elf(void *file_base, void **entry_point)
   sc = read_ifs(file_base, 0, &ehdr, sizeof(Elf32_EHdr));
 
   if (sc != sizeof(Elf32_EHdr)) {
-    Info ("ELF header could not read");
+    klog_info("ELF header could not read");
     return -EIO;
   }
 
@@ -145,7 +145,7 @@ int load_root_elf(void *file_base, void **entry_point)
       ehdr.e_phnum > 0) {
   } else {
     klog_info("FILE IS NOT EXECUTABLE");
-    Info ("Magic: %02x %02x %02x %02x", 
+    klog_info("Magic: %02x %02x %02x %02x", 
             ehdr.e_ident[EI_MAG0],
             ehdr.e_ident[EI_MAG1],
             ehdr.e_ident[EI_MAG2],
@@ -236,21 +236,21 @@ int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_
   envv = (char **)((uint8_t *)argv + (3 + 1) * sizeof(char *));
   string_table = (char *)((uint8_t *)envv + (0 + 1) * sizeof(char *));
   
-  Info ("argv : %08x", (vm_addr)argv);  
-  Info ("envv : %08x", (vm_addr)envv);
-  Info ("string_table : %08x", (vm_addr)string_table);
+  klog_info("argv : %08x", (vm_addr)argv);  
+  klog_info("envv : %08x", (vm_addr)envv);
+  klog_info("string_table : %08x", (vm_addr)string_table);
 
   remaining = &pool[MAX_ARGS_SZ] - string_table;
   dst = string_table;
   
   
-  Info ("... argv[0] = %s", exe_name);
+  klog_info("... argv[0] = %s", exe_name);
   argv[0] = dst;
   StrLCpy(dst, exe_name, remaining);
   sz = StrLen(dst) + 1;
   dst += sz;
   remaining -= sz;
-  Info ("... argv[1] = %08x", ifs_base);  
+  klog_info("... argv[1] = %08x", ifs_base);  
   argv[1] = dst;
   Snprintf(tmp, sizeof tmp, "0x%08x", ifs_base);
   StrLCpy(dst, tmp, remaining);
@@ -258,12 +258,12 @@ int init_root_argv(char *pool, struct execargs *args, char *exe_name, void *ifs_
   dst += sz;
   remaining -= sz;
 
-  Info ("... argv[2] = %08x", ifs_size);  
+  klog_info("... argv[2] = %08x", ifs_size);  
   argv[2] = dst;
   Snprintf(tmp, sizeof tmp, "%u", ifs_size);
 
-	Info ("... tmp:%s", tmp);  
-  Info ("dst:%08x, tmp:%08x, remaining:%d", (uint32_t)dst, (uint32_t)tmp, remaining);
+	klog_info("... tmp:%s", tmp);  
+  klog_info("dst:%08x, tmp:%08x, remaining:%d", (uint32_t)dst, (uint32_t)tmp, remaining);
   StrLCpy(dst, tmp, remaining);
 	
   sz = StrLen(dst) + 1;

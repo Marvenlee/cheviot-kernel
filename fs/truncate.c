@@ -23,7 +23,7 @@
 #include <poll.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_TRUNCATE)
+KLOG_REGISTER(LOG_FS_TRUNCATE)
 
 
 /* @brief   Resize an open file

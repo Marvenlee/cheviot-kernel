@@ -29,7 +29,7 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#define KLOG_GROUP(LOG_VM_PAGEFAULT)
+KLOG_REGISTER(LOG_VM_PAGEFAULT)
 
 
 /* @brief   Page fault exception handler

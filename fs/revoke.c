@@ -22,7 +22,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_REVOKE)
+KLOG_REGISTER(LOG_FS_REVOKE)
 
 
 /* @brief   Revoke system call

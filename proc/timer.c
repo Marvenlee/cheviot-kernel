@@ -54,7 +54,7 @@
 #include <time.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_PROC_TIMER)
+KLOG_REGISTER(LOG_PROC_TIMER)
 
 
 /* @brief   Returns the system time in seconds and microseconds.
@@ -219,7 +219,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
   current = get_current_thread();
   
   if (copyin(&req, _req, sizeof(req)) != 0) {
-	  Info ("sys_nanosleep: EFAULT");
+	  klog_info("sys_nanosleep: EFAULT");
     return -EFAULT;
   }
   

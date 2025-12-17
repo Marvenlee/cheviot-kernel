@@ -21,7 +21,7 @@
 #include <kernel/types.h>
 #include <kernel/vm.h>
 
-#define KLOG_GROUP(LOG_FS_SEEK)
+KLOG_REGISTER(LOG_FS_SEEK)
 
 
 /* @brief   Seek to a new file position

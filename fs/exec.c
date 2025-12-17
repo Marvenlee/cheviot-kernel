@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -30,6 +28,7 @@
 #include <sys/privileges.h>
 #include <sys/mman.h>
 
+KLOG_REGISTER(LOG_FS_EXEC)
 
 // Private variables
 struct Rendez execargs_rendez;
@@ -55,7 +54,7 @@ int sys_exec(char *_path, struct execargs *_args)
   struct VNode *vnode;
   struct Filp *filp;
 
-  Info ("sys_exec");
+  klog_info("sys_exec");
   
   current_proc = get_current_process();
       
@@ -272,12 +271,12 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
   string_table = (char *)((uint8_t *)envv + (args->envc + 1) * sizeof(char *));
 
   if (copyin(argv, args->argv, args->argc * sizeof(char *)) != 0) {
-    Info ("copyin failed, argc=%d, argv=%08x", args->argc, (vm_addr)args->argv);
+    klog_info("copyin failed, argc=%d, argv=%08x", args->argc, (vm_addr)args->argv);
     goto cleanup;
   }
 
   if (copyin(envv, args->envv, args->envc * sizeof(char *)) != 0) {
-    Info ("copyin failed, envc=%d, envv=%08x", args->envc, (vm_addr)args->envv);
+    klog_info("copyin failed, envc=%d, envv=%08x", args->envc, (vm_addr)args->envv);
     goto cleanup;
   }
   
@@ -289,7 +288,7 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
     src = argv[t];
 
     if (copyinstring(dst, src, remaining) != 0) {
-      Info ("copyinString argv failed");
+      klog_info("copyinString argv failed");
       goto cleanup;
     }
 
@@ -307,7 +306,7 @@ int copy_in_argv(char *pool, struct execargs *args, struct execargs *_args) {
     src = envv[t];
 
     if (copyinstring(dst, src, remaining) != 0) {
-      Info ("copyinString envv failed");
+      klog_info("copyinString envv failed");
       goto cleanup;
     }
 
@@ -476,7 +475,7 @@ static int load_process(struct Process *proc, int fd, void **entry_point)
     if (phdr.p_flags & PF_W)
       sec_prot |= PROT_WRITE;
 
-		Info ("section sec_addr:%08x sec_mem_sz:%08x", sec_addr, sec_mem_sz);
+		klog_info("section sec_addr:%08x sec_mem_sz:%08x", sec_addr, sec_mem_sz);
 
     if (sec_mem_sz != 0) {
       ret_addr = sys_mmap(sec_addr, sec_mem_sz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_FIXED, -1, 0);

@@ -29,7 +29,7 @@
 #include <signal.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_PROC_SIGNAL)
+KLOG_REGISTER(LOG_PROC_SIGNAL)
 
 
 /* @brief   Define the default actions and properties of each signal.
@@ -291,7 +291,7 @@ int do_kill_process_group(pid_t pgid, int signal, int code, intptr_t val)
 	pgrp = get_pgrp(pgid);
 	
 	if (pgrp == NULL) {
-	  Info ("pgrp does not exist");
+	  klog_info("pgrp does not exist");
 	  return -EINVAL;
 	}
 	

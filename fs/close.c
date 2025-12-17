@@ -22,7 +22,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_CLOSE)
+KLOG_REGISTER(LOG_FS_CLOSE)
 
 /* @brief   close system call
  *

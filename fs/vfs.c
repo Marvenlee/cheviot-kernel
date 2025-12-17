@@ -27,7 +27,7 @@
 #include <sys/iorequest.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_VFS)
+KLOG_REGISTER(LOG_FS_VFS)
 
 
 /* @brief   Lookup a file within a directory
@@ -837,9 +837,26 @@ int vfs_fsync(struct VNode *vnode)
 /*
  *
  */
-int vfs_poll(struct VNode *vnode, uint32_t *revents)
+int vfs_poll(struct VNode *vnode, short events, short *revents)
 {
-  *revents = 0;
-  return 0;
+  iorequest_t req = {0};
+  ioreply_t reply = {0};
+  struct SuperBlock *sb;
+  int sc;
+  
+  sb = vnode->superblock;
+
+  req.cmd = CMD_POLL;
+  req.args.poll.inode_nr = vnode->inode_nr;
+  req.args.poll.events = events;
+  
+  sc = ksendmsg(&sb->msgport, KUCOPY, &req, &reply, 0, NULL, 0, NULL);
+
+  if (sc < 0) {
+    return sc;
+  }
+
+  *revents = reply.args.poll.revents;
+  return sc;
 }
 

@@ -26,7 +26,7 @@
 #include <sys/wait.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_PROC_PID)
+KLOG_REGISTER(LOG_PROC_PID)
 
 
 /* @brief   Get the process ID of the calling thread

@@ -26,7 +26,7 @@
 #include <sys/mount.h>
 #include <sys/syslimits.h>
 
-#define KLOG_GROUP(LOG_FS_READ)
+KLOG_REGISTER(LOG_FS_READ)
 
 
 /* @brief   Read the contents of a file to a buffer

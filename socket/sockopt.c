@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define KDEBUG
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>

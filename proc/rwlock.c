@@ -40,7 +40,7 @@
 #include <kernel/types.h>
 #include <kernel/arch.h>
 
-#define KLOG_GROUP(LOG_PROC_RWLOCK)
+KLOG_REGISTER(LOG_PROC_RWLOCK)
 
 
 /* @brief   Acquire exclusive-access to item guarded by rwlock

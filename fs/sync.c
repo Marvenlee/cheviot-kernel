@@ -21,7 +21,7 @@
 #include <kernel/types.h>
 #include <kernel/vm.h>
 
-#define KLOG_GROUP(LOG_FS_SYNC)
+KLOG_REGISTER(LOG_FS_SYNC)
 
 
 /* @brief   Write all mounted filesystems to disk

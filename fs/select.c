@@ -24,7 +24,7 @@
 #include <sys/select.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_SELECT)
+KLOG_REGISTER(LOG_FS_SELECT)
 
 
 /*
@@ -39,7 +39,8 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   struct timeval timeout;
   uint64_t now;
   uint64_t expiration_time;
-  uint32_t revents;
+  short events;
+  short revents;
   int found = 0;
   int retry = 0;
   bool match = false;
@@ -95,13 +96,28 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
 			  continue;
       }
       
+      events = 0;
+      
+		  if (FD_ISSET(t, &rdfds)) {
+		    events |= POLLIN;
+      }
+      
+		  if (FD_ISSET(t, &wrfds)) {
+		    events |= POLLOUT;
+      }
+
+		  if (FD_ISSET(t, &rdfds)) {
+		    events |= ~(POLLIN | POLLOUT);
+      }
+
+      
       filp = filp_get(current, t);
       
       if (filp) {
         vnode = vnode_get_from_filp(filp);
         
         if (vnode) {
-           sc = vfs_poll(vnode, &revents);
+           sc = vfs_poll(vnode, events, &revents);
            vnode_put(vnode);
         } else {
           sc = -ENOENT;
@@ -180,9 +196,5 @@ int sys_select(int nfds, fd_set *_rdfds, fd_set *_wrfds, fd_set *_exfds, struct 
   
   return found;
 }
-
-
-
-
 
 

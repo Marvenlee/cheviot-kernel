@@ -17,9 +17,6 @@
  * Thread management
  */
 
-#define KLOG_GROUP(LOG_PROC_THREAD)
-
-
 #include <kernel/board/elf.h>
 #include <kernel/dbg.h>
 #include <kernel/error.h>
@@ -37,6 +34,7 @@
 #include <pthread.h>
 #include <sys/_pthreadtypes.h>
 
+KLOG_REGISTER(LOG_PROC_THREAD)
 
 /*
  * TODO: Add user-space "self/TLS" pointer as argument.
@@ -45,6 +43,7 @@
  *
  * TODO: May need to inherit
  */
+
 pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr, void *user_tcb)
 {
   struct Process *current_proc;
@@ -131,6 +130,7 @@ pid_t sys_thread_create(void (*entry)(void *), void *arg, pthread_attr_t *_attr,
   
   return get_thread_tid(thread);
 }
+
 
 
 /*
@@ -629,7 +629,5 @@ void get_user_stack_tcb(struct Thread *thread, void **user_stack, size_t *user_s
   *user_stack_sz = thread->user_stack_sz;
   *user_tcb = thread->user_tcb;
 }
-
-
 
 

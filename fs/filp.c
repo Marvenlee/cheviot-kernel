@@ -30,7 +30,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_FILP)
+KLOG_REGISTER(LOG_FS_FILP)
 
 
 /* @brief   Lookup a file pointer from a file descriptor

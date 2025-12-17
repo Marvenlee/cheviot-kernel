@@ -25,7 +25,7 @@
 #include <time.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_CACHE)
+KLOG_REGISTER(LOG_FS_CACHE)
 
 
 /* @brief   Create a kernel task to periodically flush a filesystem's dirty blocks

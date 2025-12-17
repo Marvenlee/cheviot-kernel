@@ -22,7 +22,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_FILEDESC)
+KLOG_REGISTER(LOG_FS_FILEDESC)
 
 
 /* @brief   fcntl system call
@@ -183,7 +183,7 @@ int dup_fd(struct Process *proc, int fd, int min_fd, int max_fd, uint32_t flags)
   
   filedesc->flags |= FDF_VALID | flags;
 
-  Info ("dup_fd(%d) new_fd = %d, new_fd_flags:%08x", fd, new_fd, filedesc->flags);
+  klog_info("dup_fd(%d) new_fd = %d, new_fd_flags:%08x", fd, new_fd, filedesc->flags);
 
   return new_fd;
 }

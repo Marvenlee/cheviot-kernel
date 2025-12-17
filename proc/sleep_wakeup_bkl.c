@@ -35,7 +35,7 @@
 #include <kernel/types.h>
 #include <kernel/arch.h>
 
-#define KLOG_GROUP(LOG_PROC_BKL)
+KLOG_REGISTER(LOG_PROC_BKL)
 
 
 // Static prototypes
@@ -297,7 +297,7 @@ static void TaskTimedSleepCallback(struct Timer *timer)
 
     if (thread->blocking_rendez != rendez) {
       klog_info("TaskTimedSleepCallback()");
-      klog_info("rendez: %08x, blocking_rendez: %08x", (uint32_t)rendez, (uint32_t)blocking_rendez);
+      klog_info("rendez: %08x, blocking_rendez: %08x", (uint32_t)rendez, (uint32_t)thread->blocking_rendez);
       klog_info("thread: %08x", (uint32_t)thread);
       klog_info("thread state :%d", thread->state);
     }

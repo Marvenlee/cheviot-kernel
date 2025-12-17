@@ -35,7 +35,7 @@
 #include <kernel/vm.h>
 #include <sys/mman.h>
 
-#define KLOG_GROUP(LOG_BOARD_PMAP)
+KLOG_REGISTER(LOG_BOARD_PMAP)
 
 
 /*

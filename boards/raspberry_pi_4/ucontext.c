@@ -28,40 +28,40 @@
 #include <kernel/utility.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_BOARD_UCONTEXT)
+KLOG_REGISTER(LOG_BOARD_UCONTEXT)
 
 /*
  * TODO: Remove me, added for debugging
  */
 void start_kernel_thread_log(void)
 {
-  Info ("start_kernel_thread_log()");
+  klog_info("start_kernel_thread_log()");
 }
 
 void start_forked_thread_log(void)
 {
-  Info ("start_forked_thread_log()");
+  klog_info("start_forked_thread_log()");
 }
 
 void start_user_thread_log(void)
 {
-  Info ("start_user_thread_log()");
+  klog_info("start_user_thread_log()");
 }
 
 void start_prolog_user_thread_log(void)
 {
-  Info ("start_prolog_user_thread_log()");
+  klog_info("start_prolog_user_thread_log()");
 }
 
 
 void start_forked_thread_inside_log(struct UserContext *uc)
 {
-  Info ("start_forked_thread_inside_log()");
+  klog_info("start_forked_thread_inside_log()");
 
-  Info ("uc->r0 = %08x", uc->r0);
-  Info ("uc->sp = %08x", uc->sp);
-  Info ("uc->lr = %08x", uc->lr);
-  Info ("uc->pc = %08x", uc->pc);
+  klog_info("uc->r0 = %08x", uc->r0);
+  klog_info("uc->sp = %08x", uc->sp);
+  klog_info("uc->lr = %08x", uc->lr);
+  klog_info("uc->pc = %08x", uc->pc);
 }
 
 
@@ -114,10 +114,10 @@ int arch_init_fork_thread(struct Process *new_proc, struct Process *current_proc
   uc_new->pc = uc_current->pc;
   uc_new->cpsr = uc_current->cpsr;
 
-  Info ("arch_fork_process sp = %08x", uc_new->sp);
-  Info ("arch_fork_process lr = %08x", uc_new->lr);
-  Info ("arch_fork_process pc = %08x", uc_new->pc);
-  Info ("arch_fork_process cpsr = %08x", uc_new->cpsr);
+  klog_info("arch_fork_process sp = %08x", uc_new->sp);
+  klog_info("arch_fork_process lr = %08x", uc_new->lr);
+  klog_info("arch_fork_process pc = %08x", uc_new->pc);
+  klog_info("arch_fork_process cpsr = %08x", uc_new->cpsr);
 
   context = ((uint32_t *)uc_new) - N_CONTEXT_WORD;
 
@@ -134,7 +134,7 @@ int arch_init_fork_thread(struct Process *new_proc, struct Process *current_proc
 
   new_thread->context = context;
 
-  Info ("arch_fork_process context = %08x", (uint32_t)new_thread->context);
+  klog_info("arch_fork_process context = %08x", (uint32_t)new_thread->context);
 
   new_thread->catch_state.pc = 0xfee15bad;
   
@@ -174,10 +174,10 @@ void arch_init_exec_thread(struct Process *proc, struct Thread *thread, void *en
   uc->sp = (uint32_t)stack_pointer;
   uc->cpsr = cpsr;
 
-  Info ("arch_init_exec_thread");
-  Info ("cpsr = %08x", uc->cpsr);
-  Info ("sp = %08x", uc->sp);
-  Info ("pc = %08x", uc->pc);
+  klog_info("arch_init_exec_thread");
+  klog_info("cpsr = %08x", uc->cpsr);
+  klog_info("sp = %08x", uc->sp);
+  klog_info("pc = %08x", uc->pc);
 
   context = ((uint32_t *)uc) - N_CONTEXT_WORD;
 

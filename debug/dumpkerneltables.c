@@ -12,12 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * --
- * Manages a process's file descriptor tables, current directory and current root. 
  */
-
-#define KDEBUG
 
 #include <sys/debug.h>
 #include <kernel/dbg.h>
@@ -28,11 +23,12 @@
 #include <kernel/vm.h>
 #include <string.h>
 
+KLOG_REGISTER(LOG_DEBUG_DUMP)
 
 /* @brief   Dump kernel data structures to console
  *
  */
-int sys_dumpkerneltables(int cmd, uint32_t arg1, uint32_t arg2)
+int sys_debug_dump(int cmd, uint32_t arg1, uint32_t arg2)
 {
   switch(cmd) {
     case KDUMP_KERNEL_PROCESSES:

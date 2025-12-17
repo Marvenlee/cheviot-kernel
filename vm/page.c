@@ -29,7 +29,7 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#define KLOG_GROUP(LOG_VM_PAGE)
+KLOG_REGISTER(LOG_VM_PAGE)
 
 
 /* @brief   Allocate a page in kernel memory

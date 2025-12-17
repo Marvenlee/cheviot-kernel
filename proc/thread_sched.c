@@ -29,7 +29,7 @@
 #include <pthread.h>
 #include <sys/_pthreadtypes.h>
 
-#define KLOG_GROUP(LOG_PROC_THREAD_SCHED)
+KLOG_REGISTER(LOG_PROC_THREAD_SCHED)
 
 
 /* @brief   Set thread scheduling policy and priority

@@ -24,7 +24,7 @@
 #include <poll.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_DIR)
+KLOG_REGISTER(LOG_FS_DIR)
 
 /* @brief   Change the current directory
  *

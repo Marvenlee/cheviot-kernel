@@ -32,7 +32,7 @@
 #include <kernel/vm.h>
 #include <machine/cheviot_hal.h>
 
-#define KLOG_GROUP(LOG_BOARD_INIT)
+KLOG_REGISTER(LOG_BOARD_INIT)
 
 
 /* @brief   Set pointers to RPI4 peripherals
@@ -120,24 +120,24 @@ void init_vm(void)
 
 //  init_pageframe_flags(bootinfo->ifs_image, (vm_addr)bootinfo->mem_size, PGF_INUSE);
 
-  Info ("reserved from 0 to boot base");
+  klog_info("reserved from 0 to boot base");
   
-  Info ("mem_size : %08x", (uint32_t)bootinfo->mem_size);
+  klog_info("mem_size : %08x", (uint32_t)bootinfo->mem_size);
   
-  Info ("reserved boot base : %08x", boot_base);
-  Info ("reserved boot ceil : %08x", boot_ceiling);
-  Info ("reserved _stext : %08x", VirtToPhys((uint32_t)&_stext));
-  Info ("reserved _ebss  : %08x", VirtToPhys((uint32_t)&_ebss));
-  Info ("reserved core pt base : %08x", VirtToPhys(core_pagetable_base));
-  Info ("reserved core pt ceil : %08x", VirtToPhys(core_pagetable_ceiling));
-  Info ("reserved kernel heap base : %08x", VirtToPhys(_heap_base));
-  Info ("reserved kernel heap ceil : %08x", VirtToPhys(_heap_current));
+  klog_info("reserved boot base : %08x", boot_base);
+  klog_info("reserved boot ceil : %08x", boot_ceiling);
+  klog_info("reserved _stext : %08x", VirtToPhys((uint32_t)&_stext));
+  klog_info("reserved _ebss  : %08x", VirtToPhys((uint32_t)&_ebss));
+  klog_info("reserved core pt base : %08x", VirtToPhys(core_pagetable_base));
+  klog_info("reserved core pt ceil : %08x", VirtToPhys(core_pagetable_ceiling));
+  klog_info("reserved kernel heap base : %08x", VirtToPhys(_heap_base));
+  klog_info("reserved kernel heap ceil : %08x", VirtToPhys(_heap_current));
 
 
-  Info ("reserved videocore base : %08x", bootinfo->videocore_base);
-  Info ("reserved videocore ceil : %08x", bootinfo->videocore_base);
-  Info ("reserved IFS base : %08x", bootinfo->ifs_image);
-  Info ("reserved IFS ceil : %08x", (vm_addr)bootinfo->mem_size);
+  klog_info("reserved videocore base : %08x", bootinfo->videocore_base);
+  klog_info("reserved videocore ceil : %08x", bootinfo->videocore_base);
+  klog_info("reserved IFS base : %08x", bootinfo->ifs_image);
+  klog_info("reserved IFS ceil : %08x", (vm_addr)bootinfo->mem_size);
 
   // Error checking, all pages should have 0 or 1 references.
   for (pa = 0; pa < (vm_addr)mem_size; pa += PAGE_SIZE) {

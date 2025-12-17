@@ -26,7 +26,7 @@
 #include <sys/mount.h>
 #include <sys/syslimits.h>
 
-#define KLOG_GROUP(LOG_FS_WRITE)
+KLOG_REGISTER(LOG_FS_WRITE)
 
 
 /* @brief   Write the contents of a buffer to a file

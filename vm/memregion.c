@@ -28,7 +28,7 @@
 #include <kernel/vm.h>
 #include <sys/mman.h>
 
-#define KLOG_GROUP(LOG_VM_MEMREGION)
+KLOG_REGISTER(LOG_VM_MEMREGION)
 
 
 /*

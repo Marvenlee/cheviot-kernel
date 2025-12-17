@@ -28,7 +28,7 @@
 #include <kernel/utility.h>
 #include <kernel/vm.h>
 
-#define KLOG_GROUP(LOG_BOARD_INIT)
+KLOG_REGISTER(LOG_BOARD_INIT)
 
 
 /* @brief Initialize processor-specific tables, peripherals and registers

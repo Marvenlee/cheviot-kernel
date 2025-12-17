@@ -28,7 +28,7 @@
 #include <sys/mount.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_FS_MOUNT)
+KLOG_REGISTER(LOG_FS_MOUNT)
 
 
 /* @brief   Pivot the root directory

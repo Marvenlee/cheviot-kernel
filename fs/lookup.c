@@ -25,7 +25,7 @@
 #include <kernel/utility.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_LOOKUP)
+KLOG_REGISTER(LOG_FS_LOOKUP)
 
 
 /* @brief Vnode lookup of a path
@@ -77,7 +77,7 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
     return -ENOTSUP;        
   } else {
     if (ld->path[0] == '/' && ld->path[1] == '\0') { // Replace with IsPathRoot()
-      Info ("lookup \"/\"");
+      klog_info("lookup \"/\"");
 
       ld->parent = NULL;
       ld->vnode = root_vnode;
@@ -105,7 +105,7 @@ int lookup(char *_path, int flags, struct lookupdata *ld)
   
     ld->parent = NULL;   // FIXME: Added 22 sept MG
     
-    Info ("lookup rc=%d", rc);
+    klog_info("lookup rc=%d", rc);
     return rc;
   }
 }
@@ -198,7 +198,7 @@ int init_lookup(char *_path, uint32_t flags, struct lookupdata *ld)
   
   ld->start_vnode = (ld->path[0] == '/') ? root_vnode : current->fproc.current_dir;    
 
-  Info ("ld_start_vnode = %08x", (uint32_t)ld->start_vnode);
+  klog_info("ld_start_vnode = %08x", (uint32_t)ld->start_vnode);
 
 
   kassert(ld->start_vnode != NULL);
@@ -231,7 +231,7 @@ int lookup_path(struct lookupdata *ld)
 {
   int rc;
   
-  Info ("lookup_path");
+  klog_info("lookup_path");
   
   kassert(ld->start_vnode != NULL);
 
@@ -250,7 +250,7 @@ int lookup_path(struct lookupdata *ld)
       break;
     }
 
-    Info ("lookup_path last_component:%s", ld->last_component);
+    klog_info("lookup_path last_component:%s", ld->last_component);
     
     if (ld->parent != NULL) {
       klog_info("lookup_path A vnode_put ld->parent %08x", (uint32_t)ld->parent);
@@ -280,7 +280,7 @@ int lookup_path(struct lookupdata *ld)
     // TODO: Check component is a directory, check permissions
   }
 
-  Info ("lookup_path rc=%d", rc);     
+  klog_info("lookup_path rc=%d", rc);     
   return rc;
 }
 
@@ -318,7 +318,7 @@ char *path_token(struct lookupdata *ld)
   char *ch;
   char *name;
 
-  Info ("path_token");
+  klog_info("path_token");
 
   ch = ld->position;
   
@@ -349,7 +349,7 @@ char *path_token(struct lookupdata *ld)
 
   *ch = '\0';
   
-  Info ("path_token retval: %s", name);
+  klog_info("path_token retval: %s", name);
   return name;
 }
 

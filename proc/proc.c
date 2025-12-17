@@ -31,7 +31,7 @@
 #include <sys/execargs.h>
 #include <sys/wait.h>
 
-#define KLOG_GROUP(LOG_PROC_PROC)
+KLOG_REGISTER(LOG_PROC_PROC)
 
 
 /* @brief   Fork the calling process
@@ -326,7 +326,7 @@ struct Process *do_create_process(void (*entry)(void *), void *arg, int policy, 
   
   current_proc = get_current_process();
 
-//  Info ("do_create_process..");
+//  klog_info("do_create_process..");
   
   if ((new_proc = alloc_process(current_proc, flags, basename)) == NULL) {
     return NULL;

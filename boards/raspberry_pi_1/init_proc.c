@@ -160,7 +160,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   uint32_t *context;
   uint32_t cpsr;
   
-  Info ("create_process..");
+  klog_info("create_process..");
   
   proc = NULL;
 
@@ -173,7 +173,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   }
 
   if (proc == NULL) {
-      Info ("create_process failed to find slot");
+      klog_info("create_process failed to find slot");
       return NULL;
   }
 
@@ -190,18 +190,18 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   proc->exit_status = 0;
   proc->log_level = 5;
 
-  Info ("init_msgport(proc->reply_port)");
+  klog_info("init_msgport(proc->reply_port)");
   
   init_msgport(&proc->reply_port);
   
-  Info ("init_fproc(proc)");
+  klog_info("init_fproc(proc)");
  
   init_fproc(proc);
   
 //  proc->fproc->current_dir = NULL;
 //  proc->fproc->root_dir = NULL;
 
-  Info ("Calling pmap_create()");
+  klog_info("Calling pmap_create()");
 
   // We create new page tables here for new root process.
   if (pmap_create(&proc->as) != 0) {
@@ -215,7 +215,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
 
   proc->flags = flags;
 
-  Info ("SchedReady() process");
+  klog_info("SchedReady() process");
 
   if (policy == SCHED_RR || policy == SCHED_FIFO) {
     proc->quanta_used = 0;
@@ -240,7 +240,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   }
 
 /* Move this into ArchInitExecProcess() IF returning to user mode. */
-  Info ("Setting CPSR register user/sys mode");
+  klog_info("Setting CPSR register user/sys mode");
 
 #if 0
   if (proc->flags & PROCF_KERNEL) {

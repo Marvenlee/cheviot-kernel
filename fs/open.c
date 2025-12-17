@@ -27,7 +27,7 @@
 #include <string.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_FS_OPEN)
+KLOG_REGISTER(LOG_FS_OPEN)
 
 
 /* @brief   Open a file

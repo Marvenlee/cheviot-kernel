@@ -24,7 +24,7 @@
 #include <string.h>
 #include <sys/mount.h>
 
-#define KLOG_GROUP(LOG_FS_MSGPORT)
+KLOG_REGISTER(LOG_FS_MSGPORT)
 
 
 /* @brief   Create a named msgport (mount point) in the file system namespace

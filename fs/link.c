@@ -22,7 +22,7 @@
 #include <kernel/vm.h>
 #include <poll.h>
 
-#define KLOG_GROUP(LOG_FS_LINK)
+KLOG_REGISTER(LOG_FS_LINK)
 
 
 /*

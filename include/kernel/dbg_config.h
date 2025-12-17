@@ -13,11 +13,15 @@
 #define LOG_BOARD_TIMER         LOG_LEVEL_WARN
 #define LOG_BOARD_UCONTEXT      LOG_LEVEL_WARN
 
+#define LOG_DEBUG_DEBUG         LOG_LEVEL_WARN
+#define LOG_DEBUG_DUMP          LOG_LEVEL_WARN
+
+
 #define LOG_FS_ACCESS           LOG_LEVEL_WARN
 #define LOG_FS_FILEDESC         LOG_LEVEL_WARN
 #define LOG_FS_CACHE            LOG_LEVEL_WARN
-#define LOG_FS_BLOCK_DEV        LOG_LEVEL_WARN
-#define LOG_FS_CHAR_DEV         LOG_LEVEL_WARN
+#define LOG_FS_BLOCK            LOG_LEVEL_WARN
+#define LOG_FS_CHAR             LOG_LEVEL_WARN
 #define LOG_FS_CLOSE            LOG_LEVEL_WARN
 #define LOG_FS_DIR              LOG_LEVEL_WARN
 #define LOG_FS_DNLC             LOG_LEVEL_WARN
@@ -36,6 +40,7 @@
 #define LOG_FS_MSGPORT          LOG_LEVEL_WARN
 #define LOG_FS_OPEN             LOG_LEVEL_WARN
 #define LOG_FS_PIPE             LOG_LEVEL_WARN
+#define LOG_FS_POLL             LOG_LEVEL_WARN
 #define LOG_FS_READ             LOG_LEVEL_WARN
 #define LOG_FS_RENAME           LOG_LEVEL_WARN
 #define LOG_FS_REVOKE           LOG_LEVEL_WARN
@@ -59,6 +64,7 @@
 #define LOG_PROC_RWLOCK         LOG_LEVEL_WARN
 #define LOG_PROC_SCHED          LOG_LEVEL_WARN
 #define LOG_PROC_SIGNAL         LOG_LEVEL_WARN
+#define LOG_PROC_SYSCONF        LOG_LEVEL_WARN
 #define LOG_PROC_BKL            LOG_LEVEL_WARN
 #define LOG_PROC_THREAD         LOG_LEVEL_WARN
 #define LOG_PROC_THREAD_EVENTS  LOG_LEVEL_WARN

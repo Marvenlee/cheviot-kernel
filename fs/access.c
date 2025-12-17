@@ -24,7 +24,7 @@
 #include <string.h>
 #include <fcntl.h>
 
-#define KLOG_GROUP(LOG_FS_ACCESS)
+KLOG_REGISTER(LOG_FS_ACCESS)
 
 /* @brief   The access() system call
  * 
@@ -315,7 +315,7 @@ int check_access(struct VNode *vnode, struct Filp *filp, mode_t desired_access)
     return 0;
   }
   
-  Info ("check_access end -EACCES");
+  klog_info("check_access end -EACCES");
   return -EACCES;
 }
 

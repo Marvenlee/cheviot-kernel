@@ -26,7 +26,7 @@
 #include <kernel/proc.h>
 #include <kernel/types.h>
 
-#define KLOG_GROUP(LOG_PROC_THREAD_EVENTS)
+KLOG_REGISTER(LOG_PROC_THREAD_EVENTS)
 
 
 /*

@@ -25,7 +25,7 @@
 #include <kernel/vm.h>
 #include <string.h>
 
-#define KLOG_GROUP(LOG_FS_FPROC)
+KLOG_REGISTER(LOG_FS_FPROC)
 
 /* @brief   Allocate and initialize a process's filesystem state
  *

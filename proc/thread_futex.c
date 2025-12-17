@@ -29,7 +29,7 @@
 #include <sys/execargs.h>
 #include <sys/wait.h>
 
-#define KLOG_GROUP(LOG_PROC_FUTEX)
+KLOG_REGISTER(LOG_PROC_THREAD_FUTEX)
 
 
 /* @brief   Free a futex

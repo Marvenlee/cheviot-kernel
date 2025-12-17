@@ -30,7 +30,7 @@
 #include <sys/privileges.h>
 #include <sys/mman.h>
 
-#define KLOG_GROUP(LOG_VM_MMAP)
+KLOG_REGISTER(LOG_VM_MMAP)
 
 
 /* @brief   Allocate and map an area of memory

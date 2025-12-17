@@ -24,7 +24,7 @@
 #include <string.h>
 #include <sys/mount.h>
 
-#define KLOG_GROUP(LOG_FS_SUPERBLOCK)
+KLOG_REGISTER(LOG_FS_SUPERBLOCK)
 
 
 /*

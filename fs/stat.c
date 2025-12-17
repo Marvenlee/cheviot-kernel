@@ -20,7 +20,7 @@
 #include <kernel/types.h>
 #include <sys/mount.h>
 
-#define KLOG_GROUP(LOG_FS_STAT)
+KLOG_REGISTER(LOG_FS_STAT)
 
 
 /* @brief   Get the file statistics of a named file

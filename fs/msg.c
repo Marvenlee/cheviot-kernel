@@ -34,7 +34,7 @@
 #include <sys/syscalls.h>
 #include <sys/iorequest.h>
 
-#define KLOG_GROUP(LOG_FS_MSG)
+KLOG_REGISTER(LOG_FS_MSG)
 
 
 /* @brief   Get a message from a mount's message port

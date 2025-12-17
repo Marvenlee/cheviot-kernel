@@ -24,7 +24,7 @@
 #include <kernel/types.h>
 #include <ucontext.h>
 
-#define KLOG_GROUP(LOG_BOARD_SIGNALS)
+KLOG_REGISTER(LOG_BOARD_SIGNALS)
 
 
 /* @brief   Restore context when returning from a signal handler
@@ -128,7 +128,7 @@ void check_signals(struct UserContext *uc)
     return;
   }
   
-  Info ("pick_signal returned: %d", sig);
+  klog_info("pick_signal returned: %d", sig);
     
   cthread->signal.sig_pending &= ~SIGBIT(sig);
 

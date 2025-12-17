@@ -29,7 +29,7 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#define KLOG_GROUP(LOG_VM_AS)
+KLOG_REGISTER(LOG_VM_AS)
 
 
 /* @brief   Initialize an address space
@@ -68,7 +68,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
   bits32_t flags;
   struct Page *page;
 
-  Info ("fork address space(new_as:%08x, old_ad:%08x)", (uint32_t)new_as, (uint32_t)old_as);
+  klog_info("fork address space(new_as:%08x, old_ad:%08x)", (uint32_t)new_as, (uint32_t)old_as);
 	klog_info("new as:%08x, current as:%08x", (uint32_t)new_as, (uint32_t)old_as);
 
   kassert(new_as != NULL);
@@ -146,7 +146,7 @@ int fork_address_space(struct AddressSpace *new_as, struct AddressSpace *old_as)
   return 0;
 
 cleanup:
-  Info ("fork address space failed, cleanup");
+  klog_info("fork address space failed, cleanup");
   cleanup_address_space(new_as);
   free_address_space(new_as);
   return -1;

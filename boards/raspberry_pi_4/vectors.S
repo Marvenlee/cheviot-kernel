@@ -75,16 +75,13 @@ syscall_table:
     .long sys_maskinterrupt             // 17
     .long sys_unmaskinterrupt           // 18
 
-    .long sys_deprecatedsyscall         // 19   // TODO: Was set_syslog_file, replaced with ioctl
+    .long sys_poll                      // 19
 
     .long sys_exec                      // 20   
 
     .long sys_createmsgport             // 21 
     .long sys_unmount                   // 22
 
-    // Replace with just Read/Write calls. No seek.  Write header then immediately the data.
-    // Need listen(mount_fd) to create new listener handle (multiple for char device server)
-    
     .long sys_sendio                    // 23
     .long sys_getmsg                    // 24  
     .long sys_replymsg                  // 25
@@ -98,7 +95,7 @@ syscall_table:
     
     .long sys_read                      // 32
     .long sys_write                     // 33
-    .long sys_lseek                     // 34  FIXME: Why 2 syscalls for Seek ?
+    .long sys_lseek                     // 34
     .long sys_lseek64                   // 35
     
     .long sys_truncate                  // 36
@@ -144,7 +141,7 @@ syscall_table:
     .long sys_virtualtophysaddr         // 66
     
     .long sys_signalnotify              // 67 
-    .long sys_deprecatedsyscall                    // 68
+    .long sys_deprecatedsyscall         // 68
     
     .long sys_pivotroot                 // 69
 
@@ -164,8 +161,8 @@ syscall_table:
     
     .long sys_chroot                    // 81
 
-    .long sys_deprecatedsyscall                    // 82 
-    .long sys_deprecatedsyscall                    // 83
+    .long sys_deprecatedsyscall         // 82 
+    .long sys_deprecatedsyscall         // 83
 
 		.long sys_setegid										// 84
 		.long sys_seteuid										// 85
@@ -204,7 +201,7 @@ syscall_table:
     
     .long sys_reminterruptserver        // 108
     
-    .long sys_thread_event_timedwait  // 109
+    .long sys_thread_event_timedwait    // 109
     
     .long sys_thread_create             // 110
     .long sys_thread_join               // 111
@@ -227,14 +224,14 @@ syscall_table:
     .long sys_thread_cancel             // 122
     .long sys_thread_kill               // 123
     
-    .long sys_thread_detach            // 124
+    .long sys_thread_detach             // 124
 
-    .long sys_deprecatedsyscall        // 125
-    .long sys_futex_destroy            // 126
+    .long sys_deprecatedsyscall         // 125
+    .long sys_futex_destroy             // 126
 
-    .long sys_futex_wait               // 127
-    .long sys_futex_wake               // 128
-    .long sys_futex_requeue            // 129
+    .long sys_futex_wait                // 127
+    .long sys_futex_wake                // 128
+    .long sys_futex_requeue             // 129
 
     .long sys_deprecatedsyscall         // 130
     .long sys_deprecatedsyscall         // 131
@@ -260,13 +257,13 @@ syscall_table:
 
     .long sys_sysctl                    // 147
     .long sys_revoke                    // 148
-    .long sys_deprecatedsyscall                   // 149
-    .long sys_deprecatedsyscall             // 150
-    .long sys_deprecatedsyscall              // 151
-    .long sys_deprecatedsyscall                    // 152
-    .long sys_deprecatedsyscall                   // 153
+    .long sys_deprecatedsyscall         // 149
+    .long sys_deprecatedsyscall         // 150
+    .long sys_deprecatedsyscall         // 151
+    .long sys_deprecatedsyscall         // 152
+    .long sys_deprecatedsyscall         // 153
     
-    .long sys_dumpkerneltables          // 154
+    .long sys_debug_dump                // 154
 
     .long sys_statvfs                   // 155
     .long sys_fstatvfs                  // 156

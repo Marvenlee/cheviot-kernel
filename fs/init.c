@@ -26,7 +26,7 @@
 #include <kernel/types.h>
 #include <kernel/msg.h>
 
-#define KLOG_GROUP(LOG_FS_INIT)
+KLOG_REGISTER(LOG_FS_INIT)
 
 
 /* @brief   Initialize the kernel's virtual filesystem

@@ -25,6 +25,7 @@ kernel_SOURCES += \
   fs/msgport.c \
   fs/open.c \
   fs/pipe.c \
+  fs/poll.c \
   fs/read.c \
   fs/rename.c \
   fs/revoke.c \

@@ -23,7 +23,7 @@
 #include <poll.h>
 #include <sys/privileges.h>
 
-#define KLOG_GROUP(LOG_FS_RENAME)
+KLOG_REGISTER(LOG_FS_RENAME)
 
 
 /* @brief   Rename a file or directory
