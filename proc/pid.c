@@ -132,7 +132,7 @@ int sys_setsid(void)
 	}
 	
 	new_session->sid = current->pid;
-  LIST_ADD_TAIL(&new_session->process_list, current, session_link);
+  DLIST_ADD_TAIL(&new_session->process_list, current, session_link);
   
 	current->sid = new_session->sid;
   current->pgid = INVALID_PID;
@@ -267,7 +267,7 @@ int sys_setpgrp(void)
   }
   
   new_pgrp->sid = current->sid;
-  LIST_ADD_TAIL(&new_pgrp->process_list, current, pgrp_link);
+  DLIST_ADD_TAIL(&new_pgrp->process_list, current, pgrp_link);
 
   pd->pgrp = new_pgrp; 
   return 0;
@@ -391,13 +391,13 @@ pid_t alloc_pid_proc(struct Process *proc)
 {
   struct PidDesc *pd;
   
-  pd = LIST_HEAD(&free_piddesc_list);
+  pd = DLIST_HEAD(&free_piddesc_list);
   
   if (pd == NULL) {
     return -ENOMEM;
   }
   
-  LIST_REM_HEAD(&free_piddesc_list, free_link);
+  DLIST_REM_HEAD(&free_piddesc_list, free_link);
 
   memset (pd, 0, sizeof *pd);
   pd->proc = proc;
@@ -413,13 +413,13 @@ pid_t alloc_pid_thread(struct Thread *thread)
 {
   struct PidDesc *pd;
   
-  pd = LIST_HEAD(&free_piddesc_list);
+  pd = DLIST_HEAD(&free_piddesc_list);
   
   if (pd == NULL) {
     return -ENOMEM;
   }
   
-  LIST_REM_HEAD(&free_piddesc_list, free_link);
+  DLIST_REM_HEAD(&free_piddesc_list, free_link);
 
   memset (pd, 0, sizeof *pd);
   pd->thread = thread;
@@ -449,18 +449,18 @@ void free_pid(pid_t pid)
   pgrp = pd->pgrp;
   
     
-  if (session != NULL && LIST_EMPTY(&session->process_list)) {
+  if (session != NULL && DLIST_EMPTY(&session->process_list)) {
     free_session(session);
     pd->session = NULL;
   }
   
-  if (pgrp != NULL && LIST_EMPTY(&pgrp->process_list)) {
+  if (pgrp != NULL && DLIST_EMPTY(&pgrp->process_list)) {
     free_pgrp(pgrp);
     pd->pgrp = NULL;
   }
 
   if (pd->session == NULL && pd->pgrp == NULL) {
-    LIST_ADD_TAIL(&free_piddesc_list, pd, free_link);    
+    DLIST_ADD_TAIL(&free_piddesc_list, pd, free_link);    
   }
 }
 
@@ -490,11 +490,11 @@ void fork_session_pgrp(struct Process *new_proc, struct Process *old_proc)
   pgrp = get_pgrp(new_proc->pgid);
   
   if (session != NULL) {
-    LIST_ADD_TAIL(&session->process_list, new_proc, session_link);
+    DLIST_ADD_TAIL(&session->process_list, new_proc, session_link);
   }
   
   if (pgrp != NULL) {
-    LIST_ADD_TAIL(&pgrp->process_list, new_proc, pgrp_link);
+    DLIST_ADD_TAIL(&pgrp->process_list, new_proc, pgrp_link);
   }
 }
 
@@ -517,15 +517,15 @@ struct Session *alloc_session(void)
 {
   struct Session *session;
   
-  session = LIST_HEAD(&free_session_list);
+  session = DLIST_HEAD(&free_session_list);
   
   if (session != NULL) {
-    LIST_REM_HEAD(&free_session_list, free_link);
+    DLIST_REM_HEAD(&free_session_list, free_link);
 
     memset(session, 0, sizeof *session);
   	session->foreground_pgrp = INVALID_PID;
   	session->controlling_tty = NULL;
-    LIST_INIT(&session->process_list);
+    DLIST_INIT(&session->process_list);
   }
   
   return session;
@@ -541,7 +541,7 @@ void free_session(struct Session *session)
     session->controlling_tty->tty_sid = INVALID_PID;    
   }
   
-  LIST_ADD_TAIL(&free_session_list, session, free_link);
+  DLIST_ADD_TAIL(&free_session_list, session, free_link);
 }
 
 
@@ -553,13 +553,13 @@ struct Pgrp *alloc_pgrp(void)
 {
   struct Pgrp *pgrp;
   
-  pgrp = LIST_HEAD(&free_pgrp_list);
+  pgrp = DLIST_HEAD(&free_pgrp_list);
   
   if (pgrp != NULL) {
-    LIST_REM_HEAD(&free_pgrp_list, free_link);
+    DLIST_REM_HEAD(&free_pgrp_list, free_link);
     
     memset(pgrp, 0, sizeof *pgrp);
-    LIST_INIT(&pgrp->process_list);
+    DLIST_INIT(&pgrp->process_list);
   }
   
   return pgrp;
@@ -571,7 +571,7 @@ struct Pgrp *alloc_pgrp(void)
  */
 void free_pgrp(struct Pgrp *pgrp)
 {
-    LIST_ADD_TAIL(&free_pgrp_list, pgrp, free_link);
+    DLIST_ADD_TAIL(&free_pgrp_list, pgrp, free_link);
 }
 
 
@@ -620,11 +620,11 @@ void remove_from_pgrp(struct Process *proc)
     return;
   }
   
-  LIST_REM_ENTRY(&pgrp->process_list, proc, pgrp_link);
+  DLIST_REM_ENTRY(&pgrp->process_list, proc, pgrp_link);
 
   session = get_session(pgrp->sid);
 
-  if (LIST_EMPTY(&pgrp->process_list)) {
+  if (DLIST_EMPTY(&pgrp->process_list)) {
     free_pgrp(pgrp);
     pgrp_pd->pgrp = NULL;
   }
@@ -661,9 +661,9 @@ void remove_from_session(struct Process *proc)
     return;
   }
   
-  LIST_REM_ENTRY(&session->process_list, proc, session_link);
+  DLIST_REM_ENTRY(&session->process_list, proc, session_link);
 
-  if (LIST_EMPTY(&session->process_list)) {
+  if (DLIST_EMPTY(&session->process_list)) {
     free_session(session);
     session_pd->session = NULL;
   }

@@ -55,7 +55,14 @@ copyinLoop:
     b copyinLoop
 copyinDone:
     Mget_current_thread r0
+
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
+
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
@@ -88,13 +95,27 @@ copyinstringLoop:
     b copyinstringLoop
 copyinstringDone:
     Mget_current_thread r0
+
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
+
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
 copyinstringNoTermDone:
     Mget_current_thread r0
+
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
+
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
@@ -128,7 +149,14 @@ copyoutLoop:
     b copyoutLoop
 copyoutDone:
     Mget_current_thread r0
+
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
+
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
@@ -157,13 +185,27 @@ copyoutstringLoop:
     b copyoutstringLoop
 copyoutstringDone:
     Mget_current_thread r0
+
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
+
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #0
     bx lr
 copyoutstringNoTermDone:
     Mget_current_thread r0
+
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
+
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
@@ -192,25 +234,40 @@ StrLenUserLoop:
     cmp r2, #0
     beq StrLenUserNoTermDone
     ldrbT r3, [r1], #1
-    //    strbT r3, [r0], #1
+    // FIXME: Previously removed prior to Minix integration attempt:    strbT r3, [r0], #1
     cmp r3, #0
     beq StrLenUserDone
     sub r2, #1
     b StrLenUserLoop
 StrLenUserDone:
     Mget_current_thread r0
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
     str r1, [r0, #TASK_CATCH_PC]
     // FIXME: StrLenUser Return length of string, not 0
     mov r0, #0
     bx lr
 StrLenUserNoTermDone:
     Mget_current_thread r0
+#if 0
     ldr r1, =#0xfee15bad
+#else
+    ldr r1, =feelsbadmarker
+    ldr r1, [r1]
+#endif
     str r1, [r0, #TASK_CATCH_PC]
     mov r0, #-1
     bx lr
 StrLenUserCatch:
     mov r0, #-1
     bx lr
+
+feelsbadmarker:
+  .word 0xf3315bad
+
+.end
 

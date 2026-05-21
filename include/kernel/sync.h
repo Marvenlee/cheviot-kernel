@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <sys/time.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 
 
@@ -19,14 +19,14 @@ struct Futex;
 
 
 // List types
-LIST_TYPE(Futex, futex_list_t, futex_link_t);
+DLIST_TYPE(Futex, futex_list_t, futex_link_t);
 
 
 /* @brief   Kernel condition variable for TaskSleep()/TaskWakeup() calls
  */
 struct Rendez
 {
-  LIST(Thread, blocked_list);
+  DLIST(Thread, blocked_list);
 };
 
 

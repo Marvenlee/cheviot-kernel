@@ -80,7 +80,7 @@ struct Filp *filp_get_new(void)
 
   klog_info("filp_get_new()");
 
-  filp = LIST_HEAD(&filp_free_list);
+  filp = DLIST_HEAD(&filp_free_list);
 
   if (filp == NULL) {
     klog_info("filp_alloc() failed, out of filps");
@@ -89,7 +89,7 @@ struct Filp *filp_get_new(void)
 
   kassert(filp->type == FILP_TYPE_FREE);
 
-  LIST_REM_HEAD(&filp_free_list, filp_entry);
+  DLIST_REM_HEAD(&filp_free_list, filp_entry);
   filp->reference_cnt = 1;
   filp->type = FILP_TYPE_UNDEF;
   memset(&filp->u, 0, sizeof filp->u);
@@ -136,7 +136,7 @@ int filp_release(struct Filp *filp)
 
     klog_info("setting filp->u to NULL, adding to free list");
     memset(&filp->u, 0, sizeof filp->u);
-    LIST_ADD_HEAD(&filp_free_list, filp, filp_entry);
+    DLIST_ADD_HEAD(&filp_free_list, filp, filp_entry);
   }
   
   return retval;

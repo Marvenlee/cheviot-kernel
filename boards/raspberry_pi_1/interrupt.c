@@ -82,7 +82,7 @@ void interrupt_top_half(void)
     }
 
     if (check_pending_interrupt(irq) == true) {
-      isr_handler = LIST_HEAD(&isr_handler_list[irq]);
+      isr_handler = DLIST_HEAD(&isr_handler_list[irq]);
 
       while (isr_handler != NULL) {        
         if (isr_handler->isr_callback != NULL) {            
@@ -97,7 +97,7 @@ void interrupt_top_half(void)
           }
         }
 
-        isr_handler = LIST_NEXT(isr_handler, isr_handler_entry);
+        isr_handler = DLIST_NEXT(isr_handler, isr_handler_entry);
       }
 
       clear_pending_interrupt(irq);

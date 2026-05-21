@@ -1,14 +1,14 @@
 #ifndef KERNEL_LISTS_H
 #define KERNEL_LISTS_H
 
-/* @brief   LIST_ASSERT_ENABLE
+/* @brief   DLIST_ASSERT_ENABLE
  *
  * Define to enable additional checks on linked list operations
  * Currently this is only for plain LIST macros
  */
 
 
-#ifndef LIST_ASSERT_ENABLE
+#ifndef DLIST_ASSERT_ENABLE
 
 /* -----------------------------------------------------------------------------
 ** SYNOPSIS
@@ -18,10 +18,10 @@
 ** -----------------------------------------------------------------------------
 */
 
-#define LIST_INITIALIZER                                                       \
+#define DLIST_INITIALIZER                                                       \
   { NULL, NULL }
 
-#define LIST_TYPE(type, headertype, entrytype)                                 \
+#define DLIST_TYPE(type, headertype, entrytype)                                \
   typedef struct {                                                             \
     struct type *head;                                                         \
     struct type *tail;                                                         \
@@ -32,33 +32,33 @@
     struct type *prev;                                                         \
   } entrytype
 
-#define LIST(type, header)                                                     \
+#define DLIST(type, header)                                                     \
   struct {                                                                     \
     struct type *head;                                                         \
     struct type *tail;                                                         \
   } header
 
-#define LIST_DECLARE(name, type)                                               \
+#define DLIST_DECLARE(name, type)                                               \
   struct name {                                                                \
     struct type *head;                                                         \
     struct type *tail;                                                         \
   }
 
-#define LIST_DEFINE(name) struct name
+#define DLIST_DEFINE(name) struct name
 
-#define LIST_ENTRY(type, entry)                                                \
+#define DLIST_ENTRY(type, entry)                                                \
   struct {                                                                     \
     struct type *next;                                                         \
     struct type *prev;                                                         \
   } entry
 
-#define LIST_INIT(header)                                                      \
+#define DLIST_INIT(header)                                                      \
   {                                                                            \
     (header)->head = NULL;                                                     \
     (header)->tail = NULL;                                                     \
   }
 
-#define LIST_CONCAT(dest, src, field)                                          \
+#define DLIST_CONCAT(dest, src, field)                                          \
   {                                                                            \
     if ((src)->head != NULL) {                                                 \
       if ((dest)->head != NULL) {                                              \
@@ -73,17 +73,17 @@
     }                                                                          \
   }
 
-#define LIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
+#define DLIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
 
-#define LIST_HEAD(header) ((header)->head)
+#define DLIST_HEAD(header) ((header)->head)
 
-#define LIST_TAIL(header) ((header)->tail)
+#define DLIST_TAIL(header) ((header)->tail)
 
-#define LIST_NEXT(entry, field) ((entry)->field.next)
+#define DLIST_NEXT(entry, field) ((entry)->field.next)
 
-#define LIST_PREV(entry, field) ((entry)->field.prev)
+#define DLIST_PREV(entry, field) ((entry)->field.prev)
 
-#define LIST_ADD_HEAD(header, new_head, field)                                 \
+#define DLIST_ADD_HEAD(header, new_head, field)                                 \
   {                                                                            \
     (new_head)->field.next = (header)->head;                                   \
     (new_head)->field.prev = NULL;                                             \
@@ -96,7 +96,7 @@
     (header)->head = new_head;                                                 \
   }
 
-#define LIST_ADD_TAIL(header, new_tail, field)                                 \
+#define DLIST_ADD_TAIL(header, new_tail, field)                                 \
   {                                                                            \
     (new_tail)->field.next = NULL;                                             \
     (new_tail)->field.prev = (header)->tail;                                   \
@@ -107,7 +107,7 @@
     (header)->tail = new_tail;                                                 \
   }
 
-#define LIST_REM_HEAD(header, field)                                           \
+#define DLIST_REM_HEAD(header, field)                                           \
   {                                                                            \
     (header)->head = (header)->head->field.next;                               \
     if ((header)->head != NULL)                                                \
@@ -116,7 +116,7 @@
       (header)->tail = NULL;                                                   \
   }
 
-#define LIST_REM_TAIL(header, field)                                           \
+#define DLIST_REM_TAIL(header, field)                                           \
   {                                                                            \
     (header)->tail = (header)->tail->field.prev;                               \
     if ((header)->tail != NULL)                                                \
@@ -125,7 +125,7 @@
       (header)->head = NULL;                                                   \
   }
 
-#define LIST_INSERT_AFTER(header, prev_entry, new_entry, field)                \
+#define DLIST_INSERT_AFTER(header, prev_entry, new_entry, field)                \
   {                                                                            \
     (new_entry)->field.next = (prev_entry)->field.next;                        \
     (new_entry)->field.prev = prev_entry;                                      \
@@ -136,7 +136,7 @@
       (header)->tail = new_entry;                                              \
   }
 
-#define LIST_INSERT_BEFORE(header, next_entry, new_entry, field)               \
+#define DLIST_INSERT_BEFORE(header, next_entry, new_entry, field)               \
   {                                                                            \
     (new_entry)->field.prev = (next_entry)->field.prev;                        \
     (new_entry)->field.next = next_entry;                                      \
@@ -148,7 +148,7 @@
     }                                                                          \
   }
 
-#define LIST_REM_ENTRY(header, entry, field)                                   \
+#define DLIST_REM_ENTRY(header, entry, field)                                   \
   {                                                                            \
     if ((entry)->field.prev != NULL)                                           \
       (entry)->field.prev->field.next = (entry)->field.next;                   \
@@ -173,10 +173,10 @@
 ** -----------------------------------------------------------------------------
 */
 
-#define LIST_INITIALIZER                                                       \
+#define DLIST_INITIALIZER                                                      \
   { NULL, NULL, NULL }
 
-#define LIST_TYPE(type, headertype, entrytype)                                 \
+#define DLIST_TYPE(type, headertype, entrytype)                                \
   typedef struct {                                                             \
     struct type *head;                                                         \
     struct type *tail;                                                         \
@@ -188,44 +188,44 @@
     struct headertype *header;                                                 \
   } entrytype
 
-#define LIST(type, header)                                                     \
+#define DLIST(type, header)                                                    \
   struct {                                                                     \
     struct type *head;                                                         \
     struct type *tail;                                                         \
   } header
 
-#define LIST_DECLARE(name, type)                                               \
+#define DLIST_DECLARE(name, type)                                              \
   struct name {                                                                \
     struct type *head;                                                         \
     struct type *tail;                                                         \
   }
 
-#define LIST_DEFINE(name) struct name
+#define DLIST_DEFINE(name) struct name
 
-#define LIST_ENTRY(type, entry)                                                \
+#define DLIST_ENTRY(type, entry)                                               \
   struct {                                                                     \
     struct type *next;                                                         \
     struct type *prev;                                                         \
     struct headertype *header;                                                 \
   } entry
 
-#define LIST_INIT(header)                                                      \
+#define DLIST_INIT(header)                                                     \
   {                                                                            \
     (header)->head = NULL;                                                     \
     (header)->tail = NULL;                                                     \
   }
 
-#define LIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
+#define DLIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
 
-#define LIST_HEAD(header) ((header)->head)
+#define DLIST_HEAD(header) ((header)->head)
 
-#define LIST_TAIL(header) ((header)->tail)
+#define DLIST_TAIL(header) ((header)->tail)
 
-#define LIST_NEXT(entry, field) ((entry)->field.next)
+#define DLIST_NEXT(entry, field) ((entry)->field.next)
 
-#define LIST_PREV(entry, field) ((entry)->field.prev)
+#define DLIST_PREV(entry, field) ((entry)->field.prev)
 
-#define LIST_ADD_HEAD(header, new_head, field)                                 \
+#define DLIST_ADD_HEAD(header, new_head, field)                                \
   {                                                                            \
     KASSERT((new_header->field.header == NULL)                                 \
                                                                                \
@@ -241,7 +241,7 @@
     (header)->head = new_head;                                                 \
   }
 
-#define LIST_ADD_TAIL(header, new_tail, field)                                 \
+#define DLIST_ADD_TAIL(header, new_tail, field)                                \
   {                                                                            \
     KASSERT((new_header->field.header == NULL)                                 \
                                                                                \
@@ -256,7 +256,7 @@
     (header)->tail = new_tail;                                                 \
   }
 
-#define LIST_REM_HEAD(header, field)                                           \
+#define DLIST_REM_HEAD(header, field)                                          \
   {                                                                            \
     KASSERT(header)->head != NULL);                                            \
     KASSERT(header)->tail != NULL);                                            \
@@ -269,7 +269,7 @@
       (header)->tail = NULL;                                                   \
   }
 
-#define LIST_REM_TAIL(header, field)                                           \
+#define DLIST_REM_TAIL(header, field)                                          \
   {                                                                            \
     KASSERT(header)->tail != NULL);                                            \
     KASSERT(header)->head != NULL);                                            \
@@ -282,7 +282,7 @@
       (header)->head = NULL;                                                   \
   }
 
-#define LIST_INSERT_AFTER(header, prev_entry, new_entry, field)                \
+#define DLIST_INSERT_AFTER(header, prev_entry, new_entry, field)               \
   {                                                                            \
     KASSERT(prev_entry != NULL);                                               \
     KASSERT(new_entry != NULL);                                                \
@@ -298,7 +298,7 @@
       (header)->tail = new_entry;                                              \
   }
 
-#define LIST_INSERT_BEFORE(header, next_entry, new_entry, field)               \
+#define DLIST_INSERT_BEFORE(header, next_entry, new_entry, field)              \
   {                                                                            \
     KASSERT(next_entry != NULL);                                               \
     KASSERT(new_entry != NULL);                                                \
@@ -315,7 +315,7 @@
     }                                                                          \
   }
 
-#define LIST_REM_ENTRY(header, entry, field)                                   \
+#define DLIST_REM_ENTRY(header, entry, field)                                   \
   {                                                                            \
     KASSERT((entry)->field.header == header);                                  \
                                                                                \
@@ -427,10 +427,10 @@
 ** -----------------------------------------------------------------------------
 */
 
-#define STACK_INITIALIZER                                                      \
+#define STACK_LIST_INITIALIZER                                                 \
   { NULL }
 
-#define STACK_TYPE(type)                                                       \
+#define STACK_LIST_TYPE(type)                                                  \
   typedef struct { struct type *head; }
 
 #define STACK(type)                                                            \
@@ -438,36 +438,36 @@
     struct type *head;                                                         \
   }
 
-#define STACK_DECLARE(name, type)                                              \
+#define STACK_LIST_DECLARE(name, type)                                         \
   struct name {                                                                \
     struct type *head;                                                         \
   }
 
-#define STACK_DEFINE(name) struct name
+#define STACK_LIST_DEFINE(name) struct name
 
-#define STACK_ENTRY(type)                                                      \
+#define STACK_LIST_ENTRY(type)                                                 \
   struct {                                                                     \
     struct type *next;                                                         \
   }
 
-#define STACK_INIT(header) (header)->head = NULL;
+#define STACK_LIST_INIT(header) (header)->head = NULL;
 
-#define STACK_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
+#define STACK_LIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
 
-#define STACK_HEAD(header) ((header)->head)
+#define STACK_LIST_HEAD(header) ((header)->head)
 
-#define STACK_NEXT(entry, field) ((entry)->field.next)
+#define STACK_LIST_NEXT(entry, field) ((entry)->field.next)
 
-#define STACK_ADD_HEAD(header, new_head, field)                                \
+#define STACK_LIST_ADD_HEAD(header, new_head, field)                           \
   {                                                                            \
     (new_head)->field.next = (header)->head;                                   \
     (header)->head = new_head;                                                 \
   }
 
-#define STACK_REM_HEAD(header, field)                                          \
+#define STACK_LIST_REM_HEAD(header, field)                                     \
   (header)->head = (header)->head->field.next;
 
-#define STACK_INSERT_AFTER(header, prec_entry, new_entry, field)               \
+#define STACK_LIST_INSERT_AFTER(header, prec_entry, new_entry, field)          \
   {                                                                            \
     (new_entry)->field.next = (prev_entry)->field.next;                        \
     (prev_entry)->field.next = new_entry;                                      \
@@ -481,10 +481,10 @@
 ** -----------------------------------------------------------------------------
 */
 
-#define HEAP_INITIALIZER                                                       \
+#define HEAP_LIST_INITIALIZER                                                  \
   { NULL }
 
-#define HEAP_TYPE(type)                                                        \
+#define HEAP_LIST_TYPE(type)                                                   \
   typedef struct { struct type *head; }
 
 #define HEAP(type)                                                             \
@@ -492,30 +492,30 @@
     struct type *head;                                                         \
   }
 
-#define HEAP_DECLARE(name, type)                                               \
+#define HEAP_LIST_DECLARE(name, type)                                          \
   struct name {                                                                \
     struct type *head;                                                         \
   }
 
-#define HEAP_DEFINE(name) struct name
+#define HEAP_LIST_DEFINE(name) struct name
 
-#define HEAP_ENTRY(type)                                                       \
+#define HEAP_LIST_ENTRY(type)                                                  \
   struct {                                                                     \
     struct type *next;                                                         \
     struct type *prev;                                                         \
   }
 
-#define HEAP_INIT(header) (header)->head = NULL;
+#define HEAP_LIST_INIT(header) (header)->head = NULL;
 
-#define HEAP_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
+#define HEAP_LIST_EMPTY(header) (((header)->head == NULL) ? 1 : 0)
 
-#define HEAP_HEAD(header) ((header)->head)
+#define HEAP_LIST_HEAD(header) ((header)->head)
 
-#define HEAP_NEXT(entry, field) ((entry)->field.next)
+#define HEAP_LIST_NEXT(entry, field) ((entry)->field.next)
 
-#define HEAP_PREV(entry, field) ((entry)->field.prev)
+#define HEAP_LIST_PREV(entry, field) ((entry)->field.prev)
 
-#define HEAP_ADD_HEAD(header, new_head, field)                                 \
+#define HEAP_LIST_ADD_HEAD(header, new_head, field)                            \
   {                                                                            \
     (new_head)->field.next = (header)->head;                                   \
     (new_head)->field.prev = NULL;                                             \
@@ -524,14 +524,14 @@
     (header)->head = new_head;                                                 \
   }
 
-#define HEAP_REM_HEAD(header, field)                                           \
+#define HEAP_LIST_REM_HEAD(header, field)                                      \
   {                                                                            \
     (header)->head = (header)->head->field.next;                               \
     if ((header)->head != NULL)                                                \
       (header)->head->field.prev = NULL;                                       \
   }
 
-#define HEAP_INSERT_AFTER(header, prev_entry, new_entry, field)                \
+#define HEAP_LIST_INSERT_AFTER(header, prev_entry, new_entry, field)           \
   {                                                                            \
     (new_entry)->field.next = (prev_entry)->field.next;                        \
     (new_entry)->field.prev = prev_entry;                                      \
@@ -540,7 +540,7 @@
       (new_entry)->field.next->field.prev = new_entry;                         \
   }
 
-#define HEAP_INSERT_BEFORE(header, next_entry, new_entry, field)               \
+#define HEAP_LIST_INSERT_BEFORE(header, next_entry, new_entry, field)          \
   {                                                                            \
     (new_entry)->field.prev = (next_entry)->field.prev;                        \
     (new_entry)->field.next = next_entry;                                      \
@@ -551,7 +551,7 @@
       (header)->head = new_entry;                                              \
   }
 
-#define HEAP_REM_ENTRY(header, entry, field)                                   \
+#define HEAP_LIST_REM_ENTRY(header, entry, field)                              \
   {                                                                            \
     if ((entry)->field.prev != NULL)                                           \
       (entry)->field.prev->field.next = (entry)->field.next;                   \

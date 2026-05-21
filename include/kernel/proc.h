@@ -2,7 +2,7 @@
 #define KERNEL_PROC_H
 
 #include <kernel/arch.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/msg.h>
 #include <kernel/interrupt.h>
 #include <kernel/timer.h>
@@ -27,11 +27,11 @@ struct PidDesc;
 
 
 // Process related list types
-LIST_TYPE(PidDesc, piddesc_list_t, piddesc_link_t);
-LIST_TYPE(Session, session_list_t, session_link_t);
-LIST_TYPE(Pgrp, pgrp_list_t, pgrp_link_t);
-LIST_TYPE(Process, process_list_t, process_link_t);
-LIST_TYPE(Thread, thread_list_t, thread_link_t);
+DLIST_TYPE(PidDesc, piddesc_list_t, piddesc_link_t);
+DLIST_TYPE(Session, session_list_t, session_link_t);
+DLIST_TYPE(Pgrp, pgrp_list_t, pgrp_link_t);
+DLIST_TYPE(Process, process_list_t, process_link_t);
+DLIST_TYPE(Thread, thread_list_t, thread_link_t);
 CIRCLEQ_TYPE(Thread, thread_circleq_t, thread_cqlink_t);
 
 

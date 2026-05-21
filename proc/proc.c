@@ -175,7 +175,7 @@ int sys_waitpid(int pid, int *status, int options)
       // process group
       // check if any belong to current process group, exit if none.e
 
-      child = LIST_HEAD(&current->child_list);
+      child = DLIST_HEAD(&current->child_list);
 
       if (child == NULL) {
         err = -EINVAL;
@@ -195,7 +195,7 @@ int sys_waitpid(int pid, int *status, int options)
           }
         }
 
-        child = LIST_NEXT(child, child_link);
+        child = DLIST_NEXT(child, child_link);
       }
 
       if (found_in_pgrp == 0) {
@@ -205,7 +205,7 @@ int sys_waitpid(int pid, int *status, int options)
     } else if (pid == -1) {
       // Look for any child process.
 
-      child = LIST_HEAD(&current->child_list);
+      child = DLIST_HEAD(&current->child_list);
 
       if (child == NULL && current != root_process) {
         err = -EINVAL;        
@@ -220,13 +220,13 @@ int sys_waitpid(int pid, int *status, int options)
           break;
         }
 
-        child = LIST_NEXT(child, child_link);
+        child = DLIST_NEXT(child, child_link);
       }
     } else {
       // Look for any child process with a specific process group id.
       // Check if any belongs to process group.
 
-      child = LIST_HEAD(&current->child_list);
+      child = DLIST_HEAD(&current->child_list);
 
       if (child == NULL) {
         err = -EINVAL;
@@ -246,7 +246,7 @@ int sys_waitpid(int pid, int *status, int options)
           }
         }
 
-        child = LIST_NEXT(child, child_link);
+        child = DLIST_NEXT(child, child_link);
       }
 
       if (found_in_pgrp == 0) {
@@ -280,7 +280,7 @@ int sys_waitpid(int pid, int *status, int options)
     }
   }
 
-  LIST_REM_ENTRY(&current->child_list, child, child_link);  
+  DLIST_REM_ENTRY(&current->child_list, child, child_link);  
   free_address_space(&child->as);
   
   free_process(child);
@@ -299,14 +299,14 @@ void detach_child_processes(struct Process *proc)
 {
   struct Process *child;
   
-  while ((child = LIST_HEAD(&proc->child_list)) != NULL) {
-    LIST_REM_HEAD(&proc->child_list, child_link);
+  while ((child = DLIST_HEAD(&proc->child_list)) != NULL) {
+    DLIST_REM_HEAD(&proc->child_list, child_link);
 
     if (child->state == PROC_STATE_EXITED) {
       free_address_space(&child->as);
       free_process(child);
     } else {
-      LIST_ADD_TAIL(&root_process->child_list, child, child_link);
+      DLIST_ADD_TAIL(&root_process->child_list, child, child_link);
       child->parent = root_process;
     }
   }
@@ -398,7 +398,7 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
   proc->parent = parent;
   
   if (parent != NULL) {
-    LIST_ADD_TAIL(&parent->child_list, proc, child_link);
+    DLIST_ADD_TAIL(&parent->child_list, proc, child_link);
   }
   
   proc->state = PROC_STATE_INIT;
@@ -409,11 +409,11 @@ struct Process *alloc_process(struct Process *parent, uint32_t flags, char *name
   InitRendez(&proc->child_list_rendez);
   InitRendez(&proc->thread_list_rendez);
 
-  LIST_INIT(&proc->child_list);
-  LIST_INIT(&proc->thread_list);
-  LIST_INIT(&proc->unmasked_signal_thread_list);
+  DLIST_INIT(&proc->child_list);
+  DLIST_INIT(&proc->thread_list);
+  DLIST_INIT(&proc->unmasked_signal_thread_list);
 
-  LIST_INIT(&proc->futex_list);
+  DLIST_INIT(&proc->futex_list);
     
   return proc;
 }
@@ -431,7 +431,7 @@ void free_process(struct Process *proc)
   parent = proc->parent;
 
   if (parent != NULL) {
-    LIST_REM_ENTRY(&parent->child_list, proc, child_link);
+    DLIST_REM_ENTRY(&parent->child_list, proc, child_link);
     proc->parent = NULL;
   }
   
@@ -447,13 +447,13 @@ struct Process *alloc_process_struct(void)
 {
   struct Process *proc;
 
-  proc = LIST_HEAD(&free_process_list);
+  proc = DLIST_HEAD(&free_process_list);
   
   if (proc == NULL) {
     return NULL;
   }  
   
-  LIST_REM_HEAD(&free_process_list, free_link);
+  DLIST_REM_HEAD(&free_process_list, free_link);
   
   memset(proc, 0, sizeof *proc);
 
@@ -469,7 +469,7 @@ void free_process_struct(struct Process *proc)
 {
   memset(proc, 0, sizeof *proc);
   proc->state = PROC_STATE_FREE;
-  LIST_ADD_TAIL(&free_process_list, proc, free_link);
+  DLIST_ADD_TAIL(&free_process_list, proc, free_link);
 }
 
 

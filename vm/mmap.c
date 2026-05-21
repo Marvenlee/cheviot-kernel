@@ -21,7 +21,7 @@
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/utility.h>

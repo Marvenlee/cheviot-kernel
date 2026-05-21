@@ -54,9 +54,9 @@ void init_processes(void)
   
   bkl_locked = false;
   bkl_owner = NULL;
-  LIST_INIT(&bkl_blocked_list);
+  DLIST_INIT(&bkl_blocked_list);
 
-  LIST_INIT(&thread_reaper_detached_thread_list);
+  DLIST_INIT(&thread_reaper_detached_thread_list);
   InitRendez(&thread_reaper_rendez);
 
   for (int t = 0; t < 32; t++) {
@@ -66,80 +66,80 @@ void init_processes(void)
   klog_info("sched queues initialized");
   
   for (int t = 0; t < NIRQ; t++) {
-    LIST_INIT(&isr_handler_list[t]);
+    DLIST_INIT(&isr_handler_list[t]);
     irq_handler_cnt[t]=0;
   }
   
   for (int t = 0; t < max_isr_handler; t++) {
-    LIST_ADD_TAIL(&isr_handler_free_list, &isr_handler_table[t], free_link);
+    DLIST_ADD_TAIL(&isr_handler_free_list, &isr_handler_table[t], free_link);
   }
 
   klog_info("isr_handler queues and free list initialized");
 
   memset (pid_table, 0, max_pid * sizeof (struct PidDesc));
 
-  LIST_INIT(&free_piddesc_list);
+  DLIST_INIT(&free_piddesc_list);
   for (int t = 0; t < max_pid; t++) {
-    LIST_ADD_TAIL(&free_piddesc_list, &pid_table[t], free_link);
+    DLIST_ADD_TAIL(&free_piddesc_list, &pid_table[t], free_link);
   }
 
   klog_info("free piddesc list initialized");
   
-  LIST_INIT(&free_session_list);  
+  DLIST_INIT(&free_session_list);  
   for (int t = 0; t < max_pid; t++) {
-    LIST_ADD_TAIL(&free_session_list, &session_table[t], free_link);
+    DLIST_ADD_TAIL(&free_session_list, &session_table[t], free_link);
   }
 
   klog_info("free session list initialized");
 
-  LIST_INIT(&free_pgrp_list);  
+  DLIST_INIT(&free_pgrp_list);  
   for (int t = 0; t < max_pid; t++) {
-    LIST_ADD_TAIL(&free_pgrp_list, &pgrp_table[t], free_link);
+    DLIST_ADD_TAIL(&free_pgrp_list, &pgrp_table[t], free_link);
   }
 
   klog_info("free pgrp list initialized");
   
   free_process_cnt = max_process;
-  LIST_INIT(&free_process_list);  
+  DLIST_INIT(&free_process_list);  
   
   for (int t = 0; t < max_process; t++) {
     proc = &process_table[t];
     memset(proc, 0xf001f001, sizeof *proc);
 
     proc->state = PROC_STATE_FREE;
-    LIST_ADD_TAIL(&free_process_list, proc, free_link);
+    DLIST_ADD_TAIL(&free_process_list, proc, free_link);
   }
 
   klog_info("free process list initialized");
 
   // free_thread_cnt = max_thread;
-  LIST_INIT(&free_thread_list);
+  DLIST_INIT(&free_thread_list);
 
   for (int t = 0; t < max_thread; t++) {
     thread = &thread_table[t];
     thread->state = THREAD_STATE_FREE;
-    LIST_ADD_TAIL(&free_thread_list, thread, free_link);
+    DLIST_ADD_TAIL(&free_thread_list, thread, free_link);
   }
    
   klog_info("free thread list initialized");
   
-  LIST_INIT(&free_futex_list);
+  DLIST_INIT(&free_futex_list);
   
   for (int t = 0; t < max_futex; t++) {
-    LIST_ADD_TAIL(&free_futex_list, &futex_table[t], link);
+    DLIST_ADD_TAIL(&free_futex_list, &futex_table[t], link);
   }
   
   futex_table_busy = 0;
   InitRendez(&futex_table_busy_rendez);
   
   for (int t = 0; t < FUTEX_HASH_SZ; t++) {
-    LIST_INIT(&futex_hash_table[t]);
+    DLIST_INIT(&futex_hash_table[t]);
   }
   
   klog_info("futex lists initialized");
     
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
-    LIST_INIT(&timing_wheel[t]);
+    DLIST_INIT(&timing_wheel[t]);
   }
   
   klog_info(".. timing wheel inited");

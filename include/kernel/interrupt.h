@@ -2,7 +2,7 @@
 #define KERNEL_INTERRUPT_H
 
 
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 
 
@@ -11,7 +11,7 @@ struct Process;
 struct ISRHandler;
 
 // List types
-LIST_TYPE(ISRHandler, isr_handler_list_t, isr_handler_link_t);
+DLIST_TYPE(ISRHandler, isr_handler_list_t, isr_handler_link_t);
 
 /*
  * @brief   Interrupt handler callback

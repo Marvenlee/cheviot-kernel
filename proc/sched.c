@@ -239,10 +239,10 @@ void thread_stop(void)
   
   DisableInterrupts();
 
-  thread = LIST_HEAD(&bkl_blocked_list);
+  thread = DLIST_HEAD(&bkl_blocked_list);
 
   if (thread != NULL) {
-    LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
+    DLIST_REM_HEAD(&bkl_blocked_list, blocked_link);
     thread->state = THREAD_STATE_READY;
     bkl_owner = thread;
     SchedReady(thread);

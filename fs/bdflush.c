@@ -95,14 +95,14 @@ void bdflush_task(void *arg)
 
     klog_info("bdflush_task() sb->lock SHARED");
 
-    vnode = LIST_HEAD(&sb->vnode_list);
+    vnode = DLIST_HEAD(&sb->vnode_list);
     
     while (vnode != NULL) {
       // FIXME: Do we need to increment reference count of vnode?
 
       bsyncv(vnode);
 
-      vnode = LIST_NEXT(vnode, vnode_link);
+      vnode = DLIST_NEXT(vnode, vnode_link);
     }
 
     klog_info("bdflush_task() sb->lock RELEASE");

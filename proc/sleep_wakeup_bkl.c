@@ -64,7 +64,7 @@ void KernelLock(void)
     bkl_locked = true;
     bkl_owner = current;
   } else {
-    LIST_ADD_TAIL(&bkl_blocked_list, current, blocked_link);
+    DLIST_ADD_TAIL(&bkl_blocked_list, current, blocked_link);
     current->state = THREAD_STATE_BKL_BLOCKED;
     SchedUnready(current);
     Reschedule();
@@ -93,13 +93,13 @@ void KernelUnlock(void)
   struct Thread *thread;
 
   if (bkl_locked == true) {
-    thread = LIST_HEAD(&bkl_blocked_list);   // Pick the next thread that is blocked on bkl
+    thread = DLIST_HEAD(&bkl_blocked_list);   // Pick the next thread that is blocked on bkl
 
     if (thread != NULL) {
       bkl_locked = true;      // It should be locked already by previous if statement
       bkl_owner = thread;
 
-      LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
+      DLIST_REM_HEAD(&bkl_blocked_list, blocked_link);
 
       thread->state = THREAD_STATE_READY;
       SchedReady(thread);       // 
@@ -120,7 +120,7 @@ void KernelUnlock(void)
  */
 void InitRendez(struct Rendez *Rendez)
 { 
-  LIST_INIT(&Rendez->blocked_list);
+  DLIST_INIT(&Rendez->blocked_list);
 }
 
 
@@ -141,10 +141,10 @@ void TaskSleep(struct Rendez *rendez)
   kassert(bkl_locked == true);
   kassert(bkl_owner == current);
   
-  thread = LIST_HEAD(&bkl_blocked_list);
+  thread = DLIST_HEAD(&bkl_blocked_list);
 
   if (thread != NULL) {
-    LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
+    DLIST_REM_HEAD(&bkl_blocked_list, blocked_link);
     thread->state = THREAD_STATE_READY;
     bkl_owner = thread;
     SchedReady(thread);
@@ -153,7 +153,7 @@ void TaskSleep(struct Rendez *rendez)
     bkl_owner = (void *)NULL;
   }
 
-  LIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
+  DLIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
   current->state = THREAD_STATE_RENDEZ_BLOCKED;
   current->blocking_rendez = rendez;
   SchedUnready(current);
@@ -198,10 +198,10 @@ int TaskSleepInterruptible(struct Rendez *rendez, struct timespec *ts, uint32_t 
     return -EINTR;
   }
 
-  thread = LIST_HEAD(&bkl_blocked_list);
+  thread = DLIST_HEAD(&bkl_blocked_list);
 
   if (thread != NULL) {
-    LIST_REM_HEAD(&bkl_blocked_list, blocked_link);
+    DLIST_REM_HEAD(&bkl_blocked_list, blocked_link);
     thread->state = THREAD_STATE_READY;
     bkl_owner = thread;
     SchedReady(thread);
@@ -219,10 +219,10 @@ int TaskSleepInterruptible(struct Rendez *rendez, struct timespec *ts, uint32_t 
 
     now = get_hardclock();  
     timer->expiration_time = now + (ts->tv_sec * JIFFIES_PER_SECOND + ts->tv_nsec / NANOSECONDS_PER_JIFFY);
-    LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+    DLIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
   }  
   
-  LIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
+  DLIST_ADD_TAIL(&rendez->blocked_list, current, blocked_link);
   current->state = THREAD_STATE_RENDEZ_BLOCKED;
   current->intr_flags = intr_flags;
   current->blocking_rendez = rendez;
@@ -236,7 +236,7 @@ int TaskSleepInterruptible(struct Rendez *rendez, struct timespec *ts, uint32_t 
   
   if (ts != NULL) {
     if (timer->armed == true) {
-      LIST_REM_ENTRY(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+      DLIST_REM_ENTRY(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
       timer->armed = false;
       timer->thread = NULL;
       timer->callback = NULL;
@@ -304,9 +304,9 @@ static void TaskTimedSleepCallback(struct Timer *timer)
 
     kassert(thread->blocking_rendez == rendez);
 
-    LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
+    DLIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
     thread->blocking_rendez = NULL;
-    LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+    DLIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
     thread->state = THREAD_STATE_BKL_BLOCKED;
   }
   
@@ -325,17 +325,17 @@ void TaskWakeup(struct Rendez *rendez)
   
   int_state = DisableInterrupts();
 
-  thread = LIST_HEAD(&rendez->blocked_list);
+  thread = DLIST_HEAD(&rendez->blocked_list);
 
   if (thread != NULL) {
     kassert(thread->blocking_rendez == rendez);   
     kassert(thread->state == THREAD_STATE_RENDEZ_BLOCKED);   
 
-    LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
+    DLIST_REM_HEAD(&rendez->blocked_list, blocked_link);
     thread->blocking_rendez = NULL;
     
     
-    LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+    DLIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
     thread->state = THREAD_STATE_BKL_BLOCKED;
   }
 
@@ -358,9 +358,9 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
       ((thread->intr_flags & intr_reason) != 0 || intr_reason == 0)) {    // FIXME: intr_reason confusing
     kassert(thread->blocking_rendez != NULL);
     rendez = thread->blocking_rendez;
-    LIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
+    DLIST_REM_ENTRY(&rendez->blocked_list, thread, blocked_link);
     thread->blocking_rendez = NULL;
-    LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+    DLIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
     thread->state = THREAD_STATE_BKL_BLOCKED;
   }
 
@@ -373,8 +373,8 @@ void TaskWakeupSpecific(struct Thread *thread, uint32_t intr_reason)
  */
 void TaskRendezRequeue(struct Thread *thread, struct Rendez *r_new, struct Rendez *r_old)
 {
-  LIST_REM_HEAD(&r_old->blocked_list, blocked_link);
-  LIST_ADD_TAIL(&r_new->blocked_list, thread, blocked_link);
+  DLIST_REM_HEAD(&r_old->blocked_list, blocked_link);
+  DLIST_ADD_TAIL(&r_new->blocked_list, thread, blocked_link);
   thread->blocking_rendez = r_new;
 }
 
@@ -391,18 +391,18 @@ void  TaskWakeupAll(struct Rendez *rendez)
   do {
     int_state = DisableInterrupts();
 
-    thread = LIST_HEAD(&rendez->blocked_list);
+    thread = DLIST_HEAD(&rendez->blocked_list);
 
     if (thread != NULL) {
       kassert(bkl_locked == true);
       
-      LIST_REM_HEAD(&rendez->blocked_list, blocked_link);
+      DLIST_REM_HEAD(&rendez->blocked_list, blocked_link);
       thread->blocking_rendez = NULL;
-      LIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
+      DLIST_ADD_TAIL(&bkl_blocked_list, thread, blocked_link);
       thread->state = THREAD_STATE_BKL_BLOCKED;
     }
 
-    thread = LIST_HEAD(&rendez->blocked_list);
+    thread = DLIST_HEAD(&rendez->blocked_list);
     RestoreInterrupts(int_state);
 
   } while (thread != NULL);

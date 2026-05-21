@@ -25,7 +25,7 @@
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/utility.h>
@@ -63,15 +63,15 @@ void init_vm(void)
   
   root_pagedir = bootinfo->root_pagedir;
 
-  LIST_INIT(&free_page_queue);
-//  LIST_INIT(&clean_page_queue);
+  DLIST_INIT(&free_page_queue);
+//  DLIST_INIT(&clean_page_queue);
 
 //  for (int t = 0; t < DIRTY_HASH; t++) {
-//    LIST_INIT(&dirty_page_queue[t]);
+//    DLIST_INIT(&dirty_page_queue[t]);
 //  }
 
   for (int t = 0; t < PAGE_LOOKUP_HASH_SZ; t++) {
-    LIST_INIT(&page_lookup_hash[t]);
+    DLIST_INIT(&page_lookup_hash[t]);
   }
 
   init_memory_map();
@@ -180,11 +180,11 @@ void init_memory_map(void)
  */
 void init_memregion_list(void)
 {
-  LIST_INIT(&unused_memregion_list);
+  DLIST_INIT(&unused_memregion_list);
 
   for (int t = 0; t < max_memregion; t++) {
     memregion_table[t].type = MR_TYPE_UNALLOCATED;
-    LIST_ADD_TAIL(&unused_memregion_list, &memregion_table[t], unused_link);
+    DLIST_ADD_TAIL(&unused_memregion_list, &memregion_table[t], unused_link);
   }
 }
 
@@ -194,10 +194,10 @@ void init_memregion_list(void)
  */ 
 void init_pmappagedir_table(void)
 {
-  LIST_INIT(&free_pmappagedir_list);
+  DLIST_INIT(&free_pmappagedir_list);
   
   for (int t=0; t<max_process; t++) {
-    LIST_ADD_TAIL(&free_pmappagedir_list, &pmappagedir_table[t], free_link);
+    DLIST_ADD_TAIL(&free_pmappagedir_list, &pmappagedir_table[t], free_link);
     pmappagedir_table[t].pagedir = &pagedir_table[t * N_PAGEDIR_PDE];
   }
 } 
@@ -232,9 +232,9 @@ void init_free_page_list(vm_addr base, vm_addr ceiling)
   for (pa = base; pa < ceiling; pa += PAGE_SIZE) {
     if (pa > VirtToPhys(_heap_current) && (page_table[pa / PAGE_SIZE].mflags & PGF_INUSE) == 0) {
   #if 0
-      LIST_ADD_HEAD(&free_page_queue, &page_table[pa / PAGE_SIZE], free_link);
+      DLIST_ADD_HEAD(&free_page_queue, &page_table[pa / PAGE_SIZE], free_link);
   #else
-      LIST_ADD_TAIL(&free_page_queue, &page_table[pa / PAGE_SIZE], free_link);
+      DLIST_ADD_TAIL(&free_page_queue, &page_table[pa / PAGE_SIZE], free_link);
   #endif
       page_table[pa / PAGE_SIZE].bflags = 0;
     }

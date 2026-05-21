@@ -708,7 +708,7 @@ int kabortmsg(struct MsgPort *msgport, struct Msg *msg)
     
     req->cmd = CMD_ABORT;
         
-    LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
+    DLIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
     
     // FIXME: notification ?  Error checking of target tid/pid
     do_thread_event_signal(msgport->target_tid, msgport->target_event);
@@ -744,7 +744,7 @@ int kputmsg(struct MsgPort *msgport, struct Msg *msg)
   }
 
   msg->port = msgport;
-  LIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
+  DLIST_ADD_TAIL(&msgport->pending_msg_list, msg, link);
 
   // FIXME: notification required.  Error checking, thread belonging to msgport owner process
   do_thread_event_signal(msgport->target_tid, msgport->target_event);
@@ -767,7 +767,7 @@ int kreplymsg(struct Msg *msg)
   
   msg->port = msg->reply_port;
   reply_port = msg->reply_port;
-  LIST_ADD_TAIL(&reply_port->pending_msg_list, msg, link);
+  DLIST_ADD_TAIL(&reply_port->pending_msg_list, msg, link);
   TaskWakeup(&reply_port->rendez);
  
   return 0;  
@@ -784,10 +784,10 @@ struct Msg *kgetmsg(struct MsgPort *msgport)
     return NULL;
   }
     
-  msg = LIST_HEAD(&msgport->pending_msg_list);
+  msg = DLIST_HEAD(&msgport->pending_msg_list);
   
   if (msg) {
-    LIST_REM_HEAD(&msgport->pending_msg_list, link);
+    DLIST_REM_HEAD(&msgport->pending_msg_list, link);
   
   // TODO: Add to a received_msg_list, so they can be cancelled.
   
@@ -802,7 +802,7 @@ struct Msg *kgetmsg(struct MsgPort *msgport)
  */
 struct Msg *kpeekmsg(struct MsgPort *msgport)
 {   
-  return LIST_HEAD(&msgport->pending_msg_list);
+  return DLIST_HEAD(&msgport->pending_msg_list);
 }
 
 
@@ -811,7 +811,7 @@ struct Msg *kpeekmsg(struct MsgPort *msgport)
  */
 void kremovemsg(struct MsgPort *msgport, struct Msg *msg)
 {   
-  LIST_REM_ENTRY(&msgport->pending_msg_list, msg, link);
+  DLIST_REM_ENTRY(&msgport->pending_msg_list, msg, link);
 }
 
 
@@ -831,9 +831,9 @@ int kwaitport(struct MsgPort *msgport, struct timespec *timeout)
 
   klog_info("kwaitport()");
   
-  if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+  if (DLIST_HEAD(&msgport->pending_msg_list) == NULL) {
     if ((sc = TaskSleepInterruptible(&msgport->rendez, timeout, INTRF_NONE)) != 0) {
-      if (LIST_HEAD(&msgport->pending_msg_list) == NULL) {
+      if (DLIST_HEAD(&msgport->pending_msg_list) == NULL) {
         klog_info("kwaitport() - pending list is empty");
 
         return sc;

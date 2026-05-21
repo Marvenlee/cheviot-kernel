@@ -43,20 +43,20 @@ int sys_sync(void)
   
   sync_in_progress = true;
   
-  sb = LIST_HEAD(&mounted_superblock_list);
+  sb = DLIST_HEAD(&mounted_superblock_list);
   
   while (sb != NULL) {
     if (sb->root != NULL && S_ISDIR(sb->root->mode) && (sb->flags & SBF_READONLY) == 0) {
 
       sb->reference_cnt++;
-      LIST_ADD_TAIL(&sync_superblock_list, sb, sync_link);
+      DLIST_ADD_TAIL(&sync_superblock_list, sb, sync_link);
     }      
         
-    sb = LIST_NEXT(sb, link);
+    sb = DLIST_NEXT(sb, link);
   }
 
-  while((sb = LIST_HEAD(&sync_superblock_list)) != NULL) {
-    LIST_REM_HEAD(&sync_superblock_list, sync_link);
+  while((sb = DLIST_HEAD(&sync_superblock_list)) != NULL) {
+    DLIST_REM_HEAD(&sync_superblock_list, sync_link);
     
     sc = vfs_syncfs(sb);
     

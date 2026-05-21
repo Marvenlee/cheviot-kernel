@@ -143,7 +143,7 @@ int pmap_enter(struct AddressSpace *as, vm_addr addr, vm_addr paddr, bits32_t fl
     pf = &pageframe_table[paddr / PAGE_SIZE];
     vpte->flags = flags;
 
-    LIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
+    DLIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
     pt[pte_idx] = paddr | pa_bits;
   } else {
     vpte->flags = flags;
@@ -199,7 +199,7 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
 
   if ((vpte->flags & VPTE_PHYS) == 0) {
     pf = pmap_pa_to_pf(current_paddr);
-    LIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
+    DLIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
   }
 
   vpte->flags = 0;
@@ -374,7 +374,7 @@ uint32_t *pmap_alloc_pagetable(void)
  */
 void pmap_pageframe_init(struct PmapPageframe *ppf)
 {
-  LIST_INIT(&ppf->vpte_list);
+  DLIST_INIT(&ppf->vpte_list);
 }
 
 
@@ -561,7 +561,7 @@ int pmap_cache_enter(vm_addr addr, vm_addr paddr)
   vpte = vpte_base + pte_idx;
   pf = &pageframe_table[paddr / PAGE_SIZE];
   vpte->flags = PROT_READ | PROT_WRITE;
-  LIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
+  DLIST_ADD_HEAD(&pf->pmap_pageframe.vpte_list, vpte, link);
   // TODO: Increment/Decrement pf reference cnt or not?
 
   pt[pte_idx] = paddr | pa_bits;
@@ -594,7 +594,7 @@ int pmap_cache_remove(vm_addr va)
   vpte = vpte_base + pte_idx;
 
   pf = pmap_pa_to_pf(current_paddr);
-  LIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
+  DLIST_REM_ENTRY(&pf->pmap_pageframe.vpte_list, vpte, link);
 
   vpte->flags = 0;
   pt[pte_idx] = L2_TYPE_INV;

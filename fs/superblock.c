@@ -64,14 +64,14 @@ struct SuperBlock *alloc_superblock(void)
 
   klog_info("alloc_superblock()");
   
-  sb = LIST_HEAD(&free_superblock_list);
+  sb = DLIST_HEAD(&free_superblock_list);
 
   if (sb == NULL) {
     klog_error("no free superblocks");
     return NULL;
   }
 
-  LIST_REM_HEAD(&free_superblock_list, link);
+  DLIST_REM_HEAD(&free_superblock_list, link);
 
   memset(sb, 0, sizeof *sb);
  
@@ -80,13 +80,13 @@ struct SuperBlock *alloc_superblock(void)
   sb->dev = (uint32_t)sb;
   sb->flags = 0;
   
-  LIST_INIT(&sb->vnode_list);
+  DLIST_INIT(&sb->vnode_list);
   
   // TODO: Will need to hold mounted_superblock_list_busy rwlock EXCLUSIVE
   // Unless we can make temporary copies of lists at a given instant and make
   // sure each superblock has been referenced.
   
-  LIST_ADD_TAIL(&mounted_superblock_list, sb, link);
+  DLIST_ADD_TAIL(&mounted_superblock_list, sb, link);
 
   return sb;
 }
@@ -105,8 +105,8 @@ void free_superblock(struct SuperBlock *sb)
 
 //  kassert(sb->reference_cnt == 0);
   
-//  LIST_REM_ENTRY(&mounted_superblock_list, sb, link);  
-//  LIST_ADD_TAIL(&free_superblock_list, sb, link);
+//  DLIST_REM_ENTRY(&mounted_superblock_list, sb, link);  
+//  DLIST_ADD_TAIL(&free_superblock_list, sb, link);
 }
 
 
@@ -117,8 +117,8 @@ void discard_vnodes(struct SuperBlock *sb)
 {
   struct VNode *vnode;
   
-  while ((vnode = LIST_HEAD(&sb->vnode_list)) != NULL) {
-    LIST_REM_HEAD(&sb->vnode_list, vnode_link);             // TODO: Move into vnode_discard?    
+  while ((vnode = DLIST_HEAD(&sb->vnode_list)) != NULL) {
+    DLIST_REM_HEAD(&sb->vnode_list, vnode_link);             // TODO: Move into vnode_discard?    
     
     // FIXME:   vnode_discard(vnode);     // Performs cache block removal.
   } 
@@ -175,7 +175,7 @@ void fini_character_device_queues(struct SuperBlock *sb)
 {
   struct VNode *vnode;
   
-  vnode = LIST_HEAD(&sb->vnode_list);
+  vnode = DLIST_HEAD(&sb->vnode_list);
   
   while (vnode != NULL) {
     vnode->char_read_busy = false;
@@ -183,7 +183,7 @@ void fini_character_device_queues(struct SuperBlock *sb)
 
     TaskWakeupAll(&vnode->rendez);
 
-    vnode = LIST_NEXT(vnode, vnode_link);   
+    vnode = DLIST_NEXT(vnode, vnode_link);   
   }
 }
 

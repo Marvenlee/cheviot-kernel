@@ -21,7 +21,7 @@
 #include <kernel/dbg.h>
 #include <kernel/error.h>
 #include <kernel/globals.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/utility.h>
@@ -42,14 +42,14 @@ struct MemRegion *memregion_find_free(struct AddressSpace *as, vm_addr addr)
     return as->hint;
   }
 
-  mr = LIST_HEAD(&as->free_memregion_list);
+  mr = DLIST_HEAD(&as->free_memregion_list);
   
   while (mr != NULL) {
     if (mr->base_addr <= addr && addr < mr->ceiling_addr) {
       break;
     }
     
-    mr = LIST_NEXT(mr, free_link);
+    mr = DLIST_NEXT(mr, free_link);
   }
 
   if (mr != NULL) {
@@ -71,14 +71,14 @@ struct MemRegion *memregion_find_sorted(struct AddressSpace *as, vm_addr addr)
     return as->hint;
   }
   
-  mr = LIST_HEAD(&as->sorted_memregion_list);
+  mr = DLIST_HEAD(&as->sorted_memregion_list);
 
   while (mr != NULL) {
     if (mr->base_addr <= addr && addr < mr->ceiling_addr) {
       break;
     }
     
-    mr = LIST_NEXT(mr, sorted_link);
+    mr = DLIST_NEXT(mr, sorted_link);
   }
 
   if (mr != NULL) {
@@ -107,7 +107,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
       }
     }
   }  else {
-    mr = LIST_HEAD (&as->free_memregion_list);
+    mr = DLIST_HEAD (&as->free_memregion_list);
     
     while (mr != NULL) {
       aligned_base_addr = ALIGN_UP (mr->base_addr, PAGE_SIZE);
@@ -118,7 +118,7 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
         break;
       }
 
-      mr = LIST_NEXT (mr, free_link);
+      mr = DLIST_NEXT (mr, free_link);
     }
   }
   
@@ -128,25 +128,25 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
   }
   
   /* Allocate base and tail MemRegions beforehand */    
-  if ((mrbase = LIST_HEAD (&unused_memregion_list)) != NULL) {
-    LIST_REM_HEAD (&unused_memregion_list, unused_link);
+  if ((mrbase = DLIST_HEAD (&unused_memregion_list)) != NULL) {
+    DLIST_REM_HEAD (&unused_memregion_list, unused_link);
   } else {
     klog_error("memregion_create failed mrbase");
     return NULL;
   }
   
-  if ((mrtail = LIST_HEAD (&unused_memregion_list)) != NULL) {
-    LIST_REM_HEAD (&unused_memregion_list, unused_link);
+  if ((mrtail = DLIST_HEAD (&unused_memregion_list)) != NULL) {
+    DLIST_REM_HEAD (&unused_memregion_list, unused_link);
   } else {
-    LIST_ADD_HEAD(&unused_memregion_list, mrbase, unused_link);
+    DLIST_ADD_HEAD(&unused_memregion_list, mrbase, unused_link);
     klog_error("memregion_create failed mrtail");
     return NULL;
   }
                     
   if (mr->base_addr < addr) {
     /* Keep and initialise mrbase */          
-    LIST_ADD_HEAD (&as->free_memregion_list, mrbase, free_link);
-    LIST_INSERT_BEFORE(&as->sorted_memregion_list, mr, mrbase, sorted_link);
+    DLIST_ADD_HEAD (&as->free_memregion_list, mrbase, free_link);
+    DLIST_INSERT_BEFORE(&as->sorted_memregion_list, mr, mrbase, sorted_link);
 
     mrbase->base_addr = mr->base_addr;
     mrbase->ceiling_addr = addr;
@@ -155,13 +155,13 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
     mrbase->flags = 0;
   } else {
     /* Do not need mrbase */
-    LIST_ADD_HEAD (&unused_memregion_list, mrbase, unused_link);
+    DLIST_ADD_HEAD (&unused_memregion_list, mrbase, unused_link);
   }
       
   if (addr + size < mr->ceiling_addr) {
     /* Keep and initialise mrtail */
-    LIST_ADD_HEAD (&as->free_memregion_list, mrtail, free_link);
-    LIST_INSERT_AFTER(&as->sorted_memregion_list, mr, mrtail, sorted_link);
+    DLIST_ADD_HEAD (&as->free_memregion_list, mrtail, free_link);
+    DLIST_INSERT_AFTER(&as->sorted_memregion_list, mr, mrtail, sorted_link);
 
     mrtail->base_addr = addr + size;
     mrtail->ceiling_addr = mr->ceiling_addr;
@@ -173,11 +173,11 @@ struct MemRegion *memregion_create(struct AddressSpace *as, vm_offset addr,
 
   } else {
     /* Do not need mrtail */          
-    LIST_ADD_HEAD(&unused_memregion_list, mrtail, unused_link);
+    DLIST_ADD_HEAD(&unused_memregion_list, mrtail, unused_link);
   }
   
   /* Initialise new mr */  
-  LIST_REM_ENTRY(&as->free_memregion_list, mr, free_link);        
+  DLIST_REM_ENTRY(&as->free_memregion_list, mr, free_link);        
   mr->base_addr = addr;
   mr->ceiling_addr = addr + size;        
   mr->as = as;
@@ -218,8 +218,8 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
   as->hint = NULL;
    
   while (mr != NULL && mr->base_addr < addr + size) {    
-    mr_prev = LIST_PREV(mr, sorted_link);
-    mr_next = LIST_NEXT(mr, sorted_link);
+    mr_prev = DLIST_PREV(mr, sorted_link);
+    mr_next = DLIST_NEXT(mr, sorted_link);
 
     if (mr->base_addr >= addr && mr->ceiling_addr <= addr + size) {
     
@@ -229,12 +229,12 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
 
         mr->as = NULL;
         mr->type = MR_TYPE_UNALLOCATED;
-        LIST_REM_ENTRY (&as->sorted_memregion_list, mr, sorted_link);
-        LIST_ADD_HEAD (&unused_memregion_list, mr, unused_link);
+        DLIST_REM_ENTRY (&as->sorted_memregion_list, mr, sorted_link);
+        DLIST_ADD_HEAD (&unused_memregion_list, mr, unused_link);
       } else {
         mr->type  = MR_TYPE_FREE;
         mr->flags = 0;
-        LIST_ADD_HEAD (&as->free_memregion_list, mr, free_link);
+        DLIST_ADD_HEAD (&as->free_memregion_list, mr, free_link);
       }
     }
     
@@ -243,7 +243,7 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
 
   //  If it is free, coalesce the memregion above
   if (mr != NULL && mr->type == MR_TYPE_FREE) {
-    mr_prev = LIST_PREV(mr, sorted_link);
+    mr_prev = DLIST_PREV(mr, sorted_link);
 
     if (mr_prev != NULL && mr_prev->type == MR_TYPE_FREE) {
       /* mr_prev is on AS Free list, destroy MR and extend prev_mr */
@@ -251,8 +251,8 @@ int memregion_free(struct AddressSpace *as, vm_offset addr, vm_size size)
 
       mr->as = NULL;
       mr->type = MR_TYPE_UNALLOCATED;
-      LIST_REM_ENTRY (&as->sorted_memregion_list, mr, sorted_link);
-      LIST_ADD_HEAD (&unused_memregion_list, mr, unused_link);
+      DLIST_REM_ENTRY (&as->sorted_memregion_list, mr, sorted_link);
+      DLIST_ADD_HEAD (&unused_memregion_list, mr, unused_link);
     }
   }
 
@@ -279,15 +279,15 @@ int memregion_split(struct AddressSpace *as, vm_offset addr)
     return 0;
   }
 
-  if ((new_mr = LIST_HEAD(&unused_memregion_list)) == NULL) {
+  if ((new_mr = DLIST_HEAD(&unused_memregion_list)) == NULL) {
     return -ENOMEM;
   }
 
   as->hint = NULL;
     
-  LIST_REM_HEAD(&unused_memregion_list, unused_link);
+  DLIST_REM_HEAD(&unused_memregion_list, unused_link);
 
-  LIST_INSERT_AFTER(&as->sorted_memregion_list, mr, new_mr, sorted_link);
+  DLIST_INSERT_AFTER(&as->sorted_memregion_list, mr, new_mr, sorted_link);
 
   new_mr->base_addr = addr;
   new_mr->ceiling_addr = mr->ceiling_addr;
@@ -296,7 +296,7 @@ int memregion_split(struct AddressSpace *as, vm_offset addr)
   new_mr->as = as;
     
   if (new_mr->type == MR_TYPE_FREE) {
-    LIST_ADD_HEAD(&as->free_memregion_list, new_mr, free_link);  
+    DLIST_ADD_HEAD(&as->free_memregion_list, new_mr, free_link);  
   }
   
   if (new_mr->type == MR_TYPE_PHYS) { 
@@ -326,16 +326,16 @@ void memregion_free_all(struct AddressSpace *as)
 {
   struct MemRegion *mr;
   
-  while((mr = LIST_HEAD(&as->sorted_memregion_list)) != NULL) {
+  while((mr = DLIST_HEAD(&as->sorted_memregion_list)) != NULL) {
     if (mr->type == MR_TYPE_FREE) {
-      LIST_REM_ENTRY(&as->free_memregion_list, mr, free_link);
+      DLIST_REM_ENTRY(&as->free_memregion_list, mr, free_link);
     }
 
-    LIST_REM_HEAD(&as->sorted_memregion_list, sorted_link);
+    DLIST_REM_HEAD(&as->sorted_memregion_list, sorted_link);
     
     mr->as = NULL;
     mr->type = MR_TYPE_UNALLOCATED;
-    LIST_ADD_HEAD (&unused_memregion_list, mr, unused_link);      
+    DLIST_ADD_HEAD (&unused_memregion_list, mr, unused_link);      
   }
 
   as->hint = NULL;
@@ -351,20 +351,20 @@ int init_memregions(struct AddressSpace *as)
 
   klog_info("init_memregions");
   
-  LIST_INIT(&as->sorted_memregion_list);
-  LIST_INIT(&as->free_memregion_list);
+  DLIST_INIT(&as->sorted_memregion_list);
+  DLIST_INIT(&as->free_memregion_list);
 
   as->hint = NULL;
   
-  if ((mr = LIST_HEAD(&unused_memregion_list)) == NULL) {
+  if ((mr = DLIST_HEAD(&unused_memregion_list)) == NULL) {
     klog_error("init_memregions -ENOMEM");
     return -ENOMEM;
   }
   
-  LIST_REM_HEAD (&unused_memregion_list, unused_link);
+  DLIST_REM_HEAD (&unused_memregion_list, unused_link);
 
-  LIST_ADD_TAIL(&as->sorted_memregion_list, mr, sorted_link);
-  LIST_ADD_TAIL(&as->free_memregion_list, mr, free_link);
+  DLIST_ADD_TAIL(&as->sorted_memregion_list, mr, sorted_link);
+  DLIST_ADD_TAIL(&as->free_memregion_list, mr, free_link);
   mr->base_addr = VM_USER_BASE;
   mr->ceiling_addr = VM_USER_CEILING;
   mr->type = MR_TYPE_FREE;
@@ -384,19 +384,19 @@ int fork_memregions(struct AddressSpace *new_as, struct AddressSpace *old_as)
 
   klog_info("fork_memregions");
 
-  LIST_INIT(&new_as->sorted_memregion_list);
-  LIST_INIT(&new_as->free_memregion_list);  
+  DLIST_INIT(&new_as->sorted_memregion_list);
+  DLIST_INIT(&new_as->free_memregion_list);  
   new_as->hint = NULL;
 
-  old_mr = LIST_HEAD(&old_as->sorted_memregion_list);
+  old_mr = DLIST_HEAD(&old_as->sorted_memregion_list);
   
   while (old_mr != NULL) {
-    if ((new_mr = LIST_HEAD(&unused_memregion_list)) == NULL) {
+    if ((new_mr = DLIST_HEAD(&unused_memregion_list)) == NULL) {
       goto cleanup;
     }
     
-    LIST_REM_HEAD (&unused_memregion_list, unused_link);
-    LIST_ADD_TAIL(&new_as->sorted_memregion_list, new_mr, sorted_link);
+    DLIST_REM_HEAD (&unused_memregion_list, unused_link);
+    DLIST_ADD_TAIL(&new_as->sorted_memregion_list, new_mr, sorted_link);
 
     new_mr->base_addr = old_mr->base_addr;
     new_mr->ceiling_addr = old_mr->ceiling_addr;
@@ -406,10 +406,10 @@ int fork_memregions(struct AddressSpace *new_as, struct AddressSpace *old_as)
     new_mr->as = new_as;
         
     if (new_mr->type == MR_TYPE_FREE) {
-      LIST_ADD_TAIL(&new_as->free_memregion_list, new_mr, free_link);
+      DLIST_ADD_TAIL(&new_as->free_memregion_list, new_mr, free_link);
     }
 
-    old_mr = LIST_NEXT(old_mr, sorted_link);
+    old_mr = DLIST_NEXT(old_mr, sorted_link);
   }
     
   return 0;

@@ -355,7 +355,7 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
 {
   InitRendez(&thread->rendez);
 
-  LIST_ADD_TAIL(&proc->thread_list, thread, thread_link);
+  DLIST_ADD_TAIL(&proc->thread_list, thread, thread_link);
 
   thread->cpu = cpu;
   thread->stack = stack;
@@ -379,7 +379,7 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
 
   thread->msg = NULL;
 
-  LIST_INIT(&thread->isr_handler_list);
+  DLIST_INIT(&thread->isr_handler_list);
 
   // TODO: init signal state
   thread->signal.sig_mask = sig_mask; 
@@ -394,7 +394,7 @@ void init_thread(struct Thread *thread, struct CPU *cpu, struct Process *proc, v
   }
 
   if (sig_mask != 0xFFFFFFFF) {
-    LIST_ADD_TAIL(&proc->unmasked_signal_thread_list, thread, unmasked_signal_thread_link);
+    DLIST_ADD_TAIL(&proc->unmasked_signal_thread_list, thread, unmasked_signal_thread_link);
   }
   
   if (name != NULL) {
@@ -412,7 +412,7 @@ void do_kill_other_threads_and_wait(struct Process *current, struct Thread *curr
 {
   struct Thread *thread;
   
-  thread = LIST_HEAD(&current->thread_list);  
+  thread = DLIST_HEAD(&current->thread_list);  
 
   while(thread != NULL) {
     if (thread != current_thread) {
@@ -421,13 +421,13 @@ void do_kill_other_threads_and_wait(struct Process *current, struct Thread *curr
                                         // perhaps add a busy condition variable around thread list.                                          
     }
     
-    thread = LIST_NEXT(thread, thread_link);
+    thread = DLIST_NEXT(thread, thread_link);
   }
 
   // Wait until we are the last thread alive in the process
 
-  while(LIST_HEAD(&current->thread_list) != current_thread &&
-        LIST_TAIL(&current->thread_list) != current_thread) {
+  while(DLIST_HEAD(&current->thread_list) != current_thread &&
+        DLIST_TAIL(&current->thread_list) != current_thread) {
     TaskSleep(&current->thread_list_rendez);
   }
 }
@@ -457,9 +457,9 @@ int do_exit_thread(intptr_t status)
   }
 #endif
   
-  LIST_REM_ENTRY(&proc->thread_list, thread, thread_link);    
+  DLIST_REM_ENTRY(&proc->thread_list, thread, thread_link);    
 
-  if (LIST_EMPTY(&proc->thread_list)) {
+  if (DLIST_EMPTY(&proc->thread_list)) {
     // We are the final thread, detach and notify the parent process to finish cleanup.    
 
 //    klog_info("thread:%08x, tid:%d, is last thread of proc:%d", (uint32_t)thread, thread->tid, proc->pid);
@@ -477,11 +477,11 @@ int do_exit_thread(intptr_t status)
     // Add thread to reaper's thread list
     thread->process = root_process;
     pmap_switch(thread->process, NULL);    
-    LIST_ADD_TAIL(&thread_reaper_detached_thread_list, thread, thread_link);  
+    DLIST_ADD_TAIL(&thread_reaper_detached_thread_list, thread, thread_link);  
     TaskWakeup(&thread_reaper_rendez);
   } else {
     // Add thread back to process's thread list
-    LIST_ADD_TAIL(&proc->thread_list, thread, thread_link);  
+    DLIST_ADD_TAIL(&proc->thread_list, thread, thread_link);  
     TaskWakeupAll(&proc->thread_list_rendez);
   }
   
@@ -529,7 +529,7 @@ int do_join_thread(struct Thread *thread, intptr_t *status)
   // TODO: Want to avoid if thread marks itself as detached.  Needs to wakeup this thread,
   // TODO: This thread then needs to check if the thread still exists on the thread list.  
   
-  LIST_REM_ENTRY(&proc->thread_list, thread, thread_link);
+  DLIST_REM_ENTRY(&proc->thread_list, thread, thread_link);
   
   if (status != NULL) {
     *status = thread->exit_status;
@@ -559,14 +559,14 @@ struct Thread *alloc_thread_struct(void)
 {
   struct Thread *thread;
 
-  thread = LIST_HEAD(&free_thread_list);
+  thread = DLIST_HEAD(&free_thread_list);
   
   if (thread == NULL) {
     klog_error("alloc thread struct failed");
     return NULL;
   }  
   
-  LIST_REM_HEAD(&free_thread_list, free_link);
+  DLIST_REM_HEAD(&free_thread_list, free_link);
   
   memset(thread, 0, sizeof *thread);
 
@@ -580,7 +580,7 @@ struct Thread *alloc_thread_struct(void)
 void free_thread_struct(struct Thread *thread)
 {  
   memset(thread, 0, sizeof *thread);
-  LIST_ADD_TAIL(&free_thread_list, thread, free_link);
+  DLIST_ADD_TAIL(&free_thread_list, thread, free_link);
 }
 
 
@@ -593,11 +593,11 @@ void thread_reaper_task(void *arg)
   struct Process *proc;
 
   while(1) {
-    while((thread = LIST_HEAD(&thread_reaper_detached_thread_list)) == NULL) {
+    while((thread = DLIST_HEAD(&thread_reaper_detached_thread_list)) == NULL) {
       TaskSleep(&thread_reaper_rendez);
     }
 
-    LIST_REM_ENTRY(&thread_reaper_detached_thread_list, thread, thread_link);
+    DLIST_REM_ENTRY(&thread_reaper_detached_thread_list, thread, thread_link);
     
     proc = thread->process;        
     kfree_page(thread->stack);

@@ -197,7 +197,7 @@ int sys_sleep(int seconds)
   timer->expiration_time = hardclock_time + (seconds * JIFFIES_PER_SECOND);
   RestoreInterrupts(int_state);
   
-  LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+  DLIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
 
   while (timer->armed == true) {
     TaskSleep(&current->rendez);
@@ -243,7 +243,7 @@ int sys_nanosleep(struct timespec *_req, struct timespec *_rem)
                                           + (req.tv_nsec / NANOSECONDS_PER_JIFFY);
   RestoreInterrupts(int_state);
   
-  LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+  DLIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
 
   while (timer->armed == true) {
     TaskSleep(&current->rendez);
@@ -280,7 +280,7 @@ int sleep_ticks(int ticks)
   
   RestoreInterrupts(int_state);
   
-  LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+  DLIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
 
   while (timer->armed == true) {
     TaskSleep(&current->rendez);
@@ -313,7 +313,7 @@ int SetTimeout(int milliseconds, void (*callback)(struct Timer *), void *arg)
 
     remaining = hardclock_time - timer->expiration_time / JIFFIES_PER_SECOND;
     
-    LIST_REM_ENTRY(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+    DLIST_REM_ENTRY(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
     timer->armed = false;
   }
   
@@ -325,7 +325,7 @@ int SetTimeout(int milliseconds, void (*callback)(struct Timer *), void *arg)
     timer->arg = arg;
     timer->armed = true;
 
-    LIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
+    DLIST_ADD_TAIL(&timing_wheel[timer->expiration_time % JIFFIES_PER_SECOND], timer, timer_entry);
   }
 
   RestoreInterrupts(int_state);
@@ -427,13 +427,13 @@ void timer_bottom_half_task(void *arg)
     while (softclock_time < hardclock_time) {
       RestoreInterrupts(int_state);
       
-      timer = LIST_HEAD(&timing_wheel[softclock_time % JIFFIES_PER_SECOND]);
+      timer = DLIST_HEAD(&timing_wheel[softclock_time % JIFFIES_PER_SECOND]);
 
       while (timer != NULL) {
-        next_timer = LIST_NEXT(timer, timer_entry);
+        next_timer = DLIST_NEXT(timer, timer_entry);
 
         if (timer->expiration_time <= softclock_time) {          
-          LIST_REM_ENTRY(&timing_wheel[softclock_time % JIFFIES_PER_SECOND], timer, timer_entry);
+          DLIST_REM_ENTRY(&timing_wheel[softclock_time % JIFFIES_PER_SECOND], timer, timer_entry);
           timer->armed = false;
   
           if (timer->callback != NULL) {

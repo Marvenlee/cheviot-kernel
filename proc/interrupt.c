@@ -82,11 +82,11 @@ int sys_addinterruptserver(int irq, int event)
   isrhandler->thread = current_thread;
   isrhandler->event = event;
 
-  LIST_ADD_TAIL(&current_thread->isr_handler_list, isrhandler, thread_isr_handler_link);
+  DLIST_ADD_TAIL(&current_thread->isr_handler_list, isrhandler, thread_isr_handler_link);
 
   int_state = DisableInterrupts();
 
-  LIST_ADD_TAIL(&isr_handler_list[irq], isrhandler, isr_handler_entry);
+  DLIST_ADD_TAIL(&isr_handler_list[irq], isrhandler, isr_handler_entry);
 
   irq_handler_cnt[irq]++;
   irq_mask_cnt[irq]++;
@@ -113,7 +113,7 @@ int sys_reminterruptserver(int isrid)
   current_proc = get_current_process();
   current_thread = get_current_thread();
 
-  isrhandler = LIST_HEAD(&current_thread->isr_handler_list);
+  isrhandler = DLIST_HEAD(&current_thread->isr_handler_list);
 
   if (isrhandler == NULL) {
     return -ENOENT;
@@ -125,7 +125,7 @@ int sys_reminterruptserver(int isrid)
       break;
     }
     
-    isrhandler = LIST_NEXT(isrhandler, thread_isr_handler_link);
+    isrhandler = DLIST_NEXT(isrhandler, thread_isr_handler_link);
   }
   
   return 0;
@@ -136,7 +136,7 @@ void do_free_all_isrhandlers(struct Process *proc, struct Thread *thread)
 {
   struct ISRHandler *isrhandler;
   
-  while ((isrhandler = LIST_HEAD(&thread->isr_handler_list)) != NULL) {
+  while ((isrhandler = DLIST_HEAD(&thread->isr_handler_list)) != NULL) {
     do_free_isrhandler(proc, thread, isrhandler);    
   }
 }
@@ -160,9 +160,9 @@ int do_free_isrhandler(struct Process *proc, struct Thread *thread, struct ISRHa
 
   int_state = DisableInterrupts();
 
-  LIST_REM_ENTRY(&thread->isr_handler_list, isrhandler, thread_isr_handler_link);
+  DLIST_REM_ENTRY(&thread->isr_handler_list, isrhandler, thread_isr_handler_link);
 
-  LIST_REM_ENTRY(&isr_handler_list[irq], isrhandler, isr_handler_entry);
+  DLIST_REM_ENTRY(&isr_handler_list[irq], isrhandler, isr_handler_entry);
   irq_handler_cnt[irq]--;
 
   if (irq_handler_cnt[irq] == 0) {
@@ -270,11 +270,11 @@ int interrupt_server_broadcast_event(int irq)
 {
   struct ISRHandler *isr_handler;
 
-  isr_handler = LIST_HEAD(&isr_handler_list[irq]);
+  isr_handler = DLIST_HEAD(&isr_handler_list[irq]);
 
   while (isr_handler != NULL) {
     isr_thread_event_signal(isr_handler->thread, isr_handler->event);
-    isr_handler = LIST_NEXT(isr_handler, isr_handler_entry);
+    isr_handler = DLIST_NEXT(isr_handler, isr_handler_entry);
   }
 
   return 0;
@@ -288,13 +288,13 @@ struct ISRHandler *alloc_isrhandler(void)
 {
   struct ISRHandler *isrhandler;
 
-  isrhandler = LIST_HEAD(&isr_handler_free_list);
+  isrhandler = DLIST_HEAD(&isr_handler_free_list);
 
   if (isrhandler == NULL) {
     return NULL;
   }
 
-  LIST_REM_HEAD(&isr_handler_free_list, free_link);
+  DLIST_REM_HEAD(&isr_handler_free_list, free_link);
   return isrhandler;
 }
 
@@ -308,7 +308,7 @@ void free_isrhandler(struct ISRHandler *isrhandler)
     return;
   }
 
-  LIST_ADD_HEAD(&isr_handler_free_list, isrhandler, free_link);
+  DLIST_ADD_HEAD(&isr_handler_free_list, isrhandler, free_link);
 }
 
 

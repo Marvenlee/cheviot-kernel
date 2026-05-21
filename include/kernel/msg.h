@@ -2,7 +2,7 @@
 #define KERNEL_MSG_H
 
 #include <kernel/error.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 #include <kernel/sync.h>
 #include <sys/syscalls.h>
@@ -16,7 +16,7 @@ struct Msg;
 struct MsgPort;
 
 // List types
-LIST_TYPE(Msg, msg_list_t, msg_link_t);
+DLIST_TYPE(Msg, msg_list_t, msg_link_t);
 
 
 /* @brief   Kernel Message

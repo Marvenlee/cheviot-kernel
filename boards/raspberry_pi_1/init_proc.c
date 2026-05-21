@@ -63,10 +63,10 @@ void init_processes(void)
   
   bkl_locked = false;
   bkl_owner = NULL;
-  LIST_INIT(&bkl_blocked_list);
+  DLIST_INIT(&bkl_blocked_list);
 
   for (int t = 0; t < NIRQ; t++) {
-    LIST_INIT(&isr_handler_list[t]);
+    DLIST_INIT(&isr_handler_list[t]);
   }
 
   for (int t = 0; t < 32; t++) {
@@ -83,7 +83,7 @@ void init_processes(void)
   klog_info(".. process table entries inited");
   
   for (int t = 0; t < JIFFIES_PER_SECOND; t++) {
-    LIST_INIT(&timing_wheel[t]);
+    DLIST_INIT(&timing_wheel[t]);
   }
 
   klog_info(".. timing wheel inited");
@@ -181,7 +181,7 @@ struct Process *create_process(void (*entry)(void), int policy, int priority,
   free_process_cnt--;
 
   InitRendez(&proc->rendez);
-  LIST_INIT(&proc->child_list);
+  DLIST_INIT(&proc->child_list);
 
   proc->pid = pid;
   proc->parent = NULL;

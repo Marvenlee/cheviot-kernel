@@ -173,14 +173,14 @@ struct Pipe *alloc_pipe(void)
   
   klog_info("alloc_pipe()");
     
-  pipe = LIST_HEAD(&free_pipe_list);
+  pipe = DLIST_HEAD(&free_pipe_list);
   
   if (pipe == NULL) {
     klog_error("alloc_pipe, failed, list empty");
     return NULL;
   }
   
-  LIST_REM_HEAD(&free_pipe_list, link);
+  DLIST_REM_HEAD(&free_pipe_list, link);
 
   pipe->w_pos = 0;
   pipe->r_pos = 0;
@@ -194,7 +194,7 @@ struct Pipe *alloc_pipe(void)
   
   if (pipe->data == NULL) {
     klog_error("alloc_pipe() failed to allocate buffer page");
-    LIST_ADD_HEAD(&free_pipe_list, pipe, link);
+    DLIST_ADD_HEAD(&free_pipe_list, pipe, link);
     return NULL;
   }   
   
@@ -215,7 +215,7 @@ void free_pipe(struct Pipe *pipe)
   
   kfree_page(pipe->data);
 
-  LIST_ADD_HEAD(&free_pipe_list, pipe, link);
+  DLIST_ADD_HEAD(&free_pipe_list, pipe, link);
 }
 
 

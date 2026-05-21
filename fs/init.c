@@ -51,11 +51,11 @@ void init_vfs(void)
  */
 void init_vfs_lists(void)
 {
-  LIST_INIT(&vnode_free_list);
-  LIST_INIT(&filp_free_list);
-  LIST_INIT(&dname_lru_list);
-  LIST_INIT(&free_superblock_list);
-  LIST_INIT(&isr_handler_free_list);
+  DLIST_INIT(&vnode_free_list);
+  DLIST_INIT(&filp_free_list);
+  DLIST_INIT(&dname_lru_list);
+  DLIST_INIT(&free_superblock_list);
+  DLIST_INIT(&isr_handler_free_list);
 
   // TODO: Need pagetables allocated for this file cache?
   // TODO Replace NR_VNODE, NR_FILP, NR_DNAME with computed variables max_vnode,
@@ -63,32 +63,32 @@ void init_vfs_lists(void)
   // Perhaps get some params from kernel command line?
 
   for (int t = 0; t < NR_VNODE; t++) {
-    LIST_ADD_TAIL(&vnode_free_list, &vnode_table[t], vnode_link);
+    DLIST_ADD_TAIL(&vnode_free_list, &vnode_table[t], vnode_link);
     vnode_table[t].flags = 0;
     InitRendez(&vnode_table[t].rendez);
     rwlock_init(&vnode_table[t].lock);
   }
 
   for (int t = 0; t <VNODE_HASH; t++) {
-    LIST_INIT(&vnode_hash[t]);
+    DLIST_INIT(&vnode_hash[t]);
   }
 
   for (int t = 0; t < NR_FILP; t++) {
-    LIST_ADD_TAIL(&filp_free_list, &filp_table[t], filp_entry);
+    DLIST_ADD_TAIL(&filp_free_list, &filp_table[t], filp_entry);
     filp_table[t].type = FILP_TYPE_FREE;
   }
 
   for (int t = 0; t < NR_DNAME; t++) {
-    LIST_ADD_TAIL(&dname_lru_list, &dname_table[t], lru_link);
+    DLIST_ADD_TAIL(&dname_lru_list, &dname_table[t], lru_link);
     dname_table[t].hash_key = -1;
   }
 
   for (int t = 0; t < DNAME_HASH; t++) {
-    LIST_INIT(&dname_hash[t]);
+    DLIST_INIT(&dname_hash[t]);
   }
 
   for (int t = 0; t < max_superblock; t++) {
-    LIST_ADD_TAIL(&free_superblock_list, &superblock_table[t], link);
+    DLIST_ADD_TAIL(&free_superblock_list, &superblock_table[t], link);
     rwlock_init(&superblock_table[t].lock);
   }
 }
@@ -99,11 +99,11 @@ void init_vfs_lists(void)
  */
 void init_vfs_pipes(void)
 {
-  LIST_INIT(&free_pipe_list);
+  DLIST_INIT(&free_pipe_list);
   
   for (int t=0; t<max_pipe; t++) {
     pipe_table[t].inode_nr = t;
-    LIST_ADD_TAIL(&free_pipe_list, &pipe_table[t], link);
+    DLIST_ADD_TAIL(&free_pipe_list, &pipe_table[t], link);
   }
 }
 

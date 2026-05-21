@@ -79,14 +79,14 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
     return NULL;
   }
 
-  vnode = LIST_HEAD(&vnode_free_list);
+  vnode = DLIST_HEAD(&vnode_free_list);
 
   if (vnode == NULL) {
     klog_error("vnode_get_new() failed, no memory");
     return NULL;
   }
 
-  LIST_REM_HEAD(&vnode_free_list, vnode_link);
+  DLIST_REM_HEAD(&vnode_free_list, vnode_link);
 
   sb->reference_cnt++;
   
@@ -118,9 +118,9 @@ struct VNode *vnode_get_new(struct SuperBlock *sb)
   vnode->gid = 9999;
   vnode->size = 0;
 
-  LIST_INIT(&vnode->page_list);  
-  LIST_INIT(&vnode->dname_list);
-  LIST_INIT(&vnode->directory_dname_list);
+  DLIST_INIT(&vnode->page_list);  
+  DLIST_INIT(&vnode->dname_list);
+  DLIST_INIT(&vnode->directory_dname_list);
 
   klog_info("vnode_get_new(sb:%08x) vnode:%08x, ref_cnt:%d", (uint32_t)sb, (uint32_t)vnode, vnode->reference_cnt);
 
@@ -153,7 +153,7 @@ struct VNode *vnode_get(struct SuperBlock *sb, int inode_nr)
   }
   
   if (vnode->flags & V_FREE) {    // TODO: Rename to V_INACTIVE
-    LIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
+    DLIST_REM_ENTRY(&vnode_free_list, vnode, vnode_link);
     
     // TODO: Recycle vnode in here ? 
   }
@@ -342,8 +342,8 @@ void do_vnode_discard(struct VNode *vnode)
 
   vnode->superblock->reference_cnt--;
 
-  LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
-  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
+  DLIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
+  DLIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
 
 //  rwlock_reset(&vnode->lock);
 
@@ -383,8 +383,8 @@ void do_vnode_inactive(struct VNode *vnode)
   
   vnode->flags = V_FREE;
 
-  LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
-  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
+  DLIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
+  DLIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
 
 //  rwlock_reset(&vnode->lock);
 
@@ -433,8 +433,8 @@ void do_vnode_recycle(struct VNode *vnode)
   vnode->flags = V_FREE;
   vnode->reference_cnt = 0;
 
-  LIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
-  LIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
+  DLIST_REM_ENTRY(&vnode->superblock->vnode_list, vnode, vnode_link);  
+  DLIST_ADD_HEAD(&vnode_free_list, vnode, vnode_link);
 
   sb->reference_cnt--;
 
@@ -457,14 +457,14 @@ struct VNode *vnode_find(struct SuperBlock *sb, int inode_nr)
   kassert(sb != NULL);
 
   h = calc_vnode_hash(sb, inode_nr);
-  vnode = LIST_HEAD(&vnode_hash[h]);
+  vnode = DLIST_HEAD(&vnode_hash[h]);
   
   while(vnode != NULL) {
     if ((vnode->flags & V_VALID) && vnode->superblock == sb && vnode->inode_nr == inode_nr) {
       klog_info("vnode found: %08x", (uint32_t)vnode);
       return vnode;
     }
-    vnode = LIST_NEXT(vnode, hash_link);
+    vnode = DLIST_NEXT(vnode, hash_link);
   }
 
   klog_info("vnode not found");
@@ -498,7 +498,7 @@ void vnode_hash_enter(struct VNode *vnode)
   kassert((vnode->flags & V_HASHED) == 0);
   
   int h = calc_vnode_hash(vnode->superblock, vnode->inode_nr);
-  LIST_ADD_HEAD(&vnode_hash[h], vnode, hash_link);
+  DLIST_ADD_HEAD(&vnode_hash[h], vnode, hash_link);
 
   vnode->flags |= V_HASHED;
 }
@@ -516,7 +516,7 @@ void vnode_hash_remove(struct VNode *vnode)
   vnode->flags &= ~V_HASHED;
 
   int h = calc_vnode_hash(vnode->superblock, vnode->inode_nr);  
-  LIST_REM_ENTRY(&vnode_hash[h], vnode, hash_link);
+  DLIST_REM_ENTRY(&vnode_hash[h], vnode, hash_link);
 }
 
 

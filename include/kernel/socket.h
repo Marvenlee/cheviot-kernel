@@ -5,7 +5,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <kernel/error.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/msg.h>
 #include <kernel/timer.h>
 #include <kernel/types.h>

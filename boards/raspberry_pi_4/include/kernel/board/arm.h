@@ -17,7 +17,7 @@
 #ifndef MACHINE_BOARD_RASPBERRY_PI_4_ARM_H
 #define MACHINE_BOARD_RASPBERRY_PI_4_ARM_H
 
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 #include <stdint.h>
 #include <machine/cheviot_hal.h>

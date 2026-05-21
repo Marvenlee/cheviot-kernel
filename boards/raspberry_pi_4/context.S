@@ -94,16 +94,31 @@ SetContext:
 	str	r14, [r0,#56]
 
   /* Save FP status register and FP registers */
+#if 0
 	vmrs r1,fpscr
+#else
+  .word 0xeef11a10              // 80024358:	eef11a10 	vmrs	r1, fpscr
+
+#endif
+
 	str r1, [r0, #60]
-	
 	mov r1, r0
 	add r1, #64
-	
+
+#if 0	
 	vstm r1, {s0-s15}
+#else
+  .word 0xec810a10              // 80024368:	ec810a10 	vstmia	r1, {s0-s15}
+#endif
+
 	add r1, #64
-	vstm r1, {s16-s31}	
-	
+
+#if 0
+	vstm r1, {s16-s31}	          // 80024370:	ec818a10 	vstmia	r1, {s16-s31}
+#else
+  .word 0xec818a10
+#endif
+
 	/* store 1 as r0-to-restore */
 	mov	r1, #1
 	str	r1, [r0]
@@ -125,19 +140,34 @@ SetContext:
  * that pop registers on exit from a sytem call, exception or interrupt.
  *
  * TODO: Restore FPU Floating Point register state
- */
+ */ 
 GetContext:
   /* Load FP registers and FP status register */
 
 	mov r1, r0
 	add r1, #64
 	
+#if 0
 	vldm r1, {s0-s15}
+#else
+  // 8002438c:	ec910a10 	vldmia	r1, {s0-s15}
+#endif
+
 	add r1, #64
+
+#if 0
 	vldm r1, {s16-s31}
+#else
+  // 80024394:	ec918a10 	vldmia	r1, {s16-s31}
+#endif
 
 	ldr r1, [r0, #60]	
+
+#if 0
 	vmsr fpscr, r1	
+#else
+// 8002439c:	eee11a10 	vmsr	fpscr, r1
+#endif
 
 	ldr	r1, [r0,#4]
 	ldr	r2, [r0,#8]
@@ -162,12 +192,23 @@ GetContext:
  */
 save_fp_context:
   /* Save FP status register and FP registers */
+
+#if 0
 	vmrs r1,fpscr
+#else
+  .word 0xeef11a10            // 800243e0:	eef11a10 	vmrs	r1, fpscr
+#endif
+
 	str r1, [r0, #0]	
 	add r0, #4
-	
+
+#if 0	
 	vstm r0, {s0-s15}
 	vstm r0, {s16-s31}	
+#else
+  .word 0xec800a10            // 800243ec:	ec800a10 	vstmia	r0, {s0-s15}
+  .word 0xec808a10            // 800243f0:	ec808a10 	vstmia	r0, {s16-s31}
+#endif
 
   mov pc, lr    
   

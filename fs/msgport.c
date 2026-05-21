@@ -258,8 +258,8 @@ int sys_unmount(char *_path, uint32_t flags)
  */
 int init_msgport(struct MsgPort *msgport, pid_t tid, int event)
 {
-  LIST_INIT(&msgport->pending_msg_list);
-  LIST_INIT(&msgport->received_msg_list);
+  DLIST_INIT(&msgport->pending_msg_list);
+  DLIST_INIT(&msgport->received_msg_list);
   
   InitRendez(&msgport->rendez);
   
@@ -289,25 +289,25 @@ int fini_msgport(struct MsgPort *port)
   
   port->flags |= MPF_SHUTDOWN;
     
-  while ((msg = LIST_HEAD(&port->received_msg_list)) != NULL) {
-    LIST_REM_HEAD(&port->received_msg_list, link);
+  while ((msg = DLIST_HEAD(&port->received_msg_list)) != NULL) {
+    DLIST_REM_HEAD(&port->received_msg_list, link);
 
     msg->msgid = INVALID_PID;
     msg->reply_status = -ECONNABORTED;      
     msg->port = msg->reply_port;
     
-    LIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
+    DLIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
     TaskWakeup(&msg->reply_port->rendez);   // FIXME: Is this used?  
   }
   
-  while ((msg = LIST_HEAD(&port->pending_msg_list)) != NULL) {
-    LIST_REM_HEAD(&port->pending_msg_list, link);
+  while ((msg = DLIST_HEAD(&port->pending_msg_list)) != NULL) {
+    DLIST_REM_HEAD(&port->pending_msg_list, link);
 
     msg->msgid = INVALID_PID;
     msg->reply_status = -ECONNABORTED;      
     msg->port = msg->reply_port;
     
-    LIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
+    DLIST_ADD_TAIL(&msg->reply_port->pending_msg_list, msg, link);
     TaskWakeup(&msg->reply_port->rendez);   // FIXME: Is this used?
   }
   

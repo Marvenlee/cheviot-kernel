@@ -5,7 +5,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <kernel/error.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/msg.h>
 #include <kernel/timer.h>
 #include <kernel/types.h>
@@ -36,14 +36,14 @@ struct ISRHandler;
 struct TTYState;
 
 // List types
-LIST_TYPE(DName, dname_list_t, dname_link_t);
-LIST_TYPE(VNode, vnode_list_t, vnode_link_t);
-LIST_TYPE(VFS, vfs_list_t, vfs_link_t);
-LIST_TYPE(Filp, filp_list_t, filp_link_t);
-LIST_TYPE(SuperBlock, superblock_list_t, superblock_link_t);
-LIST_TYPE(Pipe, pipe_list_t, pipe_link_t);
-LIST_TYPE(TTYState, ttystate_list_t, ttystate_link_t);
-LIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
+DLIST_TYPE(DName, dname_list_t, dname_link_t);
+DLIST_TYPE(VNode, vnode_list_t, vnode_link_t);
+DLIST_TYPE(VFS, vfs_list_t, vfs_link_t);
+DLIST_TYPE(Filp, filp_list_t, filp_link_t);
+DLIST_TYPE(SuperBlock, superblock_list_t, superblock_link_t);
+DLIST_TYPE(Pipe, pipe_list_t, pipe_link_t);
+DLIST_TYPE(TTYState, ttystate_list_t, ttystate_link_t);
+DLIST_TYPE(DelWriMsg, delwrimsg_list_t, delwrimsg_link_t);
 
 
 // lookup() flags

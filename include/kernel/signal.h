@@ -1,7 +1,7 @@
 #ifndef KERNEL_SIGNAL_H
 #define KERNEL_SIGNAL_H
 
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 #include <signal.h>
 

@@ -178,7 +178,7 @@ int pmap_enter(struct AddressSpace *as, vm_addr va, vm_addr pa, int flags)
 
   if ((flags & MAP_PHYS) == 0) {
     page = &page_table[pa / PAGE_SIZE];
-    LIST_ADD_HEAD(&page->pmap_page.vpte_list, vpte, link);
+    DLIST_ADD_HEAD(&page->pmap_page.vpte_list, vpte, link);
   }
   
   vpte->flags = flags;
@@ -237,7 +237,7 @@ int pmap_remove(struct AddressSpace *as, vm_addr va)
 
   if ((vpte->flags & MAP_PHYS) == 0) {
     page = pmap_pa_to_page(current_paddr);
-    LIST_REM_ENTRY(&page->pmap_page.vpte_list, vpte, link);
+    DLIST_REM_ENTRY(&page->pmap_page.vpte_list, vpte, link);
   }
 
   vpte->flags = 0;
@@ -449,7 +449,7 @@ uint32_t *pmap_alloc_pagetable(void)
  */
 void pmap_page_init(struct PmapPage *ppage)
 {
-  LIST_INIT(&ppage->vpte_list);
+  DLIST_INIT(&ppage->vpte_list);
 }
 
 
@@ -477,13 +477,13 @@ int pmap_create(struct AddressSpace *as)
 
   klog_info("pmap_create: as:%08x", (uint32_t)as);
 	
-	ppd = LIST_HEAD(&free_pmappagedir_list);
+	ppd = DLIST_HEAD(&free_pmappagedir_list);
 	
 	if (ppd == NULL) {
 	  return -1;
 	}
 
-  LIST_REM_HEAD(&free_pmappagedir_list, free_link);
+  DLIST_REM_HEAD(&free_pmappagedir_list, free_link);
   
   pd = ppd->pagedir;
 
@@ -515,7 +515,7 @@ void pmap_destroy(struct AddressSpace *as)
 
   index = (pd - pagedir_table) / 4096; 
   
-  LIST_ADD_TAIL(&free_pmappagedir_list, &pmappagedir_table[index], free_link);
+  DLIST_ADD_TAIL(&free_pmappagedir_list, &pmappagedir_table[index], free_link);
 }
 
 

@@ -2,7 +2,7 @@
 #define KERNEL_TIMER_H
 
 #include <kernel/arch.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 #include <sys/time.h>
 
@@ -13,7 +13,7 @@ struct Process;
 struct Thread;
 
 // List types
-LIST_TYPE(Timer, timer_list_t, timer_list_link_t);
+DLIST_TYPE(Timer, timer_list_t, timer_list_link_t);
 
 // Timer configuration
 #if 1

@@ -25,7 +25,7 @@
 struct PmapPagedir;
 
 // Pmap pagetable list
-LIST_TYPE(PmapPagedir, pmappagedir_list_t, pmappagedir_link_t);
+DLIST_TYPE(PmapPagedir, pmappagedir_list_t, pmappagedir_link_t);
 
 
 /* @brief   Metadata for allocating page directories.
@@ -40,8 +40,8 @@ struct PmapPagedir
 
 /*
  */
-LIST_TYPE(Pmap, pmap_list_t, pmap_list_link_t);
-LIST_TYPE(PmapVPTE, pmap_vpte_list_t, pmap_vpte_list_link_t);
+DLIST_TYPE(Pmap, pmap_list_t, pmap_list_link_t);
+DLIST_TYPE(PmapVPTE, pmap_vpte_list_t, pmap_vpte_list_link_t);
 
 struct Pmap
 {

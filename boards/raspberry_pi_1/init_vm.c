@@ -26,7 +26,7 @@
 #include <kernel/dbg.h>
 #include <kernel/filesystem.h>
 #include <kernel/globals.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/proc.h>
 #include <kernel/types.h>
 #include <kernel/utility.h>
@@ -134,9 +134,9 @@ void coalesce_free_pageframes(void)
   int cnt = 0;
   struct Pageframe *pf;
 
-  LIST_INIT(&free_4k_pf_list);
-  LIST_INIT(&free_16k_pf_list);
-  LIST_INIT(&free_64k_pf_list);
+  DLIST_INIT(&free_4k_pf_list);
+  DLIST_INIT(&free_16k_pf_list);
+  DLIST_INIT(&free_64k_pf_list);
 
   for (pa = 0; pa + 0x10000 < mem_size; pa += 0x10000) {
     slab_free_page_cnt = 0;
@@ -153,12 +153,12 @@ void coalesce_free_pageframes(void)
 
     if (slab_free_page_cnt * PAGE_SIZE == 0x10000) {
       pageframe_table[pa / PAGE_SIZE].size = 0x10000;
-      LIST_ADD_TAIL(&free_64k_pf_list, &pageframe_table[pa / PAGE_SIZE], link);
+      DLIST_ADD_TAIL(&free_64k_pf_list, &pageframe_table[pa / PAGE_SIZE], link);
     } else {
       for (pa2 = pa; pa2 < pa + 0x10000; pa2 += PAGE_SIZE) {
         if (pageframe_table[pa2 / PAGE_SIZE].flags == 0) {
           pageframe_table[pa2 / PAGE_SIZE].size = PAGE_SIZE;
-          LIST_ADD_TAIL(&free_4k_pf_list, &pageframe_table[pa2 / PAGE_SIZE],
+          DLIST_ADD_TAIL(&free_4k_pf_list, &pageframe_table[pa2 / PAGE_SIZE],
                         link);
         }
       }
@@ -171,29 +171,29 @@ void coalesce_free_pageframes(void)
         for (pa2 = pa; pa2 < mem_size; pa2 += PAGE_SIZE) {
             if (pageframe_table[pa2/PAGE_SIZE].flags == 0) {
                 pageframe_table[pa2/PAGE_SIZE].size = PAGE_SIZE;
-                LIST_ADD_TAIL (&free_4k_pf_list,
+                DLIST_ADD_TAIL (&free_4k_pf_list,
    &pageframe_table[pa2/PAGE_SIZE], link);
             }
         }
     }
 */
 
-  pf = LIST_HEAD(&free_4k_pf_list);
+  pf = DLIST_HEAD(&free_4k_pf_list);
   while (pf != NULL) {
     cnt++;
-    pf = LIST_NEXT(pf, link);
+    pf = DLIST_NEXT(pf, link);
   }
 
-  pf = LIST_HEAD(&free_16k_pf_list);
+  pf = DLIST_HEAD(&free_16k_pf_list);
   while (pf != NULL) {
     cnt++;
-    pf = LIST_NEXT(pf, link);
+    pf = DLIST_NEXT(pf, link);
   }
 
-  pf = LIST_HEAD(&free_64k_pf_list);
+  pf = DLIST_HEAD(&free_64k_pf_list);
   while (pf != NULL) {
     cnt++;
-    pf = LIST_NEXT(pf, link);
+    pf = DLIST_NEXT(pf, link);
   }
 }
 

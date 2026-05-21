@@ -295,11 +295,11 @@ int do_kill_process_group(pid_t pgid, int signal, int code, intptr_t val)
 	  return -EINVAL;
 	}
 	
-	proc = LIST_HEAD(&pgrp->process_list);
+	proc = DLIST_HEAD(&pgrp->process_list);
 	
 	while (proc != NULL) {	  
     do_signal_process(proc, signal, code, val);
-	  proc = LIST_NEXT(proc, pgrp_link);
+	  proc = DLIST_NEXT(proc, pgrp_link);
 	}
 	
   return 0;
@@ -325,7 +325,7 @@ void do_signal_process(struct Process *proc, int signal, int code, intptr_t val)
   struct Thread *thread;
     
 	if (proc->signal.handler[signal-1] != SIG_IGN) {                
-    thread = LIST_HEAD(&proc->thread_list);
+    thread = DLIST_HEAD(&proc->thread_list);
 
     // FIXME: What if all threads have their signal masked, where do we store the sig_pending, code and value?
     proc->signal.sig_pending |= SIGBIT(signal);
@@ -344,7 +344,7 @@ void do_signal_process(struct Process *proc, int signal, int code, intptr_t val)
         break;
       }
             
-      thread = LIST_NEXT(thread, thread_link);
+      thread = DLIST_NEXT(thread, thread_link);
     }
   }
 }

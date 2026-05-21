@@ -156,7 +156,7 @@ int sys_futex_requeue(void *uaddr, uint32_t n, void *uaddr2, uint32_t m, int fla
 
   int_state = DisableInterrupts();
   
-	while ((thread = LIST_HEAD(&futex->rendez.blocked_list)) != NULL && (count < (n + m))) {    
+	while ((thread = DLIST_HEAD(&futex->rendez.blocked_list)) != NULL && (count < (n + m))) {    
 		if (count < n) {
 		  TaskWakeupSpecific(thread, INTRF_NONE);
 		} else if (uaddr2 != NULL) {
@@ -190,14 +190,14 @@ struct Futex *futex_get(struct Process *proc, void *uaddr, int flags)
   
   hash = futex_hash(proc, uaddr);
   
-  futex = LIST_HEAD(&futex_hash_table[hash]);
+  futex = DLIST_HEAD(&futex_hash_table[hash]);
 
   while (futex != NULL) {
     if (futex->uaddr == (uintptr_t)uaddr && futex->proc == proc) {
       return futex;
     }
   
-    futex = LIST_NEXT(futex, hash_link);
+    futex = DLIST_NEXT(futex, hash_link);
   }    
 
   if (flags & FUTEX_CREATE) {
@@ -264,18 +264,18 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
 {
   struct Futex *futex;
 
-  futex = LIST_HEAD(&free_futex_list);
+  futex = DLIST_HEAD(&free_futex_list);
 
   if (futex == NULL) {
     klog_error("no free futex");
     return NULL;
   }
 
-  LIST_REM_HEAD(&free_futex_list, link);
-  LIST_ADD_HEAD(&proc->futex_list, futex, link);
+  DLIST_REM_HEAD(&free_futex_list, link);
+  DLIST_ADD_HEAD(&proc->futex_list, futex, link);
 
   futex->hash = futex_hash(proc, uaddr);  
-  LIST_ADD_HEAD(&futex_hash_table[futex->hash], futex, hash_link);
+  DLIST_ADD_HEAD(&futex_hash_table[futex->hash], futex, hash_link);
 
   futex->proc = proc;  
   futex->uaddr = (uintptr_t)uaddr;
@@ -291,10 +291,10 @@ struct Futex *futex_create(struct Process *proc, void *uaddr)
  */
 void futex_free(struct Process *proc, struct Futex *futex)
 {
-  LIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);
+  DLIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);
 
-  LIST_REM_ENTRY(&proc->futex_list, futex, link);
-  LIST_ADD_HEAD(&free_futex_list, futex, link);
+  DLIST_REM_ENTRY(&proc->futex_list, futex, link);
+  DLIST_ADD_HEAD(&free_futex_list, futex, link);
 }
 
 
@@ -320,16 +320,16 @@ int do_cleanup_futexes(struct Process *proc)
 {
   struct Futex *futex, *next;
   
-  futex = LIST_HEAD(&proc->futex_list);
+  futex = DLIST_HEAD(&proc->futex_list);
 
   while (futex != NULL) {
-    next = LIST_NEXT(futex, link);
+    next = DLIST_NEXT(futex, link);
     
     if (futex->proc == proc) {
-      LIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);
+      DLIST_REM_ENTRY(&futex_hash_table[futex->hash], futex, hash_link);
 
-      LIST_REM_ENTRY(&proc->futex_list, futex, link);
-      LIST_ADD_HEAD(&free_futex_list, futex, link);
+      DLIST_REM_ENTRY(&proc->futex_list, futex, link);
+      DLIST_ADD_HEAD(&free_futex_list, futex, link);
     }
 
     futex = next;

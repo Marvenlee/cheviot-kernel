@@ -63,7 +63,7 @@ int dname_lookup(struct VNode *dir, char *name, struct VNode **vnp)
   
   key %= DNAME_HASH;
 
-  dname = LIST_HEAD(&dname_hash[key]);
+  dname = DLIST_HEAD(&dname_hash[key]);
 
   while (dname != NULL) {
     if (dname->dir_vnode == dir && StrCmp(dname->name, name) == 0) {
@@ -73,7 +73,7 @@ int dname_lookup(struct VNode *dir, char *name, struct VNode **vnp)
       return 0;
     }
 
-    dname = LIST_NEXT(dname, hash_link);
+    dname = DLIST_NEXT(dname, hash_link);
   }
 
   *vnp = NULL;
@@ -108,7 +108,7 @@ int dname_enter(struct VNode *dir, struct VNode *vn, char *name)
   
   key %= DNAME_HASH;
 
-  dname = LIST_HEAD(&dname_hash[key]);
+  dname = DLIST_HEAD(&dname_hash[key]);
 
   while (dname != NULL) {
     if (dname->dir_vnode == dir && StrCmp(dname->name, name) == 0) {
@@ -118,15 +118,15 @@ int dname_enter(struct VNode *dir, struct VNode *vn, char *name)
       return 0;
     }
 
-    dname = LIST_NEXT(dname, hash_link);
+    dname = DLIST_NEXT(dname, hash_link);
   }
 
-  dname = LIST_HEAD(&dname_lru_list);
+  dname = DLIST_HEAD(&dname_lru_list);
 
-  LIST_REM_HEAD(&dname_lru_list, lru_link);
+  DLIST_REM_HEAD(&dname_lru_list, lru_link);
 
   if (dname->hash_key != -1) {
-    LIST_REM_ENTRY(&dname_hash[dname->hash_key], dname, hash_link);
+    DLIST_REM_ENTRY(&dname_hash[dname->hash_key], dname, hash_link);
   }
 
   dname->hash_key = key;
@@ -134,8 +134,8 @@ int dname_enter(struct VNode *dir, struct VNode *vn, char *name)
   dname->vnode = vn;
   StrLCpy(dname->name, name, DNAME_SZ);
 
-  LIST_ADD_TAIL(&dname_lru_list, dname, lru_link);
-  LIST_ADD_HEAD(&dname_hash[key], dname, hash_link);
+  DLIST_ADD_TAIL(&dname_lru_list, dname, lru_link);
+  DLIST_ADD_HEAD(&dname_hash[key], dname, hash_link);
   return 0;
 }
 
@@ -162,18 +162,18 @@ int dname_remove(struct VNode *dir, char *name)
   }
 
   key %= DNAME_HASH;
-  dname = LIST_HEAD(&dname_hash[key]);
+  dname = DLIST_HEAD(&dname_hash[key]);
 
   while (dname != NULL) {
     if (StrCmp(dname->name, name) == 0) {
-      LIST_REM_ENTRY(&dname_hash[key], dname, hash_link);
+      DLIST_REM_ENTRY(&dname_hash[key], dname, hash_link);
       dname->hash_key = -1;
-      LIST_REM_ENTRY(&dname_lru_list, dname, lru_link);
-      LIST_ADD_HEAD(&dname_lru_list, dname, lru_link);
+      DLIST_REM_ENTRY(&dname_lru_list, dname, lru_link);
+      DLIST_ADD_HEAD(&dname_lru_list, dname, lru_link);
       return 0;
     }
 
-    dname = LIST_NEXT(dname, hash_link);
+    dname = DLIST_NEXT(dname, hash_link);
   }
 
   return -1;
@@ -193,11 +193,11 @@ void dname_purge_vnode(struct VNode *vnode)
   for (t = 0; t < NR_DNAME; t++) {
     if (dname_table[t].hash_key != -1 &&
         (dname_table[t].vnode == vnode || dname_table[t].dir_vnode == vnode)) {
-      LIST_REM_ENTRY(&dname_hash[dname_table[t].hash_key], &dname_table[t],
+      DLIST_REM_ENTRY(&dname_hash[dname_table[t].hash_key], &dname_table[t],
                      hash_link);
       dname_table[t].hash_key = -1;
-      LIST_REM_ENTRY(&dname_lru_list, &dname_table[t], lru_link);
-      LIST_ADD_HEAD(&dname_lru_list, &dname_table[t], lru_link);
+      DLIST_REM_ENTRY(&dname_lru_list, &dname_table[t], lru_link);
+      DLIST_ADD_HEAD(&dname_lru_list, &dname_table[t], lru_link);
     }
   }
 }
@@ -212,11 +212,11 @@ void dname_purge_superblock(struct SuperBlock *sb)
   for (int t = 0; t < NR_DNAME; t++) {
     if (dname_table[t].hash_key != -1 &&
         (dname_table[t].vnode->superblock == sb)) {
-      LIST_REM_ENTRY(&dname_hash[dname_table[t].hash_key], &dname_table[t],
+      DLIST_REM_ENTRY(&dname_hash[dname_table[t].hash_key], &dname_table[t],
                      hash_link);
       dname_table[t].hash_key = -1;
-      LIST_REM_ENTRY(&dname_lru_list, &dname_table[t], lru_link);
-      LIST_ADD_HEAD(&dname_lru_list, &dname_table[t], lru_link);
+      DLIST_REM_ENTRY(&dname_lru_list, &dname_table[t], lru_link);
+      DLIST_ADD_HEAD(&dname_lru_list, &dname_table[t], lru_link);
     }
   }
 }
@@ -234,6 +234,6 @@ void dname_purge_all(void)
     dname_table[t].vnode = NULL;
   }
 
-  LIST_INIT(&dname_lru_list);
+  DLIST_INIT(&dname_lru_list);
 }
 

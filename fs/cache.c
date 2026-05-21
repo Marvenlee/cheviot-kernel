@@ -176,14 +176,14 @@ struct Page *find_blk(struct VNode *vnode, uint64_t file_offset)
   int h;
   
   h = calc_page_lookup_hash(vnode->inode_nr, file_offset);
-  page = LIST_HEAD(&page_lookup_hash[h]);
+  page = DLIST_HEAD(&page_lookup_hash[h]);
 
   while (page != NULL) {
     if (page->vnode == vnode && page->file_offset == file_offset) {
       return page;
     }
     
-    page = LIST_NEXT(page, lookup_link);
+    page = DLIST_NEXT(page, lookup_link);
   }
   
   return NULL;
@@ -204,7 +204,7 @@ struct Page *find_available_blk(void)
 {
   struct Page *page;
 
-  if ((page = LIST_TAIL(&free_page_queue)) != NULL) {
+  if ((page = DLIST_TAIL(&free_page_queue)) != NULL) {
     return page;
   }
 
@@ -217,7 +217,7 @@ struct Page *find_available_blk(void)
  */
 void add_to_free_page_queue(struct Page *page)
 {
-  LIST_ADD_HEAD(&free_page_queue, page, free_link);
+  DLIST_ADD_HEAD(&free_page_queue, page, free_link);
   free_page_cnt++;
 }
 
@@ -227,7 +227,7 @@ void add_to_free_page_queue(struct Page *page)
  */
 void add_to_free_page_queue_tail(struct Page *page)
 {
-  LIST_ADD_TAIL(&free_page_queue, page, free_link);
+  DLIST_ADD_TAIL(&free_page_queue, page, free_link);
   free_page_cnt++;
 }
 
@@ -237,7 +237,7 @@ void add_to_free_page_queue_tail(struct Page *page)
  */
 void remove_from_free_page_queue(struct Page *page)
 {
-  LIST_REM_ENTRY(&free_page_queue, page, free_link);
+  DLIST_REM_ENTRY(&free_page_queue, page, free_link);
   free_page_cnt--;
 }
 
@@ -248,7 +248,7 @@ void remove_from_free_page_queue(struct Page *page)
 void add_to_lookup_page_hash(struct Page *page)
 {
   int h = calc_page_lookup_hash(page->vnode->inode_nr, page->file_offset);
-  LIST_ADD_HEAD(&page_lookup_hash[h], page, lookup_link);
+  DLIST_ADD_HEAD(&page_lookup_hash[h], page, lookup_link);
 }
 
 
@@ -258,7 +258,7 @@ void add_to_lookup_page_hash(struct Page *page)
 void remove_from_lookup_page_hash(struct Page *page)
 {
   int h = calc_page_lookup_hash(page->vnode->inode_nr, page->file_offset);
-  LIST_REM_ENTRY(&page_lookup_hash[h], page, lookup_link);
+  DLIST_REM_ENTRY(&page_lookup_hash[h], page, lookup_link);
 }
 
 
@@ -269,7 +269,7 @@ void add_to_vnode_page_list(struct Page *page)
 {
   kassert(page->vnode != NULL);
   
-  LIST_ADD_HEAD(&page->vnode->page_list, page, vnode_link);
+  DLIST_ADD_HEAD(&page->vnode->page_list, page, vnode_link);
 }
 
 
@@ -281,7 +281,7 @@ void remove_from_vnode_page_list(struct Page *page)
   kassert(page->vnode != NULL);
   kassert(page->vnode->superblock != NULL);
 
-  LIST_REM_ENTRY(&page->vnode->page_list, page, vnode_link);
+  DLIST_REM_ENTRY(&page->vnode->page_list, page, vnode_link);
 }
 
 
@@ -464,11 +464,11 @@ void mark_all_vnode_pages_as_busy(struct VNode *vnode)
 {
   struct Page *page;
 
-  page = LIST_HEAD(&vnode->page_list);
+  page = DLIST_HEAD(&vnode->page_list);
   
   while (page != NULL) {
     page->bflags |= B_BUSY;
-    page = LIST_NEXT(page, vnode_link);
+    page = DLIST_NEXT(page, vnode_link);
   }
 }
 
@@ -516,10 +516,10 @@ int btruncatev(struct VNode *vnode)
 
   mark_all_vnode_pages_as_busy(vnode);
 
-  page = LIST_HEAD(&vnode->page_list);
+  page = DLIST_HEAD(&vnode->page_list);
     
   while(page != NULL) {
-    next = LIST_NEXT(page, vnode_link); 
+    next = DLIST_NEXT(page, vnode_link); 
   
     if (vnode->size <= page->file_offset) {
       page->bflags &= ~B_VALID;
@@ -558,7 +558,7 @@ int binvalidatev(struct VNode *vnode)
 {
   struct Page *page;
 
-  while((page = LIST_HEAD(&vnode->page_list)) != NULL) {
+  while((page = DLIST_HEAD(&vnode->page_list)) != NULL) {
     page->bflags |= B_BUSY;
     page->bflags &= ~B_VALID;
     

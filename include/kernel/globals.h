@@ -5,7 +5,7 @@
 #include <kernel/types.h>
 #include <kernel/interrupt.h>
 #include <kernel/filesystem.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/proc.h>
 #include <kernel/vm.h>
 #include <kernel/msg.h>

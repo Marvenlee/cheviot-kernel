@@ -3,7 +3,7 @@
 
 #include <sys/syscalls.h>
 #include <kernel/arch.h>
-#include <kernel/lists.h>
+#include <sys/queue2.h>
 #include <kernel/types.h>
 
 // Forward declarations
@@ -13,8 +13,8 @@ struct VNode;
 
 
 // Linked list types
-LIST_TYPE(Page, page_list_t, page_link_t);
-LIST_TYPE(MemRegion, memregion_list_t, memregion_link_t);
+DLIST_TYPE(Page, page_list_t, page_link_t);
+DLIST_TYPE(MemRegion, memregion_list_t, memregion_link_t);
 
 
 // Flags used for kernel administration of pages
